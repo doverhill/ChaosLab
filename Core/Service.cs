@@ -4,7 +4,9 @@
     {
         public static ErrorOr<Handle> Create(ServiceDescription description)
         {
-            return new ErrorOr<Handle>(Error.NotImplemented);
+            return Syscalls.ServiceCreate(description);
+
+            register handle globally so that event loop can use it and call On* methods on it when there is an event for the handle id
         }
 
         public static Optional<Error> Destroy(Handle serviceHandle)

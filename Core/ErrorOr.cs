@@ -36,7 +36,7 @@
         {
             if (isError)
             {
-                Process.EmitError(error, errorMessage + ": " + error.ToString());
+                Process.EmitError(error, errorMessage);
                 Process.End();
             }
             return value;

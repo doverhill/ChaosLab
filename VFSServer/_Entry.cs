@@ -1,12 +1,12 @@
 ﻿using Core;
 
-namespace ListFiles
+namespace Chaos
 {
-    public static class _Entry
+    public static class Root
     {
-        public static void ApplicationEntry()
+        public static void Entry()
         {
-            var application = new Application();
+            var application = new VFSServer.Application();
             application.Start();
             ASSERT.NotReached();
         }
