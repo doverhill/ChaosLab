@@ -1,0 +1,141 @@
+GOALS:
+    * Kernel and system libraries written in Rust
+    * Port net core so that servers and
+    * Multicore
+    * Minimal drivers in kernel
+        * Those drivers are exposed to userland in the same way as userland drivers, no distinction
+    * Architectures
+        * x64 (main)
+        * arm64 to run on raspberry pi/apple m1
+    * Every object the kernel knows has a Handle
+    * Since IPC is done using shared memory and only the channel primitive for signal synchronization:
+        * Kernel sceduler should try to schedule processes on either side of a channel on separate cores
+    * Measures should be taken to try to enforce consistent app development style. Wrap common application flows in library constructs
+    * Does the system need to know about users? Or is it enough to implement Capabilities that are inherited by all child applications?
+    * Allow application output as input to another program eg. "ls | grep a.txt". All data should be structured. Allows things like "ls | where Size > 1000 | order Size -Ascending | select FullPath, CreatedAt.Year | take 1"
+    * The kernel keeps track of all handles and which processes have access to it
+    * MINIMAL Kernel API (ideally around 10 system calls)
+    * Efficient, never copy data, use shared memory
+    * The system should be rebootable without restarting the kernel
+    * Applications never return anything
+    * Applications may emit STRUCTURED data
+        * Object (JSON)
+        * Primitive (int, string, number, bool)
+        * List<Object|Primitive> - Streamed so that consumer can start working on data while producer is still emitting
+        * Debug packet
+        * Warning packet
+        * Error packet
+    * Builtin application state management so that applications can be unloaded/reloaded/relocated to other machine seamlessly 
+    * Applications and config
+        * Every application is a SINGLE file that is placed in /Applications when installed, and deleted when uninstalled
+        * Every application config is a standard JSON file managed by the system. This allows applications to react to config changes and also distribution of config when using multiple devices
+        * JSON config format is standardised and defined by JSON schema so that a standard system config UI can be used to configure all applications
+
+Handle:
+{
+    u64 LocalId;
+    Guid GlobalId;
+}
+
+
+KERNEL API:
+
+    * ErrorOr<Handle> Service.Create(ServiceDescriptor ServiceDescriptor)
+    * ErrorOr<Handle> Service.Connect(ServiceDescriptor ServiceDescriptor) // may leave fields empty to accept any service
+    * Optional<Error> Service.Destroy(Handle serviceHandle)    
+    * ErrorOr<Channel> Channel.Create(Handle handle)
+    * Optional<Error> Channel.Destroy(Channel channel)
+    * ErrorOr<Event> Event.Wait(Optional<TimeSpan> timeout)
+    * ErrorOr<Handle> Process.Create(ProcessCreate createData) (Flags NoParent=The new process will not get this process as parent, but this process' parent)
+    * Optional<Error> Process.Emit<Data data>
+    * Optional<Error> Process.Destroy
+    * ErrorOr<Handle> Thread.Create(ThreadCreate createData)
+    * Optional<Error> Thread.Destroy
+
+
+
+LIBRARIES:
+    * Storm - contains syscalls and Handle struct only - never used directly by applications, only other libraries
+        * Storm.Error
+        * Storm.Handle
+        * ErrorOr<T>
+        * Optional<T>
+    * System
+        * Contains all abstractions necessary (event loop, IPC, ...) to easily build standardised applications
+        * Contains standard types
+            * System.String
+            * System.StringView
+            * ...
+        * Namespaces
+            * System.Application
+
+
+
+
+SERVER APP (FS):
+
+Pseudo:
+    Storm.Process.Emit(new Storm.Data.Information("Starting VFS server));
+
+    ErrorOr<Storm.Handle> serviceHandle = Storm.Service.Create(new ServiceDescriptor(ProtocolName="vfs", VendorName="System", "DeviceName"="Virtual File System", "DeviceId"=Guid.Empty())); // Guid.Empty ensures only one instance of vfs server can be started
+    if (serviceHandle.IsError()) {
+        System.Application.Emit(serviceHandle.Error());
+        System.Application.Exit(); // returning here instead will emit error (and killing app). thus enforcing being explicit about what one wants - to exit the application
+    }
+
+    Storm.Process.Emit(new Storm.Data.Debug("VFS service at handle " + serviceHandle.Value().ToString()));
+    
+    serviceHandle.Value().OnOpen = (RelativePath path):ErrorOr<Handle> => {
+
+
+    };
+
+    Optional<Storm.Error> run = System.Application.Run(); // runs the event loop 
+    if (run.HasValue())
+    {
+        Storm.Process.Emit(run.Value); // emits error
+    }
+
+    Storm.Service.Destroy(serviceHandle); // explicit, will be destroyed anyway when the app exits (may emit warning though)
+    System.Application.Exit(); // explicit, will be performed when main program ends (may emit warning though)
+
+
+
+
+
+
+CLIENT APP ("ls"):
+
+Pseudo:
+---
+    var vfsHandle = Storm.Service.Connect(new ServiceDescriptor(ProtocolName="vfs")) // any service implementing vfs protocol
+    if (vfsHandle.IsError()) {
+        Storm.Process.Emit(vfsHandle.Error());
+        Storm.Process.Exit();
+    }
+--- OR ---
+    var vfsHandle = Storm.Service.Connect(new ServiceDescriptor(ProtocolName="vfs")).Require("Failed to connect to VFS service"); // Require is a convenience method on ErrorOr<T> which either returns the T or Emits error and exits process
+---
+
+    // channel structs are created automatically from compiling some IDL file
+
+    var channel = Storm.Channel.Create(vfsHandle, sizeof(VFSLib.ChannelStruct)).Require("Failed to create VFS channel");
+    VFSLib.PopulateListMessage(channel, "/");  // fills in preallocated struct in channel shared memory
+    Storm.Channel.Signal(VFS_LIST); // sets a preallocated u8 in shared memory (VFS_LIST_DATA_READY)
+
+    // TODO: Standard way for calls that returns stream like responses (unknown size). Something like this:
+    // The struct for VFS_LIST_REPLY contains space for something like 256 entries
+    do {
+        Storm.Channel.Wait(VFS_LIST_RESPONSE, Channel.DefaultTimeout); // spins waiting for the u8 VFS_LIST_RESPONSE_DATA_READY. Timeout is set to default value for IPC operations
+        var response = VFSLib.GetListResponse(channel); // basically just returns a pointer to the preallocated struct in channel for this message type
+        EmitData(response) // local function - emits structured data
+    } while (response.HasMoreData())
+
+    Storm.Process.Exit();
+
+
+
+CLIENT APP ("tornado hello world", without ui lib)
+
+Pseudo:
+    Storm.Handle tornadoServerHandle = Storm.Service.Open("tornado",)
