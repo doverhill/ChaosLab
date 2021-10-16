@@ -66,5 +66,10 @@ namespace Core
             var id = reader.ReadUInt64();
             return new ErrorOr<Handle>(new Handle(id));
         }
+
+        public static ErrorOr<Handle> EventWait()
+        {
+            return new ErrorOr<Handle>(Error.NotImplemented);
+        }
     }
 }

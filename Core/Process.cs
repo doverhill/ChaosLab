@@ -1,9 +1,17 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Core
 {
     public static class Process
     {
+        private static List<Handle> handles;
+
+        internal static void RegisterHandle(Handle handle)
+        {
+            handles.Add(handle);
+        }
+
         public static Optional<Error> Run()
         {
             // main event loop
