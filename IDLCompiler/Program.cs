@@ -1,13 +1,14 @@
 ﻿using IDLCompiler;
 using System.Text.Json;
 
-if (args.Length < 1)
+if (args.Length < 2)
 {
-    Console.WriteLine("Error: Use with <interface.idl>");
+    Console.WriteLine("Error: Use with <client|server> <interface.idl>");
     return;
 }
 
-var filename = args[0];
+var side = args[0];
+var filename = args[1];
 var fileContents = File.ReadAllText(filename);
 var options = new JsonSerializerOptions
 {
@@ -40,24 +41,53 @@ if (idl.Types != null)
     }
 }
 
-Console.WriteLine(idl.InboundCalls?.Count + " inbound calls");
-if (idl.InboundCalls != null)
+if (side == "client")
 {
-    foreach (var call in idl.InboundCalls)
+    Console.WriteLine(idl.ClientToServerCalls?.Count + " client->server calls");
+    if (idl.ClientToServerCalls != null)
     {
-        Console.WriteLine("  Emitting call " + call.Name);
-        CallEmitter.Emit(idl, call);
+        foreach (var call in idl.ClientToServerCalls)
+        {
+            Console.WriteLine("  Emitting call " + call.Name);
+            CallEmitter.Emit(idl, call);
+        }
+    }
+
+    Console.WriteLine(idl.ServerToClientCalls?.Count + " server->client handlers");
+    if (idl.ServerToClientCalls != null)
+    {
+        foreach (var call in idl.ServerToClientCalls)
+        {
+            Console.WriteLine("  Emitting handler " + call.Name);
+            HandlerEmitter.Emit(idl, call);
+        }
     }
 }
-
-Console.WriteLine(idl.OutboundCalls?.Count + " outbound calls");
-if (idl.OutboundCalls != null)
+else if (side == "server")
 {
-    foreach (var call in idl.OutboundCalls)
+    Console.WriteLine(idl.ServerToClientCalls?.Count + " server->client calls");
+    if (idl.ServerToClientCalls != null)
     {
-        Console.WriteLine("  Emitting call " + call.Name);
-        CallEmitter.Emit(idl, call);
+        foreach (var call in idl.ServerToClientCalls)
+        {
+            Console.WriteLine("  Emitting call " + call.Name);
+            CallEmitter.Emit(idl, call);
+        }
     }
+
+    Console.WriteLine(idl.ClientToServerCalls?.Count + " client->server handlers");
+    if (idl.ClientToServerCalls != null)
+    {
+        foreach (var call in idl.ClientToServerCalls)
+        {
+            Console.WriteLine("  Emitting handler " + call.Name);
+            HandlerEmitter.Emit(idl, call);
+        }
+    }
+}
+else
+{
+    Console.WriteLine("Error: Unknown side '" + side + "'");
 }
 
 Console.WriteLine("Done");

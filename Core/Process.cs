@@ -5,11 +5,16 @@ namespace Core
 {
     public static class Process
     {
+        private static object _lock = new object();
         private static List<Handle> handles;
 
         internal static void RegisterHandle(Handle handle)
         {
-            handles.Add(handle);
+            lock (_lock)
+            {
+                if (handles == null) handles = new List<Handle>();
+                handles.Add(handle);
+            }
         }
 
         public static Optional<Error> Run()

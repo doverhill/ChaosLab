@@ -10,4 +10,8 @@
     <ProjectReference Include="..\VFS\VFS.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="IPC\" />
+  </ItemGroup>
+
 </Project>

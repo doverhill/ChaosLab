@@ -30,7 +30,7 @@ namespace IDLCompiler
     {
         public IDLInterface? Interface;
         public List<IDLType>? Types;
-        public List<IDLCall>? InboundCalls;
-        public List<IDLCall>? OutboundCalls;
+        public List<IDLCall>? ClientToServerCalls;
+        public List<IDLCall>? ServerToClientCalls;
     }
 }

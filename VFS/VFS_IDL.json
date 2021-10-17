@@ -9,29 +9,38 @@
 		{
 			"Name": "FileInfo",
 			"Fields": [
-				"string filename",
-				"string fullpath"
+				"string Filename",
+				"string Fullpath"
 			]
 		}
 	],
 
 	// These are IPC calls from the client to the server
-	"InboundCalls": [
+	"ClientToServerCalls": [
 		{
 			"Name": "ListFiles",
 			"Parameters": [
-				"string directoryPath"
+				"string DirectoryPath",
+				"bool Recursive"
 			],
 			"Returns": [
-				"FileInfo[] files"
+				"FileInfo[] Files"
+			]
+		},
+		{
+			"Name": "GetFileInfo",
+			"Parameters": [
+				"string FilePath"
 			],
-			"BatchSize": 64
+			"Returns": [
+				"FileInfo File"
+			]
 		}
 	],
 
 	// These are IPC calls from the server to the client
 	// Note that responses from the server to calls made by the client are defined in the Outbound section
-	"OutboundCalls": [
+	"ServerToClientCalls": [
 
 	]
 }

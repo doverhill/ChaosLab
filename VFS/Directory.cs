@@ -1,10 +1,12 @@
 ﻿using Core;
+using System.Collections.Generic;
+using VFS.IPC;
 
 namespace VFS
 {
     public static class Directory
     {
-        public static ErrorOr<Enumerator<Item>> ListFiles(DirectoryPath path)
+        public static ErrorOr<Enumerator<FileInfo>> ListFiles(DirectoryPath path, bool recursive)
         {
             //var channel = Channel.Get();
             //channel.SendListFiles(path);
