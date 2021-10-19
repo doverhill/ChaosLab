@@ -40,7 +40,7 @@ namespace ListFiles
             var files = Directory.ListFiles(new DirectoryPath("/"), false).Require("Could not list files");
 
             var result = files.ForEach((item) => {
-                Process.EmitDebug(item.Path.ToString());
+                //Process.EmitDebug(item.Path.ToString());
                 return false;
             });
 

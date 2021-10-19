@@ -14,6 +14,7 @@ namespace VFS.IPC
 
         public ErrorOr<IEnumerable<FileInfo>> ListFiles(ListFilesParameters parameters)
         {
+            return new ErrorOr<IEnumerable<FileInfo>>(Error.NotImplemented);
         }
     }
 }

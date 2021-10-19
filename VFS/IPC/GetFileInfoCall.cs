@@ -17,6 +17,7 @@ namespace VFS.IPC
 
         public ErrorOr<GetFileInfoReturn> GetFileInfo(GetFileInfoParameters parameters)
         {
+            return new ErrorOr<GetFileInfoReturn>(Error.NotImplemented);
         }
     }
 }

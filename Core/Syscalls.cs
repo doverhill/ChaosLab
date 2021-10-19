@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Uuids;
 
 namespace Core
 {
@@ -52,14 +53,14 @@ namespace Core
             return new Optional<Error>();
         }
 
-        public static ErrorOr<Handle> ServiceCreate(ServiceDescription description)
+        public static ErrorOr<Handle> ServiceCreate(string protocolName, string vendorName, string deviceName, Uuid deviceId)
         {
             var (reader, writer) = GetKernelSocket();
             writer.Write((int)SyscallNumber.ServiceCreate);
-            SyscallHelpers.WriteText(writer, description.Protocol);
-            SyscallHelpers.WriteText(writer, description.Vendor.HasValue() ? description.Vendor.Value() : null);
-            SyscallHelpers.WriteText(writer, description.DeviceName.HasValue() ? description.DeviceName.Value() : null);
-            SyscallHelpers.WriteGuid(writer, description.DeviceId.HasValue() ? description.DeviceId.Value() : null);
+            SyscallHelpers.WriteText(writer, protocolName);
+            SyscallHelpers.WriteText(writer, vendorName);
+            SyscallHelpers.WriteText(writer, deviceName);
+            SyscallHelpers.WriteUuid(writer, deviceId);
 
             var kernelResult = (Error)reader.ReadInt32();
             if (kernelResult != 0) return new ErrorOr<Handle>(kernelResult);

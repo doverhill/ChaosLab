@@ -166,6 +166,8 @@ namespace IDLCompiler
             WriteIndent(); writer.WriteLine("public " + returns + " " + call.Name + "(" + parameters + ")");
             WriteIndent(); writer.WriteLine("{"); indent++;
 
+            WriteIndent(); writer.WriteLine("return new " + returns + "(Error.NotImplemented);");
+
             indent--; WriteIndent(); writer.WriteLine("}");
             //call implementation end
 

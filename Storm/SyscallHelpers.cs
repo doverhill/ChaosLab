@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Uuids;
 
 namespace Storm
 {
@@ -36,24 +37,24 @@ namespace Storm
             }
         }
 
-        public static void WriteGuid(BinaryWriter writer, Guid? guid)
+        public static void WriteUuid(BinaryWriter writer, Uuid? uuid)
         {
-            if (!guid.HasValue)
+            if (!uuid.HasValue)
             {
                 writer.Write(false);
             }
             else
             {
                 writer.Write(true);
-                writer.Write(guid.Value.ToByteArray());
+                writer.Write(uuid.Value.ToByteArray());
             }
         }
 
-        public static Guid? ReadGuid(BinaryReader reader)
+        public static Uuid? ReadUuid(BinaryReader reader)
         {
-            var hasGuid = reader.ReadBoolean();
-            if (hasGuid)
-                return new Guid(reader.ReadBytes(16));
+            var hasUuid = reader.ReadBoolean();
+            if (hasUuid)
+                return new Uuid(reader.ReadBytes(16));
             else
                 return null;
         }

@@ -2,6 +2,7 @@
 using System;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
+using Uuids;
 
 namespace VFSServer
 {
@@ -40,7 +41,7 @@ namespace VFSServer
             
 
 
-            var serviceHandle = Service.Create(new ServiceDescription("vfs", new Optional<string>("Chaos"), new Optional<string>("Virtual file system server"), new Optional<Guid>(Guid.Empty))).Require("Failed to create service");
+            var serviceHandle = Service.Create("vfs", "Chaos", "Virtual file system server", Uuid.Empty).Require("Failed to create service");
             Process.EmitDebug("Created VFS service handle " + serviceHandle.ToString());
 
             serviceHandle.OnConnect = HandleConnect;

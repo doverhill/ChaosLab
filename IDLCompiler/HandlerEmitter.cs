@@ -8,6 +8,9 @@ namespace IDLCompiler
 {
     internal class HandlerEmitter
     {
+        public static void Emit(IDL idl, IDLCall call)
+        {
 
+        }
     }
 }

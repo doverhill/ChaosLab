@@ -1,10 +1,12 @@
-﻿namespace Core
+﻿using Uuids;
+
+namespace Core
 {
     public static class Service
     {
-        public static ErrorOr<Handle> Create(ServiceDescription description)
+        public static ErrorOr<Handle> Create(string protocolName, string vendorName, string deviceName, Uuid deviceId)
         {
-            var handle = Syscalls.ServiceCreate(description);
+            var handle = Syscalls.ServiceCreate(protocolName, vendorName, deviceName, deviceId);
             if (!handle.IsError()) Process.RegisterHandle(handle.Value());
             return handle;
         }

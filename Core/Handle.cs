@@ -2,6 +2,15 @@
 
 namespace Core
 {
+    public enum HandleAction
+    {
+        Connect = 1,
+        Open = 2,
+        Close = 3,
+        Read = 4,
+        Write = 5
+    }
+
     public class Handle
     {
         //private bool isGlobal;

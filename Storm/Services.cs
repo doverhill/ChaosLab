@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Uuids;
 
 namespace Storm
 {
@@ -12,9 +13,9 @@ namespace Storm
         public string Protocol;
         public string Vendor;
         public string DeviceName;
-        public Guid DeviceId;
+        public Uuid DeviceId;
 
-        public Service(ulong owningPID, string protocol, string vendor, string deviceName, Guid deviceId)
+        public Service(ulong owningPID, string protocol, string vendor, string deviceName, Uuid deviceId)
         {
             OwningPID = owningPID;
             Protocol = protocol;
@@ -29,7 +30,7 @@ namespace Storm
         private static object _lock = new object();
         private static Dictionary<string, List<Service>> services = new Dictionary<string, List<Service>>();
 
-        public static ulong Create(ulong pid, string protocol, string vendor, string deviceName, Guid? deviceId)
+        public static ulong Create(ulong pid, string protocol, string vendor, string deviceName, Uuid? deviceId)
         {
             var handle = Handles.AllocateHandle(pid, HandleType.Service);
             var service = new Service(pid, protocol, vendor, deviceName, deviceId.Value);

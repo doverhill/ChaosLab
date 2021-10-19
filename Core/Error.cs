@@ -1,13 +1,13 @@
-﻿namespace Core
+﻿namespace Storm
 {
     public enum Error
     {
-        None,
-        NotFound,
-        PermissionDenied,
-        NotImplemented,
-        Timeout,
-        Cancelled,
-        Duplicate
+        None = 0,
+        NotFound = 1,
+        PermissionDenied = 2,
+        NotImplemented = 3,
+        Timeout = 4,
+        Cancelled = 5,
+        Duplicate = 6
     }
 }

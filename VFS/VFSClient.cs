@@ -12,7 +12,8 @@ namespace VFS
         public static Optional<Error> Initialize()
         {
             // Connect to VFS service
-            var handle = Service.Connect()
+            //var handle = Service.Connect()
+            return new Optional<Error>(Error.NotImplemented);
         }
     }
 }

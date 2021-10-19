@@ -12,8 +12,7 @@ namespace Storm
 
         public void Start()
         {
-            Console.WriteLine("Starting Storm kernel...");
-
+            Output.WriteLine(SyscallProcessEmitType.Information, null, "Starting Storm kernel...");
             AcceptClients();
         }
 
@@ -24,7 +23,7 @@ namespace Storm
             var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             serverSocket.Bind(ipEndpoint);
             serverSocket.Listen();
-            Console.WriteLine("Listening on " + ipEndpoint.ToString());
+            Output.WriteLine(SyscallProcessEmitType.Information, null, "Listening on " + ipEndpoint.ToString());
 
             do
             {
@@ -47,7 +46,7 @@ namespace Storm
         {
             var clientSocket = (Socket)socket;
             var pid = AllocatePID();
-            Console.WriteLine("[" + pid + "] Application connected");
+            Output.WriteLine(SyscallProcessEmitType.Debug, pid, "Application connected");
 
             using var clientStream = new NetworkStream(clientSocket);
             using var reader = new BinaryReader(clientStream);
@@ -77,12 +76,16 @@ namespace Storm
                             var protocol = SyscallHelpers.ReadText(reader);
                             var vendor = SyscallHelpers.ReadText(reader);
                             var deviceName = SyscallHelpers.ReadText(reader);
-                            var deviceId = SyscallHelpers.ReadGuid(reader);
+                            var deviceId = SyscallHelpers.ReadUuid(reader);
                             SyscallHandlers.ServiceCreate(writer, pid, protocol, vendor, deviceName, deviceId);
                             break;
 
+                        case SyscallNumber.EventWait:
+                            SyscallHandlers.EventWait(writer, pid);
+                            break;
+
                         default:
-                            Console.WriteLine("Error: Unknown syscall: syscallNumber=" + syscallNumber.ToString() + ", PID=" + pid);
+                            Output.WriteLine(SyscallProcessEmitType.Error, pid, "Unknown syscall: " + syscallNumber.ToString());
                             writer.Write((int)Error.NotImplemented);
                             break;
                     }
@@ -90,9 +93,11 @@ namespace Storm
             }
             catch (Exception e)
             {
+                Output.WriteLine(SyscallProcessEmitType.Debug, pid, "Application error: " + e.Message);
+                clientSocket.Close();
             }
 
-            Console.WriteLine("[" + pid + "] Application disconnected");
+            Output.WriteLine(SyscallProcessEmitType.Debug, pid, "Application disconnected");
         }
     }
 }
