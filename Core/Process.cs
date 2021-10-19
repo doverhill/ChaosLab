@@ -41,7 +41,7 @@ namespace Core
             Console.WriteLine("Information: " + informationText);
             Console.ForegroundColor = oldColor;
 
-            return Syscalls.ProcessEmit(Storm.SyscallProcessEmitType.Information, Error.None, informationText);
+            return Syscalls.ProcessEmit(SyscallProcessEmitType.Information, Error.None, informationText);
         }
 
         public static Optional<Error> EmitDebug(string debugText)
@@ -51,7 +51,7 @@ namespace Core
             Console.WriteLine("Debug: " + debugText);
             Console.ForegroundColor = oldColor;
 
-            return Syscalls.ProcessEmit(Storm.SyscallProcessEmitType.Debug, Error.None, debugText);
+            return Syscalls.ProcessEmit(SyscallProcessEmitType.Debug, Error.None, debugText);
         }
 
         public static Optional<Error> EmitWarning(string warningText)
@@ -61,7 +61,7 @@ namespace Core
             Console.WriteLine("Warning: " + warningText);
             Console.ForegroundColor = oldColor;
 
-            return Syscalls.ProcessEmit(Storm.SyscallProcessEmitType.Warning, Error.None, warningText);
+            return Syscalls.ProcessEmit(SyscallProcessEmitType.Warning, Error.None, warningText);
         }
 
         public static Optional<Error> EmitError(Error error, string errorText)
@@ -71,7 +71,7 @@ namespace Core
             Console.WriteLine("Error: " + error.ToString() + ": " + errorText);
             Console.ForegroundColor = oldColor;
 
-            return Syscalls.ProcessEmit(Storm.SyscallProcessEmitType.Error, error, errorText);
+            return Syscalls.ProcessEmit(SyscallProcessEmitType.Error, error, errorText);
         }
     }
 }

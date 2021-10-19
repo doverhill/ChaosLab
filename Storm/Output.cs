@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Core;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +9,7 @@ namespace Storm
 {
     internal class Output
     {
-        public static SyscallProcessEmitType Verbosity = SyscallProcessEmitType.Debug;
+        public static SyscallProcessEmitType Verbosity = SyscallProcessEmitType.Information;
 
         public static void WriteLineForced(SyscallProcessEmitType type, ulong? pid, string format, object[] args = null)
         {

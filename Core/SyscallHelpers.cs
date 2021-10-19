@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Uuids;
 
-namespace Storm
+namespace Core
 {
     public static class SyscallHelpers
     {

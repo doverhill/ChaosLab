@@ -1,12 +1,34 @@
-﻿using Storm;
-using System.IO;
+﻿using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using Uuids;
 
 namespace Core
 {
+    public enum SyscallNumber
+    {
+        Debug = 1,
+        ServiceCreate = 2,
+        ServiceConnect = 3,
+        ServiceDestroy = 4,
+        ChannelCreate = 5,
+        ChannelDestroy = 6,
+        EventWait = 7,
+        ProcessCreate = 8,
+        ProcessEmit = 9,
+        ProcessDestroy = 10,
+        ThreadCreate = 11,
+        ThreadDestroy = 12
+    }
+
+    public enum SyscallProcessEmitType
+    {
+        Error = 1,
+        Warning = 2,
+        Information = 3,
+        Debug = 4
+    }
+
     internal class Syscalls
     {
         private static object _lock = new object();

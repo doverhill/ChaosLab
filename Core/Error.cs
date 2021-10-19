@@ -1,4 +1,4 @@
-﻿namespace Storm
+﻿namespace Core
 {
     public enum Error
     {

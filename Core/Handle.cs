@@ -4,6 +4,7 @@ namespace Core
 {
     public enum HandleAction
     {
+        Unknown = 0,
         Connect = 1,
         Open = 2,
         Close = 3,

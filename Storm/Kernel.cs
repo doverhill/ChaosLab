@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Core;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -63,7 +64,7 @@ namespace Storm
                     {
                         case SyscallNumber.ProcessEmit:
                             var emitType = (SyscallProcessEmitType)reader.ReadInt32();
-                            var error = reader.ReadInt32();
+                            var error = (Error)reader.ReadInt32();
                             var text = SyscallHelpers.ReadText(reader);
                             SyscallHandlers.ProcessEmit(writer, pid, emitType, error, text);
                             break;
@@ -73,15 +74,28 @@ namespace Storm
                             break;
 
                         case SyscallNumber.ServiceCreate:
-                            var protocol = SyscallHelpers.ReadText(reader);
-                            var vendor = SyscallHelpers.ReadText(reader);
-                            var deviceName = SyscallHelpers.ReadText(reader);
-                            var deviceId = SyscallHelpers.ReadUuid(reader);
-                            SyscallHandlers.ServiceCreate(writer, pid, protocol, vendor, deviceName, deviceId);
+                            {
+                                var protocol = SyscallHelpers.ReadText(reader);
+                                var vendor = SyscallHelpers.ReadText(reader);
+                                var deviceName = SyscallHelpers.ReadText(reader);
+                                var deviceId = SyscallHelpers.ReadUuid(reader);
+                                SyscallHandlers.ServiceCreate(writer, pid, protocol, vendor, deviceName, deviceId);
+                            }
+                            break;
+
+                        case SyscallNumber.ServiceConnect:
+                            {
+                                var protocol = SyscallHelpers.ReadText(reader);
+                                var vendor = SyscallHelpers.ReadText(reader);
+                                var deviceName = SyscallHelpers.ReadText(reader);
+                                var deviceId = SyscallHelpers.ReadUuid(reader);
+                                SyscallHandlers.ServiceConnect(writer, pid, protocol, vendor, deviceName, deviceId);
+                            }
                             break;
 
                         case SyscallNumber.EventWait:
-                            SyscallHandlers.EventWait(writer, pid);
+                            var timeoutMilliseconds = reader.ReadInt32();
+                            SyscallHandlers.EventWait(writer, pid, timeoutMilliseconds);
                             break;
 
                         default:
@@ -97,6 +111,8 @@ namespace Storm
                 clientSocket.Close();
             }
 
+            Handles.CleanupProcess(pid);
+            Services.CleanupProcess(pid);
             Output.WriteLine(SyscallProcessEmitType.Debug, pid, "Application disconnected");
         }
     }

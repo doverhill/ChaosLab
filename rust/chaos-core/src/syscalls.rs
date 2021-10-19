@@ -44,6 +44,10 @@ fn write_u32(mut connection: &TcpStream, value: u32) -> () {
     connection.write(&value.to_ne_bytes());
 }
 
+fn write_u64(mut connection: &TcpStream, value: u64) -> () {
+    connection.write(&value.to_ne_bytes());
+}
+
 fn write_bool(mut connection: &TcpStream, value: bool) -> () {
     if value {
         connection.write(&[1]);
@@ -90,7 +94,7 @@ fn read_u64(mut connection: &TcpStream) -> u64 {
 }
 
 pub fn process_emit(emit_type: EmitType, error: Error, text: Option<&str>) -> Option<Error> {
-    let mut connection = &*KERNEL_CONNECTION.lock().unwrap();
+    let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessEmit as i32);
     write_i32(connection, emit_type as i32);
     write_i32(connection, error as i32);
@@ -106,7 +110,7 @@ pub fn process_emit(emit_type: EmitType, error: Error, text: Option<&str>) -> Op
 }
 
 pub fn service_create(protocol_name: &str, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Handle, Error> {
-    let mut connection = &*KERNEL_CONNECTION.lock().unwrap();
+    let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ServiceCreate as i32);
     write_text(connection, Some(protocol_name));
     write_text(connection, Some(vendor_name));
@@ -122,16 +126,33 @@ pub fn service_create(protocol_name: &str, vendor_name: &str, device_name: &str,
     }
 }
 
-pub fn event_wait() -> Result<(Handle, Action), Error> {
-    let mut connection = &*KERNEL_CONNECTION.lock().unwrap();
+pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_name: Option<&str>, device_id: Option<Uuid>) -> Result<Handle, Error> {
+    let connection = &*KERNEL_CONNECTION.lock().unwrap();
+    write_i32(connection, SyscallNumber::ServiceConnect as i32);
+    write_text(connection, Some(protocol_name));
+    write_text(connection, vendor_name);
+    write_text(connection, device_name);
+    write_uuid(connection, device_id);
+
+    let result = Error::from_i32(read_i32(connection)).unwrap();
+    if result == Error::None {
+        Ok(Handle::new(read_u64(connection)))
+    }
+    else {
+        Err(result)
+    }
+}
+
+pub fn event_wait(timeout_milliseconds: i32) -> Result<(Handle, Action), Error> {
+    let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::EventWait as i32);
+    write_i32(connection, timeout_milliseconds);
 
     let result = Error::from_i32(read_i32(connection)).unwrap();
     if result == Error::None {
         Ok((Handle::new(read_u64(connection)), Action::from_i32(read_i32(connection)).unwrap()))
     }
-    else
-    {
+    else {
         Err(result)
     }
 }

@@ -21,12 +21,12 @@ fn main() {
     chaos_core::done();
 }
 
-fn handle_connect() -> () {
+fn handle_connect(handle: Handle) -> () {
     process::emit_debug("Connect on service");
 }
 
-fn handle_service(service_handle: Handle) -> () {
-    service_handle.on_connect = handle_connect;
-
-    process::run();
+fn handle_service(mut service_handle: Handle) -> () {
+    process::on_connect(service_handle, Some(handle_connect));
+    let error = process::run();
+    process::emit_error(error, "Event loop error");
 }

@@ -8,8 +8,4 @@
     <PackageReference Include="Uuids" Version="1.0.3" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Storm\Storm.csproj" />
-  </ItemGroup>
-
 </Project>

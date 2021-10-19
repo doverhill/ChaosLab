@@ -8,19 +8,20 @@ namespace Storm
 {
     internal enum HandleType
     {
-        Service
+        Service,
+        ServiceConnection
     }
 
     internal class KernelHandle
     {
+        public ulong OwningPID;
         public ulong Id;
-        public ulong PID;
         public HandleType HandleType;
 
-        public KernelHandle(ulong id, ulong pid, HandleType handleType)
+        public KernelHandle(ulong id, ulong owningPID, HandleType handleType)
         {
             Id = id;
-            PID = pid;
+            OwningPID = owningPID;
             HandleType = handleType;
         }
     }
@@ -39,6 +40,14 @@ namespace Storm
                 var handle = new KernelHandle(id, pid, type);
                 kernelHandles.Add(id, handle);
                 return handle.Id;
+            }
+        }
+
+        public static void CleanupProcess(ulong pid)
+        {
+            lock (_lock)
+            {
+                kernelHandles = kernelHandles.Where(h => h.Value.OwningPID != pid).ToDictionary(h => h.Key, h => h.Value);
             }
         }
     }

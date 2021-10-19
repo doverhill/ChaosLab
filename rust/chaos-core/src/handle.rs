@@ -1,15 +1,13 @@
 use std::fmt;
 
 pub struct Handle {
-    id: u64,
-    on_connect: Option<fn() -> ()>
+    pub id: u64
 }
 
 impl Handle {
     pub fn new(id: u64) -> Handle {
         Handle {
-            id: id,
-            on_connect: None
+            id: id
         }
     }
 }

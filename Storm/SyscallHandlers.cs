@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Core;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,36 +8,19 @@ using Uuids;
 
 namespace Storm
 {
-    public enum SyscallNumber
-    {
-        Debug = 1,
-        ServiceCreate = 2,
-        ServiceConnect = 3,
-        ServiceDestroy = 4,
-        ChannelCreate = 5,
-        ChannelDestroy = 6,
-        EventWait = 7,
-        ProcessCreate = 8,
-        ProcessEmit = 9,
-        ProcessDestroy = 10,
-        ThreadCreate = 11,
-        ThreadDestroy = 12
-    }
-
-    public enum SyscallProcessEmitType
-    {
-        Error = 1,
-        Warning = 2,
-        Information = 3,
-        Debug = 4
-    }
-
     internal static class SyscallHandlers
     {
-        public static void ProcessEmit(BinaryWriter writer, ulong pid, SyscallProcessEmitType type, int error, string text)
+        public static void ProcessEmit(BinaryWriter writer, ulong pid, SyscallProcessEmitType type, Error error, string text)
         {
             Output.WriteLine(SyscallProcessEmitType.Debug, pid, "SYSCALL ProcessEmit: type=" + type.ToString() + ", error=" + error + ", text='" + text + "'");
-            Output.WriteLineForced(type, pid, text);
+            if (type == SyscallProcessEmitType.Error)
+            {
+                Output.WriteLineForced(type, pid, text + ": " + error.ToString());
+            }
+            else
+            {
+                Output.WriteLineForced(type, pid, text);
+            }
 
             writer.Write((int)Error.None);
         }
@@ -50,14 +34,36 @@ namespace Storm
             writer.Write(handle);
         }
 
-        public static void EventWait(BinaryWriter writer, ulong pid)
+        public static void ServiceConnect(BinaryWriter writer, ulong pid, string protocol, string vendor, string deviceName, Uuid? deviceId)
+        {
+            Output.WriteLine(SyscallProcessEmitType.Debug, pid, "SYSCALL ServiceConnect: protocol='" + protocol + "', vendor='" + vendor + "', deviceName='" + deviceName + "', deviceId=" + deviceId);
+            var service = Services.Lookup(protocol, vendor, deviceName, deviceId);
+
+            if (service == null)
+            {
+                writer.Write((int)Error.NotFound);
+            }
+            else
+            {
+                Events.Fire(new Event(service.OwningPID, Error.None, service.Handle, HandleAction.Connect));
+
+                var handle = Handles.AllocateHandle(pid, HandleType.ServiceConnection);
+                writer.Write((int)Error.None);
+                writer.Write(handle);
+            }
+        }
+
+        public static void EventWait(BinaryWriter writer, ulong pid, int timeoutMilliseconds)
         {
             Output.WriteLine(SyscallProcessEmitType.Debug, pid, "SYSCALL EventWait");
-            Thread.Sleep(5000);
-            
-            writer.Write((int)Error.None);
-            writer.Write((ulong)666);
-            writer.Write((int)HandleAction.Connect);
+            var e = Events.Wait(pid, timeoutMilliseconds);
+
+            writer.Write((int)e.Error);
+            if (e.Error == Error.None)
+            {
+                writer.Write(e.Handle);
+                writer.Write((int)e.Action);
+            }
         }
     }
 }
