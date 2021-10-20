@@ -46,8 +46,8 @@ namespace Storm
         private void HandleClient(object? socket)
         {
             var clientSocket = (Socket)socket;
-            var pid = AllocatePID();
-            Output.WriteLine(SyscallProcessEmitType.Debug, pid, "Application connected");
+            var process = new Process(AllocatePID(), null);
+            Output.WriteLine(SyscallProcessEmitType.Debug, process, "Application connected");
 
             using var clientStream = new NetworkStream(clientSocket);
             using var reader = new BinaryReader(clientStream);
@@ -66,7 +66,13 @@ namespace Storm
                             var emitType = (SyscallProcessEmitType)reader.ReadInt32();
                             var error = (Error)reader.ReadInt32();
                             var text = SyscallHelpers.ReadText(reader);
-                            SyscallHandlers.ProcessEmit(writer, pid, emitType, error, text);
+                            SyscallHandlers.ProcessEmit(writer, process, emitType, error, text);
+                            break;
+
+                        case SyscallNumber.ProcessSetInfo:
+                            var name = SyscallHelpers.ReadText(reader);
+                            process.Name = name;
+                            writer.Write((int)Error.None);
                             break;
 
                         case SyscallNumber.ProcessDestroy:
@@ -79,7 +85,7 @@ namespace Storm
                                 var vendor = SyscallHelpers.ReadText(reader);
                                 var deviceName = SyscallHelpers.ReadText(reader);
                                 var deviceId = SyscallHelpers.ReadUuid(reader);
-                                SyscallHandlers.ServiceCreate(writer, pid, protocol, vendor, deviceName, deviceId);
+                                SyscallHandlers.ServiceCreate(writer, process, protocol, vendor, deviceName, deviceId);
                             }
                             break;
 
@@ -89,17 +95,17 @@ namespace Storm
                                 var vendor = SyscallHelpers.ReadText(reader);
                                 var deviceName = SyscallHelpers.ReadText(reader);
                                 var deviceId = SyscallHelpers.ReadUuid(reader);
-                                SyscallHandlers.ServiceConnect(writer, pid, protocol, vendor, deviceName, deviceId);
+                                SyscallHandlers.ServiceConnect(writer, process, protocol, vendor, deviceName, deviceId);
                             }
                             break;
 
                         case SyscallNumber.EventWait:
                             var timeoutMilliseconds = reader.ReadInt32();
-                            SyscallHandlers.EventWait(writer, pid, timeoutMilliseconds);
+                            SyscallHandlers.EventWait(writer, process, timeoutMilliseconds);
                             break;
 
                         default:
-                            Output.WriteLine(SyscallProcessEmitType.Error, pid, "Unknown syscall: " + syscallNumber.ToString());
+                            Output.WriteLine(SyscallProcessEmitType.Error, process, "Unknown syscall: " + syscallNumber.ToString());
                             writer.Write((int)Error.NotImplemented);
                             break;
                     }
@@ -107,13 +113,13 @@ namespace Storm
             }
             catch (Exception e)
             {
-                Output.WriteLine(SyscallProcessEmitType.Debug, pid, "Application error: " + e.Message);
+                Output.WriteLine(SyscallProcessEmitType.Debug, process, "Application error: " + e.Message);
                 clientSocket.Close();
             }
 
-            Handles.CleanupProcess(pid);
-            Services.CleanupProcess(pid);
-            Output.WriteLine(SyscallProcessEmitType.Debug, pid, "Application disconnected");
+            Handles.CleanupProcess(process.PID);
+            Services.CleanupProcess(process.PID);
+            Output.WriteLine(SyscallProcessEmitType.Debug, process, "Application disconnected");
         }
     }
 }

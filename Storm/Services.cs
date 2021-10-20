@@ -19,6 +19,7 @@ namespace Storm
         public Service(ulong owningPID, ulong handle, string protocol, string vendor, string deviceName, Uuid deviceId)
         {
             OwningPID = owningPID;
+            Handle = handle;
             Protocol = protocol;
             Vendor = vendor;
             DeviceName = deviceName;

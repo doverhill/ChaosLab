@@ -1,14 +1,19 @@
 use crate::error::Error;
 use crate::handle::Handle;
+use crate::channel::Channel;
 use crate::syscalls;
 
 use std::sync::Mutex;
 use std::collections::HashMap;
 
 lazy_static! {
-    static ref ON_CONNECT: Mutex<HashMap<u64, fn(Handle) -> ()>> = {
+    static ref ON_CONNECT: Mutex<HashMap<u64, fn(Handle, Channel) -> ()>> = {
         Mutex::new(HashMap::new())
     };
+}
+
+pub fn set_info(process_name: &str) -> Option<Error> {
+    syscalls::process_set_info(process_name)
 }
 
 pub fn emit_debug(information_text: &str) -> Option<Error> {
@@ -27,7 +32,7 @@ pub fn emit_error(error: Error, information_text: &str) -> Option<Error> {
     syscalls::process_emit(syscalls::EmitType::Error, error, Some(information_text))
 }
 
-pub fn on_connect(handle: Handle, handler: Option<fn(Handle) -> ()>) {
+pub fn on_connect(handle: Handle, handler: Option<fn(Handle, Channel) -> ()>) {
     match handler {
         Some(f) => {
             ON_CONNECT.lock().unwrap().insert(handle.id, f);
@@ -43,11 +48,12 @@ pub fn run() -> Error {
     loop {
         let result = syscalls::event_wait(-1);
         match result {
-            Ok((handle, action)) => {
-                emit_debug(&format!("Got action {:?} on handle {}", action, handle));
-                match ON_CONNECT.lock().unwrap().get(&handle.id) {
+            Ok((target_handle, argument_handle, _action)) => {
+                // FIXME match on action
+                match ON_CONNECT.lock().unwrap().get(&target_handle.id) {
                     Some(f) => {
-                        f(handle);
+                        let channel = Channel::new(argument_handle);
+                        f(target_handle, channel);
                     },
                     None => {}
                 }

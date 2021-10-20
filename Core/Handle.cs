@@ -14,16 +14,7 @@ namespace Core
 
     public class Handle
     {
-        //private bool isGlobal;
-        //private ulong localId;
-        //private Guid? globalId;
-
-        //public Handle(bool isGlobal, ulong localId, Guid? globalId)
-        //{
-        //    this.isGlobal = isGlobal;
-        //    this.localId = localId;
-        //    this.globalId = globalId;
-        //}
+        public static readonly ulong None = 0;
 
         public ulong Id;
 
@@ -38,13 +29,5 @@ namespace Core
         {
             return "H" + Id;
         }
-
-        //public override string ToString()
-        //{
-        //    if (isGlobal)
-        //        return "G:" + globalId;
-        //    else
-        //        return "L:" + localId;
-        //}
     }
 }

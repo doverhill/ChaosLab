@@ -1,16 +1,15 @@
 extern crate chaos_core;
-#[macro_use]
-
-use chaos_core::{ process, service, handle::Handle };
+use chaos_core::{ process, service, handle::Handle, channel, channel::Channel };
 use uuid::Uuid;
 
 fn main() {
+    process::set_info("VFS Server");
     process::emit_information("Starting VFS server");
 
     let result = service::create("vfs", "Chaos", "Virtual file system server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap());
     match result {
         Ok(service_handle) => {
-            process::emit_debug(&format!("Created service handle: {}", service_handle));
+            process::emit_debug(&format!("Created service handle {}", service_handle));
             handle_service(service_handle);
         },
         Err(error) => {
@@ -21,11 +20,17 @@ fn main() {
     chaos_core::done();
 }
 
-fn handle_connect(handle: Handle) -> () {
-    process::emit_debug("Connect on service");
+fn handle_channel_message(channel: Channel) -> () {
+    process::emit_debug(&format!("Received message on channel {}", channel));
 }
 
-fn handle_service(mut service_handle: Handle) -> () {
+fn handle_connect(target_handle: Handle, channel: Channel) -> () {
+    process::emit_debug(&format!("Connect on service handle {}, got channel {}", target_handle, channel));
+    channel.write(45);
+    channel::on_message(channel, Some(handle_channel_message));
+}
+
+fn handle_service(service_handle: Handle) -> () {
     process::on_connect(service_handle, Some(handle_connect));
     let error = process::run();
     process::emit_error(error, "Event loop error");

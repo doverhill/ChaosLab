@@ -7,6 +7,7 @@ use std::net::{TcpStream, Shutdown};
 use std::sync::Mutex;
 use uuid::Uuid;
 
+#[allow(dead_code)]
 enum SyscallNumber {
     Debug = 1,
     ServiceCreate = 2,
@@ -16,10 +17,11 @@ enum SyscallNumber {
     ChannelDestroy = 6,
     EventWait = 7,
     ProcessCreate = 8,
-    ProcessEmit = 9,
-    ProcessDestroy = 10,
-    ThreadCreate = 11,
-    ThreadDestroy = 12
+    ProcessSetInfo = 9,
+    ProcessEmit = 10,
+    ProcessDestroy = 11,
+    ThreadCreate = 12,
+    ThreadDestroy = 13
 }
 
 pub enum EmitType {
@@ -37,22 +39,18 @@ lazy_static! {
 }
 
 fn write_i32(mut connection: &TcpStream, value: i32) -> () {
-    connection.write(&value.to_ne_bytes());
+    connection.write(&value.to_ne_bytes()).unwrap();
 }
 
 fn write_u32(mut connection: &TcpStream, value: u32) -> () {
-    connection.write(&value.to_ne_bytes());
-}
-
-fn write_u64(mut connection: &TcpStream, value: u64) -> () {
-    connection.write(&value.to_ne_bytes());
+    connection.write(&value.to_ne_bytes()).unwrap();
 }
 
 fn write_bool(mut connection: &TcpStream, value: bool) -> () {
     if value {
-        connection.write(&[1]);
+        connection.write(&[1]).unwrap();
     } else {
-        connection.write(&[0]);
+        connection.write(&[0]).unwrap();
     }
 }
 
@@ -61,7 +59,7 @@ fn write_text(mut connection: &TcpStream, text: Option<&str>) -> () {
         Some(value) => {
             write_bool(connection, true);
             write_u32(connection, value.len() as u32);
-            connection.write(value.as_bytes());
+            connection.write(value.as_bytes()).unwrap();
         },
         None => {
             write_bool(connection, false);
@@ -73,7 +71,7 @@ fn write_uuid(mut connection: &TcpStream, uuid: Option<Uuid>) -> () {
     match uuid {
         Some(value) => {
             write_bool(connection, true);
-            connection.write(value.as_bytes());
+            connection.write(value.as_bytes()).unwrap();
         },
         None => {
             write_bool(connection, false);
@@ -83,14 +81,28 @@ fn write_uuid(mut connection: &TcpStream, uuid: Option<Uuid>) -> () {
 
 fn read_i32(mut connection: &TcpStream) -> i32 {
     let mut data = [0; 4];
-    connection.read(&mut data);
+    connection.read(&mut data).unwrap();
     i32::from_ne_bytes(data)
 }
 
 fn read_u64(mut connection: &TcpStream) -> u64 {
     let mut data = [0; 8];
-    connection.read(&mut data);
+    connection.read(&mut data).unwrap();
     u64::from_ne_bytes(data)
+}
+
+pub fn process_set_info(process_name: &str) -> Option<Error> {
+    let connection = &*KERNEL_CONNECTION.lock().unwrap();
+    write_i32(connection, SyscallNumber::ProcessSetInfo as i32);
+    write_text(connection, Some(process_name));
+
+    let result = Error::from_i32(read_i32(connection)).unwrap();
+    if result == Error::None {
+        None
+    }
+    else {
+        Some(result)
+    }
 }
 
 pub fn process_emit(emit_type: EmitType, error: Error, text: Option<&str>) -> Option<Error> {
@@ -143,14 +155,16 @@ pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_na
     }
 }
 
-pub fn event_wait(timeout_milliseconds: i32) -> Result<(Handle, Action), Error> {
+pub fn event_wait(timeout_milliseconds: i32) -> Result<(Handle, Handle, Action), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::EventWait as i32);
     write_i32(connection, timeout_milliseconds);
 
     let result = Error::from_i32(read_i32(connection)).unwrap();
     if result == Error::None {
-        Ok((Handle::new(read_u64(connection)), Action::from_i32(read_i32(connection)).unwrap()))
+        let target_handle = Handle::new(read_u64(connection));
+        let argument_handle = Handle::new(read_u64(connection));
+        Ok((target_handle, argument_handle, Action::from_i32(read_i32(connection)).unwrap()))
     }
     else {
         Err(result)
@@ -159,5 +173,5 @@ pub fn event_wait(timeout_milliseconds: i32) -> Result<(Handle, Action), Error> 
 
 pub fn cleanup() -> () {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
-    connection.shutdown(Shutdown::Both);
+    connection.shutdown(Shutdown::Both).unwrap();
 }

@@ -14,6 +14,6 @@ impl Handle {
 
 impl fmt::Display for Handle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "h{}", self.id)
+        write!(f, "[HANDLE: id={}]", self.id)
     }
 }

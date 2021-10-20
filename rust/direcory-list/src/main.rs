@@ -1,13 +1,15 @@
 extern crate chaos_core;
 
-use chaos_core::{ process, service, handle::Handle };
+use chaos_core::{ process, service, channel::Channel };
 
 fn main() {
+    process::set_info("DirectoryList");
+
     let result = service::connect("vfs", None, None, None);
     match result {
-        Ok(service_handle) => {
-            process::emit_debug(&format!("Connected to service handle: {}", service_handle));
-            list(service_handle);
+        Ok(channel) => {
+            process::emit_debug(&format!("Connected to service, got channel {}", channel));
+            list(channel);
         },
         Err(error) => {
             process::emit_error(error, "Failed to connect to service");
@@ -17,6 +19,6 @@ fn main() {
     chaos_core::done();
 }
 
-fn list(service_handle: Handle) -> () {
-
+fn list(channel: Channel) -> () {
+    channel.write(42);
 }

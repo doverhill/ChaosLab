@@ -9,7 +9,7 @@ namespace Storm
     internal enum HandleType
     {
         Service,
-        ServiceConnection
+        Channel
     }
 
     internal class KernelHandle

@@ -11,12 +11,19 @@ namespace Storm
     {
         public static SyscallProcessEmitType Verbosity = SyscallProcessEmitType.Information;
 
-        public static void WriteLineForced(SyscallProcessEmitType type, ulong? pid, string format, object[] args = null)
+        public static void WriteLineForced(SyscallProcessEmitType type, Process process, string format, object[] args = null)
         {
             Console.ForegroundColor = ConsoleColor.Gray;
-            if (pid.HasValue)
+            if (process != null)
             {
-                Console.Write("[" + pid.Value + "] ");
+                if (process.Name != null)
+                {
+                    Console.Write("[" + process.PID + "/" + process.Name + "] ");
+                }
+                else
+                {
+                    Console.Write("[" + process.PID + "] ");
+                }
             }
             else
             {
@@ -45,10 +52,10 @@ namespace Storm
             Console.WriteLine(format, args);
         }
 
-        public static void WriteLine(SyscallProcessEmitType type, ulong? pid, string format, object[] args = null)
+        public static void WriteLine(SyscallProcessEmitType type, Process process, string format, object[] args = null)
         {
             if (type > Verbosity) return;
-            WriteLineForced(type, pid, format, args);
+            WriteLineForced(type, process, format, args);
         }
     }
 }

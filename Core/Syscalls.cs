@@ -15,10 +15,11 @@ namespace Core
         ChannelDestroy = 6,
         EventWait = 7,
         ProcessCreate = 8,
-        ProcessEmit = 9,
-        ProcessDestroy = 10,
-        ThreadCreate = 11,
-        ThreadDestroy = 12
+        ProcessSetInfo = 9,
+        ProcessEmit = 10,
+        ProcessDestroy = 11,
+        ThreadCreate = 12,
+        ThreadDestroy = 13
     }
 
     public enum SyscallProcessEmitType

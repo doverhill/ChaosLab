@@ -7,14 +7,16 @@ namespace Storm
     {
         public ulong TargetPID;
         public Error Error;
-        public ulong Handle;
+        public ulong TargetHandle;
+        public ulong ArgumentHandle;
         public HandleAction Action;
 
-        public Event(ulong targetPID, Error error, ulong handle, HandleAction action)
+        public Event(ulong targetPID, Error error, ulong targetHandle, ulong argumentHandle, HandleAction action)
         {
             TargetPID = targetPID;
             Error = error;
-            Handle = handle;
+            TargetHandle = targetHandle;
+            ArgumentHandle = argumentHandle;
             Action = action;
         }
     }
@@ -26,6 +28,7 @@ namespace Storm
 
         public static void Fire(Event e)
         {
+            Output.WriteLine(SyscallProcessEmitType.Debug, null, "Firing event: target=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString());
             lock (_lock)
             {
                 if (!processEventQueues.TryGetValue(e.TargetPID, out var eventQueue))
@@ -54,9 +57,10 @@ namespace Storm
             // there was nothing in the queue, sleep waiting
             if (eventQueue.TryTake(out var e, timeoutMilliseconds))
             {
+                Output.WriteLine(SyscallProcessEmitType.Debug, null, "Received event: target=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString());
                 return e;
             }
-            return new Event(pid, Error.Timeout, 0, HandleAction.Unknown);
+            return new Event(pid, Error.Timeout, Handle.None, Handle.None, HandleAction.Unknown);
         }
     }
 }
