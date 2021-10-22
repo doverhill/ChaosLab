@@ -6,6 +6,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-shared_memory = "*"
 lazy_static = "*"
 uuid = { version = "*", features = ["v4"] }
+winapi = { version = "0.3", features = [
+        "ntdef",
+        "handleapi",
+        "memoryapi",
+        "winnt"
+] }
