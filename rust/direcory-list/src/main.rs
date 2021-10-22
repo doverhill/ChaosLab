@@ -3,7 +3,7 @@ extern crate chaos_core;
 use chaos_core::{ process, service, channel::Channel };
 
 fn main() {
-    process::set_info("DirectoryList");
+    process::set_info("DirectoryList (rust)");
 
     let result = service::connect("vfs", None, None, None);
     match result {
@@ -20,5 +20,9 @@ fn main() {
 }
 
 fn list(channel: Channel) -> () {
-    channel.write(42);
+    unsafe {
+        while std::ptr::read_volatile(channel.map_pointer) == 0 {}
+        let value = std::ptr::read_volatile(channel.map_pointer);
+        process::emit_information(&format!("Got {} from server", value));
+    }
 }

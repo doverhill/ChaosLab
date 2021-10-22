@@ -26,7 +26,7 @@ fn handle_channel_message(channel: Channel) -> () {
 
 fn handle_connect(target_handle: Handle, channel: Channel) -> () {
     process::emit_debug(&format!("Connect on service handle {}, got channel {}", target_handle, channel));
-    channel.write(45);
+    unsafe { *channel.map_pointer = 211 }
     channel::on_message(channel, Some(handle_channel_message));
 }
 

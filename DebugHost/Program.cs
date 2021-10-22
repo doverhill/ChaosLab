@@ -20,4 +20,9 @@ try
 catch (Exception e)
 {
     Console.WriteLine("Failed to run " + applicationName + ": " + e.Message);
+    if (e.InnerException != null)
+    {
+        Console.WriteLine(e.InnerException.Message);
+        Console.WriteLine(e.InnerException.StackTrace.ToString());
+    }
 }

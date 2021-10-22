@@ -16,9 +16,9 @@ use std::iter::once;
 use std::ptr::null_mut;
 
 pub struct Channel {
-    handle: Handle,
+    channel_handle: Handle,
     map_handle: HANDLE,
-    map_pointer: *mut u8
+    pub map_pointer: *mut u8
 }
 
 impl Drop for Channel {
@@ -35,7 +35,7 @@ impl Drop for Channel {
 
 impl Channel {
     pub fn new(channel_handle: Handle) -> Channel {
-        let memory_name = &Channel::get_name(&channel_handle);
+        let memory_name = &Channel::get_map_name(&channel_handle);
         let map_size: u64 = 4096;
 
         let (map_handle, map_pointer) = Channel::create_shared_memory(memory_name, map_size);
@@ -43,7 +43,7 @@ impl Channel {
         map_handle.expect("Failed to create shared memory");
 
         Channel {
-            handle: channel_handle,
+            channel_handle: channel_handle,
             map_handle: map_handle.unwrap(),
             map_pointer: map_pointer
         }
@@ -74,8 +74,8 @@ impl Channel {
         (Some(map_handle), map_pointer)
     }
 
-    fn get_name(channel_handle: &Handle) -> String {
-        return format!("__chaos_channel_{}", channel_handle.id);
+    fn get_map_name(channel_handle: &Handle) -> String {
+        return format!("Local\\__chaos_channel_{}", channel_handle.id);
     }
 
     pub fn write(&self, value: u8) -> () {
@@ -90,7 +90,7 @@ impl Channel {
 
 impl fmt::Display for Channel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[CHANNEL: handle: {}, map_handle: {:?}, buffer: {:p}]", self.handle, self.map_handle, self.map_pointer)
+        write!(f, "[CHANNEL: handle={}, map_handle={:?}, buffer={:p}]", self.channel_handle, self.map_handle, self.map_pointer)
     }
 }
 
@@ -103,10 +103,10 @@ lazy_static! {
 pub fn on_message(channel: Channel, handler: Option<fn(Channel) -> ()>) {
     match handler {
         Some(f) => {
-            ON_MESSAGE.lock().unwrap().insert(channel.handle.id, f);
+            ON_MESSAGE.lock().unwrap().insert(channel.channel_handle.id, f);
         },
         None => {
-            ON_MESSAGE.lock().unwrap().remove(&channel.handle.id);
+            ON_MESSAGE.lock().unwrap().remove(&channel.channel_handle.id);
         }
     }
 }

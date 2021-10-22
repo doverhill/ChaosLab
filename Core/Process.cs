@@ -17,6 +17,11 @@ namespace Core
             }
         }
 
+        public static Optional<Error> SetInfo(string processName)
+        {
+            return Syscalls.ProcessSetInfo(processName);
+        }
+
         public static Optional<Error> Run()
         {
             // main event loop

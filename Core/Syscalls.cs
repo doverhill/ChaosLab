@@ -63,6 +63,17 @@ namespace Core
             writer.Write((int)SyscallNumber.ProcessDestroy);
         }
 
+        public static Optional<Error> ProcessSetInfo(string processName)
+        {
+            var (reader, writer) = GetKernelSocket();
+            writer.Write((int)SyscallNumber.ProcessSetInfo);
+            SyscallHelpers.WriteText(writer, processName);
+
+            var kernelResult = (Error)reader.ReadInt32();
+            if (kernelResult != Error.None) return new Optional<Error>(kernelResult);
+            return new Optional<Error>();
+        }
+
         public static Optional<Error> ProcessEmit(SyscallProcessEmitType emitType, Error error, string text)
         {
             var (reader, writer) = GetKernelSocket();
@@ -72,7 +83,7 @@ namespace Core
             SyscallHelpers.WriteText(writer, text);
 
             var kernelResult = (Error)reader.ReadInt32();
-            if (kernelResult != 0) return new Optional<Error>(kernelResult); 
+            if (kernelResult != Error.None) return new Optional<Error>(kernelResult); 
             return new Optional<Error>();
         }
 
@@ -86,7 +97,22 @@ namespace Core
             SyscallHelpers.WriteUuid(writer, deviceId);
 
             var kernelResult = (Error)reader.ReadInt32();
-            if (kernelResult != 0) return new ErrorOr<Handle>(kernelResult);
+            if (kernelResult != Error.None) return new ErrorOr<Handle>(kernelResult);
+            var id = reader.ReadUInt64();
+            return new ErrorOr<Handle>(new Handle(id));
+        }
+
+        public static ErrorOr<Handle> ServiceConnect(string protocolName, string vendorName, string deviceName, Uuid? deviceId)
+        {
+            var (reader, writer) = GetKernelSocket();
+            writer.Write((int)SyscallNumber.ServiceConnect);
+            SyscallHelpers.WriteText(writer, protocolName);
+            SyscallHelpers.WriteText(writer, vendorName);
+            SyscallHelpers.WriteText(writer, deviceName);
+            SyscallHelpers.WriteUuid(writer, deviceId);
+
+            var kernelResult = (Error)reader.ReadInt32();
+            if (kernelResult != Error.None) return new ErrorOr<Handle>(kernelResult);
             var id = reader.ReadUInt64();
             return new ErrorOr<Handle>(new Handle(id));
         }

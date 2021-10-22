@@ -27,7 +27,7 @@ namespace Core
 
         public override string ToString()
         {
-            return "H" + Id;
+            return "[HANDLE: id=" + Id + "]";
         }
     }
 }
