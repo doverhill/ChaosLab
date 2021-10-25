@@ -1,5 +1,5 @@
 [package]
-name = "direcory_list"
+name = "server-vfs"
 version = "0.1.0"
 edition = "2018"
 
@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 chaos = { path = "../../library/chaos" }
+uuid = { version = "0.8.2", features = ["v4"] }

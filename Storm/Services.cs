@@ -10,16 +10,16 @@ namespace Storm
     internal class Service
     {
         public ulong OwningPID;
-        public ulong Handle;
+        public ulong HandleId;
         public string Protocol;
         public string Vendor;
         public string DeviceName;
         public Uuid DeviceId;
 
-        public Service(ulong owningPID, ulong handle, string protocol, string vendor, string deviceName, Uuid deviceId)
+        public Service(ulong owningPID, ulong handleId, string protocol, string vendor, string deviceName, Uuid deviceId)
         {
             OwningPID = owningPID;
-            Handle = handle;
+            HandleId = handleId;
             Protocol = protocol;
             Vendor = vendor;
             DeviceName = deviceName;
@@ -32,10 +32,11 @@ namespace Storm
         private static object _lock = new object();
         private static Dictionary<string, List<Service>> services = new Dictionary<string, List<Service>>();
 
-        public static ulong Create(ulong pid, string protocol, string vendor, string deviceName, Uuid? deviceId)
+        public static ulong Create(ulong PID, string protocol, string vendor, string deviceName, Uuid? deviceId)
         {
-            var handle = Handles.AllocateHandle(pid, HandleType.Service);
-            var service = new Service(pid, handle, protocol, vendor, deviceName, deviceId.Value);
+            var handle = Handles.Create(PID, HandleType.Service);
+            var service = new Service(PID, handle, protocol, vendor, deviceName, deviceId.Value);
+
             lock (_lock)
             {
                 List<Service> list;
@@ -48,6 +49,20 @@ namespace Storm
             }
 
             return handle;
+        }
+
+        public static bool Destroy(ulong PID, ulong serviceHandleId)
+        {
+            lock (_lock)
+            {
+                foreach (var list in services.Values)
+                {
+                    int didRemove = list.RemoveAll(s => s.OwningPID == PID && s.HandleId == serviceHandleId);
+                    return didRemove == 1;
+                }
+            }
+
+            return false;
         }
 
         public static Service Lookup(string protocol, string vendor, string deviceName, Uuid? deviceId)
@@ -71,13 +86,13 @@ namespace Storm
             }
         }
 
-        public static void CleanupProcess(ulong pid)
+        public static void CleanupProcess(ulong PID)
         {
             lock (_lock)
             {
                 foreach (var serviceList in services.Values)
                 {
-                    serviceList.RemoveAll(s => s.OwningPID == pid);
+                    serviceList.RemoveAll(s => s.OwningPID == PID);
                 }
             }
         }

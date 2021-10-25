@@ -7,19 +7,22 @@ namespace Core
 {
     public enum SyscallNumber
     {
-        Debug = 1,
-        ServiceCreate = 2,
-        ServiceConnect = 3,
-        ServiceDestroy = 4,
-        ChannelCreate = 5,
-        ChannelDestroy = 6,
-        EventWait = 7,
-        ProcessCreate = 8,
-        ProcessSetInfo = 9,
-        ProcessEmit = 10,
-        ProcessDestroy = 11,
-        ThreadCreate = 12,
-        ThreadDestroy = 13
+        ServiceCreate = 10,
+        ServiceDestroy = 11,
+        ServiceConnect = 12,
+
+        ChannelDestroy = 21,
+        ChannelSignal = 22,
+
+        EventWait = 30,
+
+        ProcessCreate = 40,
+        ProcessDestroy = 41,
+        ProcessSetInfo = 42,
+        ProcessEmit = 43,
+
+        ThreadCreate = 50,
+        ThreadDestroy = 51
     }
 
     public enum SyscallProcessEmitType

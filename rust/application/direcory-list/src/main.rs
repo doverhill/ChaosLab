@@ -1,6 +1,6 @@
-extern crate chaos_core;
+extern crate chaos;
 
-use chaos_core::{ process, service, channel::Channel };
+use chaos::{ process, service, channel::Channel };
 
 fn main() {
     // process::wrap will not be needed when running natively on chaos
@@ -8,10 +8,8 @@ fn main() {
 }
 
 fn chaos_entry() {
-    let result = service::connect("vfs", None, None, None);
-    match result {
+    match service::connect("vfs", None, None, None) {
         Ok(channel) => {
-            process::emit_debug(&format!("Connected to service, got channel {}", channel));
             list(channel);
         },
         Err(error) => {
@@ -22,8 +20,22 @@ fn chaos_entry() {
 
 fn list(channel: Channel) -> () {
     unsafe {
-        while std::ptr::read_volatile(channel.map_pointer) == 0 {}
-        let value = std::ptr::read_volatile(channel.map_pointer);
-        process::emit_information(&format!("Got {} from server", value));
+        *channel.map_pointer = 42;
     }
+
+    channel.interface(1)
+        .then(|pointer: *mut u8| {
+            unsafe {
+                let r = *pointer;
+                process::emit_information(&format!("Got result: {}", r));
+            }
+            process::end();
+        })
+        .orelse(|error| {
+            process::emit_error(error, "Call failed");
+            process::end();
+        })
+        .call();
+
+    process::run();
 }

@@ -4,12 +4,9 @@ namespace Core
 {
     public enum HandleAction
     {
-        Unknown = 0,
+        None = 0,
         Connect = 1,
-        Open = 2,
-        Close = 3,
-        Read = 4,
-        Write = 5
+        Signal = 2
     }
 
     public class Handle

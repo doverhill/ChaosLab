@@ -19,7 +19,6 @@ namespace Storm
 
         private void AcceptClients()
         {
-
             var ipEndpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), 1337);
             var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             serverSocket.Bind(ipEndpoint);
@@ -62,48 +61,47 @@ namespace Storm
 
                     switch (syscallNumber)
                     {
-                        case SyscallNumber.ProcessEmit:
-                            var emitType = (SyscallProcessEmitType)reader.ReadInt32();
-                            var error = (Error)reader.ReadInt32();
-                            var text = SyscallHelpers.ReadText(reader);
-                            SyscallHandlers.ProcessEmit(writer, process, emitType, error, text);
+                        // Service
+                        case SyscallNumber.ServiceCreate:
+                            SyscallHandlers.ServiceCreate(reader, writer, process);
                             break;
 
-                        case SyscallNumber.ProcessSetInfo:
-                            var name = SyscallHelpers.ReadText(reader);
-                            process.Name = name;
-                            writer.Write((int)Error.None);
+                        case SyscallNumber.ServiceDestroy:
+                            SyscallHandlers.ServiceDestroy(reader, writer, process);
                             break;
 
+                        case SyscallNumber.ServiceConnect:
+                            SyscallHandlers.ServiceConnect(reader, writer, process);
+                            break;
+
+                        // Channel
+                        case SyscallNumber.ChannelDestroy:
+                            SyscallHandlers.ChannelDestroy(reader, writer, process);
+                            break;
+
+                        case SyscallNumber.ChannelSignal:
+                            SyscallHandlers.ChannelSignal(reader, writer, process);
+                            break;
+
+                        // Event
+                        case SyscallNumber.EventWait:
+                            SyscallHandlers.EventWait(reader, writer, process);
+                            break;
+
+                        // Process
                         case SyscallNumber.ProcessDestroy:
                             running = false;
                             break;
 
-                        case SyscallNumber.ServiceCreate:
-                            {
-                                var protocol = SyscallHelpers.ReadText(reader);
-                                var vendor = SyscallHelpers.ReadText(reader);
-                                var deviceName = SyscallHelpers.ReadText(reader);
-                                var deviceId = SyscallHelpers.ReadUuid(reader);
-                                SyscallHandlers.ServiceCreate(writer, process, protocol, vendor, deviceName, deviceId);
-                            }
+                        case SyscallNumber.ProcessSetInfo:
+                            SyscallHandlers.ProcessSetInfo(reader, writer, process);
                             break;
 
-                        case SyscallNumber.ServiceConnect:
-                            {
-                                var protocol = SyscallHelpers.ReadText(reader);
-                                var vendor = SyscallHelpers.ReadText(reader);
-                                var deviceName = SyscallHelpers.ReadText(reader);
-                                var deviceId = SyscallHelpers.ReadUuid(reader);
-                                SyscallHandlers.ServiceConnect(writer, process, protocol, vendor, deviceName, deviceId);
-                            }
+                        case SyscallNumber.ProcessEmit:
+                            SyscallHandlers.ProcessEmit(reader, writer, process);
                             break;
 
-                        case SyscallNumber.EventWait:
-                            var timeoutMilliseconds = reader.ReadInt32();
-                            SyscallHandlers.EventWait(writer, process, timeoutMilliseconds);
-                            break;
-
+                        // Unknown
                         default:
                             Output.WriteLine(SyscallProcessEmitType.Error, process, "Unknown syscall: " + syscallNumber.ToString());
                             writer.Write((int)Error.NotImplemented);
@@ -117,7 +115,7 @@ namespace Storm
                 clientSocket.Close();
             }
 
-            Handles.CleanupProcess(process.PID);
+            Handles.CleanupAfterProcess(process.PID);
             Services.CleanupProcess(process.PID);
             Output.WriteLine(SyscallProcessEmitType.Debug, process, "Application disconnected");
         }

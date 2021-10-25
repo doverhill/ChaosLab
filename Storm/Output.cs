@@ -9,47 +9,51 @@ namespace Storm
 {
     internal class Output
     {
-        public static SyscallProcessEmitType Verbosity = SyscallProcessEmitType.Information;
+        private static object _lock = new object();
+        public static SyscallProcessEmitType Verbosity = SyscallProcessEmitType.Debug;
 
         public static void WriteLineForced(SyscallProcessEmitType type, Process process, string format, object[] args = null)
         {
-            Console.ForegroundColor = ConsoleColor.Gray;
-            if (process != null)
+            lock (_lock)
             {
-                if (process.Name != null)
+                Console.ForegroundColor = ConsoleColor.Gray;
+                if (process != null)
                 {
-                    Console.Write("[" + process.PID + "/" + process.Name + "] ");
+                    if (process.Name != null)
+                    {
+                        Console.Write("[" + process.PID + "/" + process.Name + "] ");
+                    }
+                    else
+                    {
+                        Console.Write("[" + process.PID + "] ");
+                    }
                 }
                 else
                 {
-                    Console.Write("[" + process.PID + "] ");
+                    Console.Write("[KERNEL] ");
                 }
+
+                switch (type)
+                {
+                    case SyscallProcessEmitType.Information:
+                        Console.ForegroundColor = ConsoleColor.Gray;
+                        break;
+
+                    case SyscallProcessEmitType.Warning:
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        break;
+
+                    case SyscallProcessEmitType.Debug:
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        break;
+
+                    case SyscallProcessEmitType.Error:
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        break;
+                }
+
+                Console.WriteLine(format, args);
             }
-            else
-            {
-                Console.Write("[KERNEL] ");
-            }
-
-            switch (type)
-            {
-                case SyscallProcessEmitType.Information:
-                    Console.ForegroundColor = ConsoleColor.Gray;
-                    break;
-
-                case SyscallProcessEmitType.Warning:
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    break;
-
-                case SyscallProcessEmitType.Debug:
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    break;
-
-                case SyscallProcessEmitType.Error:
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    break;
-            }
-
-            Console.WriteLine(format, args);
         }
 
         public static void WriteLine(SyscallProcessEmitType type, Process process, string format, object[] args = null)

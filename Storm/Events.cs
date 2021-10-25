@@ -10,14 +10,16 @@ namespace Storm
         public ulong TargetHandle;
         public ulong ArgumentHandle;
         public HandleAction Action;
+        public ulong Parameter;
 
-        public Event(ulong targetPID, Error error, ulong targetHandle, ulong argumentHandle, HandleAction action)
+        public Event(ulong targetPID, Error error, ulong targetHandle, ulong argumentHandle, HandleAction action, ulong parameter)
         {
             TargetPID = targetPID;
             Error = error;
             TargetHandle = targetHandle;
             ArgumentHandle = argumentHandle;
             Action = action;
+            Parameter = parameter;
         }
     }
 
@@ -28,7 +30,7 @@ namespace Storm
 
         public static void Fire(Event e)
         {
-            Output.WriteLine(SyscallProcessEmitType.Debug, null, "Firing event: target=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString());
+            Output.WriteLine(SyscallProcessEmitType.Debug, null, "Firing event: targetPID=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString() + ", parameter=" + e.Parameter);
             lock (_lock)
             {
                 if (!processEventQueues.TryGetValue(e.TargetPID, out var eventQueue))
@@ -57,10 +59,10 @@ namespace Storm
             // there was nothing in the queue, sleep waiting
             if (eventQueue.TryTake(out var e, timeoutMilliseconds))
             {
-                Output.WriteLine(SyscallProcessEmitType.Debug, null, "Received event: target=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString());
+                Output.WriteLine(SyscallProcessEmitType.Debug, null, "Received event: targetPID=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString() + ", parameter=" + e.Parameter);
                 return e;
             }
-            return new Event(pid, Error.Timeout, Handle.None, Handle.None, HandleAction.Unknown);
+            return new Event(pid, Error.Timeout, Handle.None, Handle.None, HandleAction.None, 0);
         }
     }
 }
