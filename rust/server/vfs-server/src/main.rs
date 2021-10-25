@@ -3,7 +3,11 @@ use chaos_core::{ process, service, handle::Handle, channel, channel::Channel };
 use uuid::Uuid;
 
 fn main() {
-    process::set_info("VFS Server");
+    // process::wrap will not be needed when running natively on chaos
+    process::wrap("Server.VFS", chaos_entry);
+}
+
+fn chaos_entry() {
     process::emit_information("Starting VFS server");
 
     let result = service::create("vfs", "Chaos", "Virtual file system server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap());
@@ -16,8 +20,6 @@ fn main() {
             process::emit_error(error, "Failed to create service");
         }
     }
-
-    chaos_core::done();
 }
 
 fn handle_channel_message(channel: Channel) -> () {

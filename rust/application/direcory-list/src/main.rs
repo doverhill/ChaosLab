@@ -3,8 +3,11 @@ extern crate chaos_core;
 use chaos_core::{ process, service, channel::Channel };
 
 fn main() {
-    process::set_info("DirectoryList (rust)");
+    // process::wrap will not be needed when running natively on chaos
+    process::wrap("Application.DirectoryList", chaos_entry);
+}
 
+fn chaos_entry() {
     let result = service::connect("vfs", None, None, None);
     match result {
         Ok(channel) => {
@@ -15,8 +18,6 @@ fn main() {
             process::emit_error(error, "Failed to connect to service");
         }
     }
-
-    chaos_core::done();
 }
 
 fn list(channel: Channel) -> () {

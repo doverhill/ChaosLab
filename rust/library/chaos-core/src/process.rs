@@ -12,6 +12,12 @@ lazy_static! {
     };
 }
 
+pub fn wrap(name: &str, main: fn() -> ()) -> () {
+    set_info(name);
+    main();    
+    syscalls::cleanup();
+}
+
 pub fn set_info(process_name: &str) -> Option<Error> {
     syscalls::process_set_info(process_name)
 }
