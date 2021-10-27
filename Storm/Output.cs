@@ -10,9 +10,10 @@ namespace Storm
     internal class Output
     {
         private static object _lock = new object();
-        public static SyscallProcessEmitType Verbosity = SyscallProcessEmitType.Debug;
+        public static SyscallProcessEmitType KernelVerbosity = SyscallProcessEmitType.Information;
+        public static SyscallProcessEmitType ProcessVerbosity = SyscallProcessEmitType.Debug;
 
-        public static void WriteLineForced(SyscallProcessEmitType type, Process process, string format, object[] args = null)
+        private static void WriteLineForced(SyscallProcessEmitType type, Process process, string format, object[] args = null)
         {
             lock (_lock)
             {
@@ -56,9 +57,15 @@ namespace Storm
             }
         }
 
-        public static void WriteLine(SyscallProcessEmitType type, Process process, string format, object[] args = null)
+        public static void WriteLineKernel(SyscallProcessEmitType type, Process process, string format, object[] args = null)
         {
-            if (type > Verbosity) return;
+            if (type > KernelVerbosity) return;
+            WriteLineForced(type, process, format, args);
+        }
+
+        public static void WriteLineProcess(SyscallProcessEmitType type, Process process, string format, object[] args = null)
+        {
+            if (type > ProcessVerbosity) return;
             WriteLineForced(type, process, format, args);
         }
     }

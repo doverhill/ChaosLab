@@ -1,5 +1,5 @@
 extern crate chaos;
-use chaos::{ process, service, handle::Handle, channel, channel::Channel };
+use chaos::{ process, service, handle::Handle, channel::Channel };
 use uuid::Uuid;
 
 fn main() {
@@ -23,20 +23,16 @@ fn chaos_entry() {
 }
 
 fn handle_channel_signal(channel: &Channel, signal: u64) -> () {
-    process::emit_debug(&format!("Received signal {} on channel {}", signal, channel));
     unsafe {
-        println!("reading");
         let v = *channel.map_pointer;
-        println!("writing");
         *channel.map_pointer = v + 4;
     }
-    println!("replying");
-    channel.interface(1).call();
+    process::channel_interface(channel.channel_handle, 1).call();
 }
 
-fn handle_connect(service_handle: Handle, channel: Channel) -> () {
+fn handle_connect(service_handle: Handle, channel: &Channel) -> () {
     process::emit_debug(&format!("Connect on service handle {}, got channel {}", service_handle, channel));
-    channel::on_signal(channel, Some(handle_channel_signal));
+    process::on_signal(channel, Some(handle_channel_signal));
 }
 
 fn handle_service(service_handle: Handle) -> () {

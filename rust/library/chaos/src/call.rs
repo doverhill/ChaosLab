@@ -1,4 +1,4 @@
-use crate::{ syscalls, handle::Handle, error::Error };
+use crate::{ syscalls, process, handle::Handle, error::Error };
 
 #[allow(dead_code)]
 pub struct Call {
@@ -7,7 +7,8 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn then(self, _callback: fn(*mut u8) -> ()) -> Call {
+    pub fn then(self, callback: fn(*mut u8) -> ()) -> Call {
+        process::on_call_done(self.channel_handle, self.function, callback);
         self
     }
 

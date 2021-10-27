@@ -86,7 +86,7 @@ namespace Storm
             }
         }
 
-        public static void CleanupProcess(ulong PID)
+        public static void CleanupAfterProcess(ulong PID)
         {
             lock (_lock)
             {

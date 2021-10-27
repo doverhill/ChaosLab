@@ -1,5 +1,6 @@
 ﻿using Core;
 using System.Collections.Concurrent;
+using System.Net.Sockets;
 
 namespace Storm
 {
@@ -30,7 +31,7 @@ namespace Storm
 
         public static void Fire(Event e)
         {
-            Output.WriteLine(SyscallProcessEmitType.Debug, null, "Firing event: targetPID=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString() + ", parameter=" + e.Parameter);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, "Firing event: targetPID=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString() + ", parameter=" + e.Parameter);
             lock (_lock)
             {
                 if (!processEventQueues.TryGetValue(e.TargetPID, out var eventQueue))
@@ -43,26 +44,49 @@ namespace Storm
             }
         }
 
-        public static Event Wait(ulong pid, int timeoutMilliseconds)
+        private static bool SocketConnected(Socket s)
+        {
+            bool part1 = s.Poll(1000, SelectMode.SelectRead);
+            bool part2 = (s.Available == 0);
+            if (part1 && part2)
+                return false;
+            else
+                return true;
+        }
+
+        public static Event Wait(Socket socket, ulong PID, int timeoutMilliseconds)
         {
             BlockingCollection<Event> eventQueue = null;
 
             lock (_lock)
             {
-                if (!processEventQueues.TryGetValue(pid, out eventQueue))
+                if (!processEventQueues.TryGetValue(PID, out eventQueue))
                 {
                     eventQueue = new BlockingCollection<Event>();
-                    processEventQueues.Add(pid, eventQueue);
+                    processEventQueues.Add(PID, eventQueue);
                 }
             }
 
-            // there was nothing in the queue, sleep waiting
-            if (eventQueue.TryTake(out var e, timeoutMilliseconds))
+            int totalTime = 0;
+            while (timeoutMilliseconds == -1 || totalTime < timeoutMilliseconds)
             {
-                Output.WriteLine(SyscallProcessEmitType.Debug, null, "Received event: targetPID=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString() + ", parameter=" + e.Parameter);
-                return e;
+                if (eventQueue.TryTake(out var e, 100))
+                {
+                    Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, "Received event: targetPID=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", argumentHandle=" + e.ArgumentHandle + ", action=" + e.Action.ToString() + ", parameter=" + e.Parameter);
+                    return e;
+                }
+                if (!SocketConnected(socket)) throw new Exception("Socket was closed, killing application");
+                totalTime += 100;
             }
-            return new Event(pid, Error.Timeout, Handle.None, Handle.None, HandleAction.None, 0);
+            return new Event(PID, Error.Timeout, Handle.None, Handle.None, HandleAction.None, 0);
+        }
+
+        public static void CleanupAfterProcess(ulong PID)
+        {
+            lock (_lock)
+            {
+                processEventQueues.Remove(PID);
+            }
         }
     }
 }

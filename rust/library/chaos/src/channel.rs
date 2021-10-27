@@ -1,7 +1,5 @@
-use crate::{ handle::Handle, call::Call };
+use crate::{ handle::Handle };
 use std::fmt;
-use std::sync::Mutex;
-use std::collections::HashMap;
 use ::winapi::{
     shared::ntdef::NULL,
     um::{
@@ -15,17 +13,18 @@ use std::os::windows::ffi::OsStrExt;
 use std::iter::once;
 use std::ptr::null_mut;
 
-#[derive(Clone)]
 pub struct Channel {
     pub channel_handle: Handle,
     map_handle: HANDLE,
     pub map_pointer: *mut u8
 }
 
+// FIXME can this be done safely instead of using Send?
 unsafe impl Send for Channel {}
 
 impl Drop for Channel {
     fn drop(&mut self) {
+        println!("dropping channel");
         if self.map_pointer as *mut _ != NULL {
             unsafe { UnmapViewOfFile(self.map_pointer as *mut _) };
         }
@@ -45,15 +44,11 @@ impl Channel {
         
         map_handle.expect("Failed to create shared memory");
 
-        let channel = Channel {
+        Channel {
             channel_handle: channel_handle,
             map_handle: map_handle.unwrap(),
             map_pointer: map_pointer
-        };
-
-        CHANNELS.lock().unwrap().insert(channel_handle.id, channel.clone());
-
-        channel
+        }
     }
 
     fn create_shared_memory(name: &str, size: u64) -> (Option<HANDLE>, *mut u8) {
@@ -84,55 +79,10 @@ impl Channel {
     fn get_map_name(channel_handle: &Handle) -> String {
         return format!("Local\\__chaos_channel_{}", channel_handle.id);
     }
-
-    pub fn interface(&self, function: u64) -> Call {
-        Call {
-            channel_handle: self.channel_handle,
-            function: function
-        }
-    }
 }
 
 impl fmt::Display for Channel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[CHANNEL: handle={}, map_handle={:?}, buffer={:p}]", self.channel_handle, self.map_handle, self.map_pointer)
-    }
-}
-
-lazy_static! {
-    static ref CHANNELS: Mutex<HashMap<u64, Channel>> = {
-        Mutex::new(HashMap::new())
-    };
-    static ref ON_SIGNAL: Mutex<HashMap<u64, fn(&Channel, u64) -> ()>> = {
-        Mutex::new(HashMap::new())
-    };
-}
-
-pub fn signal(channel_handle: Handle, signal: u64)
-{
-    println!("signal {} on channel handle {}", signal, channel_handle);
-    match ON_SIGNAL.lock().unwrap().get(&channel_handle.id) {
-        Some(f) => {
-            println!("has handler");
-            match CHANNELS.lock().unwrap().get(&channel_handle.id) {
-                Some(channel) => {
-                    println!("found channel");
-                    f(channel, signal);
-                },
-                None => {}
-            }
-        },
-        None => {}
-    }
-}
-
-pub fn on_signal(channel: Channel, handler: Option<fn(&Channel, u64) -> ()>) {
-    match handler {
-        Some(f) => {
-            ON_SIGNAL.lock().unwrap().insert(channel.channel_handle.id, f);
-        },
-        None => {
-            ON_SIGNAL.lock().unwrap().remove(&channel.channel_handle.id);
-        }
     }
 }
