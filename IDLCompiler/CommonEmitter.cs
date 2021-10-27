@@ -9,11 +9,13 @@ namespace IDLCompiler
     internal class CommonEmitter
     {
         private StreamWriter writer;
+        private IDL idl;
         private int indent = 0;
         private const int IndentationSteps = 4;
 
-        public CommonEmitter(StreamWriter writer)
+        public CommonEmitter(IDL idl, StreamWriter writer)
         {
+            this.idl = idl;
             this.writer = writer;
         }
 
@@ -22,16 +24,7 @@ namespace IDLCompiler
             writer.Write(new string(' ', IndentationSteps * indent));
         }
 
-        public void FileIntro(string nameSpace)
-        {
-            WriteIndent(); writer.WriteLine("using Core;");
-            WriteIndent(); writer.WriteLine("using System.Collections.Generic;");
-            writer.WriteLine();
-            WriteIndent(); writer.WriteLine("namespace " + nameSpace);
-            WriteIndent(); writer.WriteLine("{"); indent++;
-        }
-
-        private (string Type, string Name, bool IsList, int? ListCount) ParseField(IDL idl, string field)
+        private (string Type, string Name, bool IsList, int? ListCount) ParseField(string field)
         {
             // supported types:
             // string
@@ -64,28 +57,29 @@ namespace IDLCompiler
 
             switch (typeName)
             {
-                case "string":
-                    typeName = "string";
-                    break;
-
                 case "i32":
-                    typeName = "int";
-                    break;
-
                 case "i64":
-                    typeName = "long";
-                    break;
-
+                case "u32":
+                case "u64":
                 case "f32":
-                    typeName = "float";
-                    break;
-
                 case "f64":
-                    typeName = "double";
+                case "bool":
                     break;
 
-                case "bool":
-                    typeName = "bool";
+                case "string":
+                    typeName = "[u8; 100]";
+                    break;
+
+                case "size":
+                    typeName = "u64";
+                    break;
+
+                case "datetime":
+                    typeName = "u64";
+                    break;
+
+                case "byte":
+                    typeName = "u8";
                     break;
 
                 default:
@@ -96,14 +90,16 @@ namespace IDLCompiler
             return (typeName, fieldName, isList, listCount);
         }
 
-        public void WriteStruct(IDL idl, string name, List<string> fields, int batchSize)
+        public void WriteStruct(string name, List<string> fields, int batchSize)
         {
-            WriteIndent(); writer.WriteLine("internal struct " + name);
-            WriteIndent(); writer.WriteLine("{"); indent++;
+            WriteIndent(); writer.WriteLine("pub struct " + name + " {"); indent++;
 
-            foreach (var field in fields)
+            for (var fieldIndex = 0; fieldIndex < fields.Count; fieldIndex++)
             {
-                var (fieldType, fieldName, isList, listCount) = ParseField(idl, field);
+                var field = fields[fieldIndex];
+                var lastField = fieldIndex == fields.Count - 1;
+
+                var (fieldType, fieldName, isList, listCount) = ParseField(field);
                 if (isList)
                 {
                     if (listCount.HasValue)
@@ -118,64 +114,84 @@ namespace IDLCompiler
                 }
                 else
                 {
-                    WriteIndent(); writer.WriteLine(fieldType + " " + fieldName + ";");
+                    WriteIndent(); writer.WriteLine(fieldName + ": " + fieldType + (!lastField ? "," : ""));
                 }
             }
 
             indent--; WriteIndent(); writer.WriteLine("}");
         }
 
-        public void WriteCall(IDL idl, IDLCall call)
+        private string ToSnakeCase(string pascalCase)
         {
-            WriteIndent(); writer.WriteLine("internal class " + call.Name + "Call");
-            WriteIndent(); writer.WriteLine("{"); indent++;
-
-            string parameters = "";
-            if (call.Parameters != null && call.Parameters.Count > 0)
+            var wordIndices = new List<int>();
+            var index = 0;
+            foreach (var c in pascalCase)
             {
-                parameters = call.Name + "Parameters parameters";
-                WriteStruct(idl, call.Name + "Parameters", call.Parameters, call.BatchSize);
-                writer.WriteLine();
+                if (char.IsUpper(c)) wordIndices.Add(index);
+                index++;
             }
 
-            string returns = "Optional<Error>";
-            if (call.Returns != null && call.Returns.Count > 0)
+            var result = "";
+            for (index = 0; index < wordIndices.Count; index++)
             {
-                // check if any return is a list and in that case that it is the only return
-                (string Type, string Name, bool IsList, int? ListCount) returnList = (null, null, false, null);
-                foreach (var field in call.Returns)
+                if (index == wordIndices.Count - 1)
                 {
-                    var check = ParseField(idl, field);
-                    if (check.IsList) returnList = check;
-                }
-                if (returnList.Type != null && call.Returns.Count > 1) throw new Exception("If call returns a list, it needs to be the only return");
-
-                if (returnList.Type != null)
-                {
-                    returns = "ErrorOr<IEnumerable<" + returnList.Type + ">>";
+                    // last word
+                    var word = pascalCase.Substring(wordIndices[index]);
+                    result += word.ToLower();
                 }
                 else
                 {
-                    returns = "ErrorOr<" + call.Name + "Return>";
-                    WriteStruct(idl, call.Name + "Return", call.Returns, call.BatchSize);
+                    var word = pascalCase.Substring(wordIndices[index], wordIndices[index + 1] - wordIndices[index]);
+                    result += word.ToLower() + "_";
                 }
-                writer.WriteLine();
             }
 
-            // call implementation
-            WriteIndent(); writer.WriteLine("public " + returns + " " + call.Name + "(" + parameters + ")");
-            WriteIndent(); writer.WriteLine("{"); indent++;
-
-            WriteIndent(); writer.WriteLine("return new " + returns + "(Error.NotImplemented);");
-
-            indent--; WriteIndent(); writer.WriteLine("}");
-            //call implementation end
-
-            indent--; WriteIndent(); writer.WriteLine("}");
+            return result;
         }
 
-        public void FileOutro()
+        private string GetParameterString(string parameter)
         {
+            var (fieldType, fieldName, isList, listCount) = ParseField(parameter);
+            return fieldName + ": " + fieldType;
+        }
+
+        private string GetParametersString(IDLCall call)
+        {
+            if (call.Parameters != null && call.Parameters.Count > 0)
+            {
+                return string.Join(", ", call.Parameters.Select(p => GetParameterString(p)));
+            }
+
+            return "";
+        }
+
+        private string GetReturnString(string ret)
+        {
+            var (fieldType, fieldName, isList, listCount) = ParseField(ret);
+            return fieldType;
+        }
+
+        private string GetReturnsString(IDLCall call)
+        {
+            if (call.Returns != null && call.Returns.Count > 0)
+            {
+                if (call.Returns.Count == 1)
+                {
+                    return " -> " + GetReturnString(call.Returns[0]);
+                }
+                else
+                {
+                    return " -> (" + string.Join(", ", call.Returns.Select(r => GetReturnString(r))) + ")";
+                }
+            }
+            return "";
+        }
+
+        public void WriteCall(IDLCall call)
+        {
+            WriteIndent(); writer.WriteLine("pub fn " + ToSnakeCase(call.Name) + "(" + GetParametersString(call) + ")" + GetReturnsString(call) + " {"); indent++;
+
             indent--; WriteIndent(); writer.WriteLine("}");
         }
     }

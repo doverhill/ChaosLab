@@ -1,16 +1,17 @@
 # Build IDL compiler
 dotnet publish .\IDLCompiler\IDLCompiler.csproj -o publish
 
-# Compile interfaces
-# VFS Library
-#cd VFS\IPC
-#..\..\publish\IDLCompiler client ..\VFS_IDL.json
-#cd ..\..
+# Compile protocols
 
-# VFS Server
-#cd VFSServer\IPC
-#..\..\publish\IDLCompiler server ..\..\VFS\VFS_IDL.json
-#cd ..\..
+# fs
+Set-Location rust\protocol\fs\src
+..\..\..\..\publish\IDLCompiler ..\fs_idl.json
+Set-Location ..\..\..\..
+
+# fs
+Set-Location rust\protocol\vfs\src
+..\..\..\..\publish\IDLCompiler ..\vfs_idl.json
+Set-Location ..\..\..\..
 
 # Compile everything
 dotnet publish .\ChaosLab.sln -o .\publish\

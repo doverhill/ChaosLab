@@ -1,0 +1,16 @@
+{
+    "Interface": {
+        "Name": "vfs",
+        "InheritsFrom": "../fs/fs_idl.json",
+        "Version": 1
+    },
+
+    "ClientToServerCalls": [
+        {
+            "Name": "Mount",
+            "Parameters": [
+                "string path"
+            ]
+        }
+    ]
+}

@@ -9,6 +9,7 @@ namespace IDLCompiler
     internal class IDLInterface
     {
         public string? Name;
+        public string? InheritsFrom;
         public int Version;
     }
 

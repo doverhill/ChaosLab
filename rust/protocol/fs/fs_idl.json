@@ -1,0 +1,63 @@
+{
+    "Interface": {
+        "Name": "fs",
+        "Version": 1
+    },
+
+    "Types": [
+        {
+            "Name": "DirectoryChild",
+            "Fields": [
+                "string name",
+                "bool is_directory"
+            ]
+        },
+        {
+            "Name": "FileInfo",
+            "Fields": [
+                "string name",
+                "size size",
+                "datetime created_at"
+            ]
+        }
+    ],
+
+    "ClientToServerCalls": [
+        {
+            "Name": "DirectoryList",
+            "Parameters": [
+                "string full_path"
+            ],
+            "ReturnsList": true,
+            "Returns": [
+                "DirectoryChild children"
+            ]
+        },
+        {
+            "Name": "FileInfo",
+            "Parameters": [
+                "string full_path"
+            ],
+            "Returns": [
+                "FileInfo file_info"
+            ]
+        },
+        {
+            "Name": "FileRead",
+            "Parameters": [
+                "string full_path"
+            ],
+            "ReturnsList": true,
+            "Returns": [
+                "byte contents"
+            ]
+        },
+        {
+            "Name": "FileCopy",
+            "Parameters": [
+                "string source_full_path",
+                "string target_full_path"
+            ]
+        }
+    ]
+}

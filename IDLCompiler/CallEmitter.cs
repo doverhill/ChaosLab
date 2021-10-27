@@ -8,15 +8,10 @@ namespace IDLCompiler
 {
     internal class CallEmitter
     {
-        public static void Emit(IDL idl, IDLCall call)
+        public static void Emit(StreamWriter writer, IDL idl, IDLCall call)
         {
-            using var file = File.Create(call.Name + "Call.cs");
-            using var writer = new StreamWriter(file);
-            var emitter = new CommonEmitter(writer);
-
-            emitter.FileIntro(idl.Interface.Name + ".IPC");
-            emitter.WriteCall(idl, call);
-            emitter.FileOutro();
+            var emitter = new CommonEmitter(idl, writer);
+            emitter.WriteCall(call);
         }
     }
 }
