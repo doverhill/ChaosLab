@@ -5,6 +5,7 @@ mod syscalls;
 
 pub mod call;
 pub mod channel;
+pub mod channel_iterator;
 pub mod handle;
 pub mod action;
 pub mod error;

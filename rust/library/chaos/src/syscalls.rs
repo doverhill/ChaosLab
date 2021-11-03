@@ -14,7 +14,7 @@ enum SyscallNumber {
     ServiceConnect = 12,
 
     ChannelDestroy = 21,
-    ChannelSignal = 22,
+    ChannelMessage = 22,
 
     EventWait = 30,
 
@@ -51,7 +51,7 @@ pub fn service_create(protocol_name: &str, vendor_name: &str, device_name: &str,
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        Ok(Handle::new(read_u64(connection)))
+        Ok(read_u64(connection))
     }
     else {
         Err(result)
@@ -61,7 +61,7 @@ pub fn service_create(protocol_name: &str, vendor_name: &str, device_name: &str,
 pub fn service_destroy(handle: Handle) -> Option<Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ServiceDestroy as i32);
-    write_u64(connection, handle.id);
+    write_u64(connection, handle);
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
@@ -82,7 +82,7 @@ pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_na
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        Ok(Handle::new(read_u64(connection)))
+        Ok(read_u64(connection))
     }
     else {
         Err(result)
@@ -92,7 +92,7 @@ pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_na
 pub fn channel_destroy(channel_handle: Handle) -> Option<Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ChannelDestroy as i32);
-    write_u64(connection, channel_handle.id);
+    write_u64(connection, channel_handle);
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
@@ -103,11 +103,11 @@ pub fn channel_destroy(channel_handle: Handle) -> Option<Error> {
     }
 }
 
-pub fn channel_signal(channel_handle: Handle, signal: u64) -> Option<Error> {
+pub fn channel_message(handle: Handle, message: u64) -> Option<Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
-    write_i32(connection, SyscallNumber::ChannelSignal as i32);
-    write_u64(connection, channel_handle.id);
-    write_u64(connection, signal);
+    write_i32(connection, SyscallNumber::ChannelMessage as i32);
+    write_u64(connection, handle);
+    write_u64(connection, message);
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
@@ -125,8 +125,8 @@ pub fn event_wait(timeout_milliseconds: i32) -> Result<(Handle, Handle, Action, 
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        let target_handle = Handle::new(read_u64(connection));
-        let argument_handle = Handle::new(read_u64(connection));
+        let target_handle = read_u64(connection);
+        let argument_handle = read_u64(connection);
         Ok((target_handle, argument_handle, Action::from_i32(read_i32(connection)), read_u64(connection)))
     }
     else {

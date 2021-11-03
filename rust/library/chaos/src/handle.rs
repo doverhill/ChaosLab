@@ -1,20 +1,25 @@
-use std::fmt;
+pub type Handle = u64;
 
-#[derive(Copy, Clone)]
-pub struct Handle {
-    pub id: u64
-}
+// use std::fmt;
 
-impl Handle {
-    pub fn new(id: u64) -> Handle {
-        Handle {
-            id: id
-        }
-    }
-}
+// pub struct Handle {
+//     pub id: u64
+// }
 
-impl fmt::Display for Handle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[HANDLE: id={}]", self.id)
-    }
-}
+// impl Drop for Handle {
+
+// }
+
+// impl Handle {
+//     pub fn new(id: u64) -> Handle {
+//         Handle {
+//             id: id
+//         }
+//     }
+// }
+
+// impl fmt::Display for Handle {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(f, "[HANDLE: id={}]", self.id)
+//     }
+// }

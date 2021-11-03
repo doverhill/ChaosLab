@@ -12,7 +12,7 @@ namespace Core
         ServiceConnect = 12,
 
         ChannelDestroy = 21,
-        ChannelSignal = 22,
+        ChannelMessage = 22,
 
         EventWait = 30,
 

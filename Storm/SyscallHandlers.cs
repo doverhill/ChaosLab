@@ -59,7 +59,7 @@ namespace Storm
             else
             {
                 var channelHandleId = Handles.Create(process.PID, service.OwningPID, HandleType.Channel);
-                Events.Fire(new Event(service.OwningPID, Error.None, service.HandleId, channelHandleId, HandleAction.Connect, 0));
+                Events.Fire(new Event(service.OwningPID, Error.None, service.HandleId, channelHandleId, HandleAction.ServiceConnected, 0));
 
                 writer.Write((int)Error.None);
                 writer.Write(channelHandleId);
@@ -83,18 +83,18 @@ namespace Storm
             }
         }
 
-        public static void ChannelSignal(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ChannelMessage(BinaryReader reader, BinaryWriter writer, Process process)
         {
             var channelHandleId = reader.ReadUInt64();
-            var signal = reader.ReadUInt64();
+            var message = reader.ReadUInt64();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ChannelSignal: handleId=" + channelHandleId + ", signal=" + signal);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ChannelSignal: handleId=" + channelHandleId + ", message=" + message);
             var handle = Handles.GetChannelHandleForSignal(channelHandleId, process.PID);
 
             if (handle != null)
             {
                 var receivingPID = handle.GetOtherPID(process.PID);
-                Events.Fire(new Event(receivingPID, Error.None, handle.Id, Handle.None, HandleAction.Signal, signal));
+                Events.Fire(new Event(receivingPID, Error.None, handle.Id, Handle.None, HandleAction.ChannelMessaged, message));
 
                 writer.Write((int)Error.None);
             }

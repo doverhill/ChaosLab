@@ -79,8 +79,8 @@ namespace Storm
                             SyscallHandlers.ChannelDestroy(reader, writer, process);
                             break;
 
-                        case SyscallNumber.ChannelSignal:
-                            SyscallHandlers.ChannelSignal(reader, writer, process);
+                        case SyscallNumber.ChannelMessage:
+                            SyscallHandlers.ChannelMessage(reader, writer, process);
                             break;
 
                         // Event

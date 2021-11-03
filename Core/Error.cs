@@ -8,7 +8,7 @@
         NotImplemented = 3,
         Timeout = 4,
         Cancelled = 5,
-        Duplicate = 6,
+        AlreadyExists = 6,
         General = 7
     }
 }

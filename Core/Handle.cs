@@ -5,8 +5,8 @@ namespace Core
     public enum HandleAction
     {
         None = 0,
-        Connect = 1,
-        Signal = 2
+        ServiceConnected = 1,
+        ChannelMessaged = 2
     }
 
     public class Handle

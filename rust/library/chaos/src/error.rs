@@ -6,7 +6,7 @@ pub enum Error {
     NotImplemented = 3,
     Timeout = 4,
     Cancelled = 5,
-    Duplicate = 6,
+    AlreadyExists = 6,
     General = 7
 }
 
@@ -19,7 +19,7 @@ impl Error {
             3 => Error::NotImplemented,
             4 => Error::Timeout,
             5 => Error::Cancelled,
-            6 => Error::Duplicate,
+            6 => Error::AlreadyExists,
             7 => Error::General,
             _ => Error::General
         }

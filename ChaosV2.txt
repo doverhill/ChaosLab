@@ -1,3 +1,14 @@
+implementation notes:
+
+provide macros for information!() debug!() error!() and emit!(), last one emitting structured data
+use tokio to set up a runtime and call EventWait in a blocking task that can awake other tasks
+use Arc<> to be able to pass channels around
+use async functions for channels
+
+
+
+
+
 GOALS:
     * Kernel and system libraries written in Rust
     * Port net core so that servers and

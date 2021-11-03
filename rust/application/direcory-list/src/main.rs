@@ -1,42 +1,58 @@
 extern crate chaos;
 
-use chaos::{ process, service, handle::Handle };
+use chaos::{ process::Process, service::Service };
+
+#[derive(Clone, Copy)]
+struct ChannelCall {
+    x: i32,
+    y: i32
+}
+
+// #[derive(Clone, Copy)]
+struct ChannelResponse {
+    result: i32,
+    diff: i32
+}
 
 fn main() {
-    // process::wrap will not be needed when running natively on chaos
-    process::wrap("Application.DirectoryList", chaos_entry);
-}
+    // to be nice, lets set a name for our application
+    Process::set_info("Application.DirectoryList");
 
-fn chaos_entry() {
-    match service::connect("vfs", None, None, None) {
-        Ok(channel_handle) => {
-            list(channel_handle);
+    // attempt to connect to the vfs service
+    match Service::connect("vfs", None, None, None, 4096) {
+        Ok(channel_wrap) => {
+            // we are connected and got a channel, lets call something on the channel asynchronously
+            Process::emit_information("Connected to VFS service");
+
+            let mut channel = channel_wrap.lock().unwrap();
+            channel.set(ChannelCall { x: 12, y: 66 });
+            channel.call_sync(1, 1, 1000);
+            let result = channel.get::<ChannelResponse>();
+            Process::emit_information(&format!("got result {} and diff {}", result.result, result.diff));
         },
         Err(error) => {
-            process::emit_error(error, "Failed to connect to service");
+            Process::emit_error(error, "Failed to connect to VFS service");
         }
     }
+
+    // this is needed for now at the end of every program to clean up correctly
+    Process::end();
 }
 
-fn list(channel_handle: Handle) -> () {
-    unsafe {
-        let pointer = process::get_channel_pointer(channel_handle).unwrap();
-        *pointer = 42;
-    }
 
-    process::channel_interface(channel_handle, 1)
-        .then(|pointer: *mut u8| {
-            unsafe {
-                let r = *pointer;
-                process::emit_information(&format!("Got result: {}", r));
-            }
-            process::end();
-        })
-        .orelse(|error| {
-            process::emit_error(error, "Call failed");
-            process::end();
-        })
-        .call();
+// fn list(channel_handle: Handle) -> () {
+//     directory_list(channel_handle, "/")
+//         .then(|item_iterator| {
+//             for item in item_iterator {
+//                 process::emit_information(format!("{} {}", item.is_directory ? "D" : "F", item.name));
+//             }
+//             process::end();
+//         })
+//         .orelse(|error| {
+//             process::emit_error(error, "Call failed");
+//             process::end();
+//         })
+//         .call();
 
-    process::run();
-}
+//     process::run();
+// }

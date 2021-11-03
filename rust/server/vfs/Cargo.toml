@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 chaos = { path = "../../library/chaos" }
 uuid = { version = "0.8.2", features = ["v4"] }
+#tokio = { version = "1.13.0", features = [ "full" ]}

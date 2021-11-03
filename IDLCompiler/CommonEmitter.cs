@@ -190,7 +190,15 @@ namespace IDLCompiler
 
         public void WriteCall(IDLCall call)
         {
+            // generate safe call, copies struct
             WriteIndent(); writer.WriteLine("pub fn " + ToSnakeCase(call.Name) + "(" + GetParametersString(call) + ")" + GetReturnsString(call) + " {"); indent++;
+
+            indent--; WriteIndent(); writer.WriteLine("}");
+
+            writer.WriteLine();
+
+            // generate unsafe faster call, returns pointer to struct
+            WriteIndent(); writer.WriteLine("unsafe pub fn " + ToSnakeCase(call.Name) + "_raw(" + GetParametersString(call) + ")" + GetReturnsString(call) + " {"); indent++;
 
             indent--; WriteIndent(); writer.WriteLine("}");
         }
