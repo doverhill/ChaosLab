@@ -26,15 +26,6 @@ namespace IDLCompiler
 
         private (string Type, string Name, bool IsList, int? ListCount) ParseField(string field)
         {
-            // supported types:
-            // string
-            // i32
-            // i64
-            // f32
-            // f64
-            // bool
-            // typename
-
             var parts = field.Split(" ");
             if (parts.Length != 2) throw new Exception("Malformed type and name: '" + field + "'");
             var typeName = parts[0];
@@ -119,35 +110,6 @@ namespace IDLCompiler
             }
 
             indent--; WriteIndent(); writer.WriteLine("}");
-        }
-
-        private string ToSnakeCase(string pascalCase)
-        {
-            var wordIndices = new List<int>();
-            var index = 0;
-            foreach (var c in pascalCase)
-            {
-                if (char.IsUpper(c)) wordIndices.Add(index);
-                index++;
-            }
-
-            var result = "";
-            for (index = 0; index < wordIndices.Count; index++)
-            {
-                if (index == wordIndices.Count - 1)
-                {
-                    // last word
-                    var word = pascalCase.Substring(wordIndices[index]);
-                    result += word.ToLower();
-                }
-                else
-                {
-                    var word = pascalCase.Substring(wordIndices[index], wordIndices[index + 1] - wordIndices[index]);
-                    result += word.ToLower() + "_";
-                }
-            }
-
-            return result;
         }
 
         private string GetParameterString(string parameter)

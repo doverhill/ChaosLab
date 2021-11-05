@@ -3,11 +3,11 @@ use crate::{ error::Error, syscalls, action::Action, service::Service, channel::
 pub struct Process {}
 
 impl Process {
-    pub fn set_info(process_name: &str) -> Option<Error> {
+    pub fn set_info(process_name: &str) -> Result<(), Error> {
         syscalls::process_set_info(process_name)
     }
 
-    pub fn emit_debug(information_text: &str) -> Option<Error> {
+    pub fn emit_debug(information_text: &str) -> Result<(), Error> {
         syscalls::process_emit(
             syscalls::EmitType::Debug,
             Error::None,
@@ -15,7 +15,7 @@ impl Process {
         )
     }
 
-    pub fn emit_information(information_text: &str) -> Option<Error> {
+    pub fn emit_information(information_text: &str) -> Result<(), Error> {
         syscalls::process_emit(
             syscalls::EmitType::Information,
             Error::None,
@@ -23,7 +23,7 @@ impl Process {
         )
     }
 
-    pub fn emit_warning(information_text: &str) -> Option<Error> {
+    pub fn emit_warning(information_text: &str) -> Result<(), Error> {
         syscalls::process_emit(
             syscalls::EmitType::Warning,
             Error::None,
@@ -31,7 +31,7 @@ impl Process {
         )
     }
 
-    pub fn emit_error(error: Error, information_text: &str) -> Option<Error> {
+    pub fn emit_error(error: Error, information_text: &str) -> Result<(), Error> {
         syscalls::process_emit(syscalls::EmitType::Error, error, Some(information_text))
     }
 
@@ -58,7 +58,7 @@ impl Process {
     }
 
     pub fn end() -> ! {
-        syscalls::process_destroy();
+        syscalls::process_destroy().unwrap();
         syscalls::cleanup();
         std::process::exit(0);
     }

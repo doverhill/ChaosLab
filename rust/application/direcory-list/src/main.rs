@@ -1,34 +1,62 @@
 extern crate chaos;
-
 use chaos::{ process::Process, service::Service };
 
-#[derive(Clone, Copy)]
 struct ChannelCall {
-    x: i32,
-    y: i32
+    msg: [u8; 100],
+    x: i32
 }
 
-// #[derive(Clone, Copy)]
+impl ChannelCall {
+    pub fn new(msg: &str, x: i32) -> ChannelCall {
+        let mut tmp = ChannelCall {
+            msg: [0u8; 100],
+            x: x
+        };
+        unsafe {
+            core::ptr::copy(msg.as_ptr(), core::ptr::addr_of!(tmp.msg) as *mut u8, core::cmp::min(99, msg.len()));
+        }
+        tmp
+    }
+
+    pub fn get_msg(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(&self.msg) }
+    }
+}
+
 struct ChannelResponse {
-    result: i32,
-    diff: i32
+    length: i32,
+    new_msg: [u8; 100]
+}
+
+impl ChannelResponse {
+    pub fn new(length: i32, new_msg: &str) -> ChannelResponse {
+        let mut tmp = ChannelResponse {
+            length: length,
+            new_msg: [0u8; 100]
+        };
+        unsafe {
+            core::ptr::copy(new_msg.as_ptr(), core::ptr::addr_of!(tmp.new_msg) as *mut u8, core::cmp::min(99, new_msg.len()));
+        }
+        tmp
+    }
+
+    pub fn get_new_msg(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(&self.new_msg) }
+    }
 }
 
 fn main() {
-    // to be nice, lets set a name for our application
+    // to be nice, set a name for our application
     Process::set_info("Application.DirectoryList");
 
     // attempt to connect to the vfs service
     match Service::connect("vfs", None, None, None, 4096) {
         Ok(channel_wrap) => {
-            // we are connected and got a channel, lets call something on the channel asynchronously
-            Process::emit_information("Connected to VFS service");
-
             let mut channel = channel_wrap.lock().unwrap();
-            channel.set(ChannelCall { x: 12, y: 66 });
+            channel.set(ChannelCall::new("test string", 77));
             channel.call_sync(1, 1, 1000);
             let result = channel.get::<ChannelResponse>();
-            Process::emit_information(&format!("got result {} and diff {}", result.result, result.diff));
+            Process::emit_information(&format!("got result '{}' with len {}", result.get_new_msg(), result.length));
         },
         Err(error) => {
             Process::emit_error(error, "Failed to connect to VFS service");
@@ -38,21 +66,3 @@ fn main() {
     // this is needed for now at the end of every program to clean up correctly
     Process::end();
 }
-
-
-// fn list(channel_handle: Handle) -> () {
-//     directory_list(channel_handle, "/")
-//         .then(|item_iterator| {
-//             for item in item_iterator {
-//                 process::emit_information(format!("{} {}", item.is_directory ? "D" : "F", item.name));
-//             }
-//             process::end();
-//         })
-//         .orelse(|error| {
-//             process::emit_error(error, "Call failed");
-//             process::end();
-//         })
-//         .call();
-
-//     process::run();
-// }

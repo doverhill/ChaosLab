@@ -5,20 +5,52 @@ use std::sync::Arc;
 use uuid::Uuid;
 use std::sync::Mutex;
 
-#[derive(Clone, Copy)]
 struct ChannelCall {
-    x: i32,
-    y: i32,
+    msg: [u8; 100],
+    x: i32
 }
 
-#[derive(Clone, Copy)]
+impl ChannelCall {
+    pub fn new(msg: &str, x: i32) -> ChannelCall {
+        let mut tmp = ChannelCall {
+            msg: [0u8; 100],
+            x: x
+        };
+        unsafe {
+            core::ptr::copy(msg.as_ptr(), core::ptr::addr_of!(tmp.msg) as *mut u8, core::cmp::min(99, msg.len()));
+        }
+        tmp
+    }
+
+    pub fn get_msg(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(&self.msg) }
+    }
+}
+
 struct ChannelResponse {
-    result: i32,
-    diff: i32,
+    length: i32,
+    new_msg: [u8; 100]
+}
+
+impl ChannelResponse {
+    pub fn new(length: i32, new_msg: &str) -> ChannelResponse {
+        let mut tmp = ChannelResponse {
+            length: length,
+            new_msg: [0u8; 100]
+        };
+        unsafe {
+            core::ptr::copy(new_msg.as_ptr(), core::ptr::addr_of!(tmp.new_msg) as *mut u8, core::cmp::min(99, new_msg.len()));
+        }
+        tmp
+    }
+
+    pub fn get_new_msg(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(&self.new_msg) }
+    }
 }
 
 fn main() {
-    // to be nice, lets set a name for our application
+    // to be nice, set a name for our application
     Process::set_info("Server.VFS");
     Process::emit_debug("Starting VFS server");
 
@@ -37,6 +69,7 @@ fn main() {
         }
     }
 
+    // this is needed for now at the end of every program to clean up correctly
     Process::end();
 }
 
@@ -49,13 +82,7 @@ fn handle_connect(service_wrap: &Arc<Mutex<Service>>, channel_wrap: Arc<Mutex<Ch
 
 fn handle_message(channel_wrap: &Arc<Mutex<Channel>>, message: u64) {
     let channel = channel_wrap.lock().unwrap();
-    Process::emit_debug(&format!("Message {} on {}", message, channel));
-
     let data = channel.get::<ChannelCall>();
-    let result = ChannelResponse {
-        result: data.x + data.y,
-        diff: data.x - data.y
-    };
-    channel.set(result);
+    channel.set(ChannelResponse::new(data.msg.len() as i32, "hej"));
     channel.send(1);
 }

@@ -42,6 +42,8 @@ impl Drop for Channel {
         if self.map_handle as *mut _ != NULL {
             unsafe { CloseHandle(self.map_handle) };
         }
+
+        syscalls::channel_destroy(self.handle).unwrap();
     }
 }
 
@@ -93,20 +95,20 @@ impl Channel {
         return format!("Local\\__chaos_channel_{}", handle);
     }
 
-    pub fn on_message(&mut self, handler: fn(&Arc<Mutex<Channel>>, u64) -> ()) -> Option<Error> {
+    pub fn on_message(&mut self, handler: fn(&Arc<Mutex<Channel>>, u64) -> ()) -> Result<(), Error> {
         match self.on_message {
             Some(_) => {
-                Some(Error::AlreadyExists)
+                Err(Error::AlreadyExists)
             },
             None => {
                 self.on_message = Some(handler);
-                None
+                Ok(())
             }
         }
     }
 
     pub(crate) fn messaged(handle: Handle, message: u64) {
-        Process::emit_debug(&format!("Channel {} got message {}", handle, message));
+        Process::emit_debug(&format!("Channel {} got message {}", handle, message)).unwrap();
 
         let channels = CHANNELS.lock().unwrap();
         if let Some(channel_wrap) = channels.get(&handle) {
@@ -118,7 +120,7 @@ impl Channel {
         }
     }
 
-    pub fn set<T: Copy>(&self, data: T) {
+    pub fn set<T>(&self, data: T) {
         unsafe {
             *(self.map_pointer as *mut T) = data;
         }
@@ -131,28 +133,28 @@ impl Channel {
     }
 
     pub fn send(&self, message: u64) {
-        syscalls::channel_message(self.handle, message);
+        syscalls::channel_message(self.handle, message).unwrap();
     }
 
-    pub fn call_sync(&self, message: u64, reply: u64, timeout_milliseconds: i32) -> Option<Error> {
-        syscalls::channel_message(self.handle, message);
-        match syscalls::event_wait(-1) {
-            Ok((target_handle, argument_handle, action, parameter)) => {
+    pub fn call_sync(&self, message: u64, reply: u64, timeout_milliseconds: i32) -> Result<(), Error> {
+        syscalls::channel_message(self.handle, message)?;
+        match syscalls::event_wait(timeout_milliseconds) {
+            Ok((target_handle, _, action, parameter)) => {
                 if target_handle != self.handle {
-                    Some(Error::General)
+                    Err(Error::General)
                 }
                 else if action != Action::ChannelMessaged {
-                    Some(Error::General)
+                    Err(Error::General)
                 }
                 else if parameter != reply {
-                    Some(Error::General)
+                    Err(Error::General)
                 }
                 else {
-                    None
+                    Ok(())
                 }
             },
             Err(error) => {
-                Some(error)
+                Err(error)
             }
         }
     }

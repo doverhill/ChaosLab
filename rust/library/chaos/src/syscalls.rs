@@ -58,17 +58,17 @@ pub fn service_create(protocol_name: &str, vendor_name: &str, device_name: &str,
     }
 }
 
-pub fn service_destroy(handle: Handle) -> Option<Error> {
+pub fn service_destroy(handle: Handle) -> Result<(), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ServiceDestroy as i32);
     write_u64(connection, handle);
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        None
+        Ok(())
     }
     else {
-        Some(result)
+        Err(result)
     }
 }
 
@@ -89,21 +89,21 @@ pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_na
     }
 }
 
-pub fn channel_destroy(channel_handle: Handle) -> Option<Error> {
+pub fn channel_destroy(channel_handle: Handle) -> Result<(), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ChannelDestroy as i32);
     write_u64(connection, channel_handle);
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        None
+        Ok(())
     }
     else {
-        Some(result)
+        Err(result)
     }
 }
 
-pub fn channel_message(handle: Handle, message: u64) -> Option<Error> {
+pub fn channel_message(handle: Handle, message: u64) -> Result<(), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ChannelMessage as i32);
     write_u64(connection, handle);
@@ -111,10 +111,10 @@ pub fn channel_message(handle: Handle, message: u64) -> Option<Error> {
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        None
+        Ok(())
     }
     else {
-        Some(result)
+        Err(result)
     }
 }
 
@@ -134,34 +134,34 @@ pub fn event_wait(timeout_milliseconds: i32) -> Result<(Handle, Handle, Action, 
     }
 }
 
-pub fn process_destroy() -> Option<Error> {
+pub fn process_destroy() -> Result<(), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessDestroy as i32);
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        None
+        Ok(())
     }
     else {
-        Some(result)
+        Err(result)
     }
 }
 
-pub fn process_set_info(process_name: &str) -> Option<Error> {
+pub fn process_set_info(process_name: &str) -> Result<(), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessSetInfo as i32);
     write_text(connection, Some(process_name));
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        None
+        Ok(())
     }
     else {
-        Some(result)
+        Err(result)
     }
 }
 
-pub fn process_emit(emit_type: EmitType, error: Error, text: Option<&str>) -> Option<Error> {
+pub fn process_emit(emit_type: EmitType, error: Error, text: Option<&str>) -> Result<(), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessEmit as i32);
     write_i32(connection, emit_type as i32);
@@ -170,31 +170,31 @@ pub fn process_emit(emit_type: EmitType, error: Error, text: Option<&str>) -> Op
 
     let result = Error::from_i32(read_i32(connection));
     if result == Error::None {
-        None
+        Ok(())
     }
     else {
-        Some(result)
+        Err(result)
     }
 }
 
-pub fn cleanup() -> () {
+pub fn cleanup() {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     connection.shutdown(Shutdown::Both).unwrap();
 }
 
-fn write_i32(mut connection: &TcpStream, value: i32) -> () {
+fn write_i32(mut connection: &TcpStream, value: i32) {
     connection.write(&value.to_ne_bytes()).unwrap();
 }
 
-fn write_u32(mut connection: &TcpStream, value: u32) -> () {
+fn write_u32(mut connection: &TcpStream, value: u32) {
     connection.write(&value.to_ne_bytes()).unwrap();
 }
 
-fn write_u64(mut connection: &TcpStream, value: u64) -> () {
+fn write_u64(mut connection: &TcpStream, value: u64) {
     connection.write(&value.to_ne_bytes()).unwrap();
 }
 
-fn write_bool(mut connection: &TcpStream, value: bool) -> () {
+fn write_bool(mut connection: &TcpStream, value: bool) {
     if value {
         connection.write(&[1]).unwrap();
     } else {
@@ -202,7 +202,7 @@ fn write_bool(mut connection: &TcpStream, value: bool) -> () {
     }
 }
 
-fn write_text(mut connection: &TcpStream, text: Option<&str>) -> () {
+fn write_text(mut connection: &TcpStream, text: Option<&str>) {
     match text {
         Some(value) => {
             write_bool(connection, true);
@@ -215,7 +215,7 @@ fn write_text(mut connection: &TcpStream, text: Option<&str>) -> () {
     }
 }
 
-fn write_uuid(mut connection: &TcpStream, uuid: Option<Uuid>) -> () {
+fn write_uuid(mut connection: &TcpStream, uuid: Option<Uuid>) {
     match uuid {
         Some(value) => {
             write_bool(connection, true);

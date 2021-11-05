@@ -51,20 +51,20 @@ impl Service {
         }
     }
     
-    pub fn on_connect(&mut self, handler: fn(&Arc<Mutex<Service>>, Arc<Mutex<Channel>>) -> ()) -> Option<Error> {
+    pub fn on_connect(&mut self, handler: fn(&Arc<Mutex<Service>>, Arc<Mutex<Channel>>) -> ()) -> Result<(), Error> {
         match self.on_connect {
             Some(_) => {
-                Some(Error::AlreadyExists)
+                Err(Error::AlreadyExists)
             },
             None => {
                 self.on_connect = Some(handler);
-                None
+                Ok(())
             }
         }
     }
 
     pub(crate) fn connected(handle: Handle, channel_handle: Handle) {
-        Process::emit_debug(&format!("Service connect on {} -> channel {}", handle, channel_handle));
+        Process::emit_debug(&format!("Service connect on {} -> channel {}", handle, channel_handle)).unwrap();
 
         let services = SERVICES.lock().unwrap();
         if let Some(service_wrap) = services.get(&handle) {
@@ -77,14 +77,14 @@ impl Service {
         }
     }
 
-    pub fn destroy(self) -> Option<Error> {
+    pub fn destroy(self) -> Result<(), Error> {
         syscalls::service_destroy(self.handle)
     }
 }
 
 impl Drop for Service {
     fn drop(&mut self) {
-        syscalls::service_destroy(self.handle);
+        syscalls::service_destroy(self.handle).unwrap();
     }
 }
 
