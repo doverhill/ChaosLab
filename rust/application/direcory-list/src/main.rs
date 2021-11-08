@@ -1,14 +1,16 @@
 extern crate chaos;
 use chaos::{ process::Process, service::Service };
 
+#[allow(dead_code)]
 struct ChannelCall {
     msg: [u8; 100],
     x: i32
 }
 
+#[allow(dead_code)]
 impl ChannelCall {
     pub fn new(msg: &str, x: i32) -> ChannelCall {
-        let mut tmp = ChannelCall {
+        let tmp = ChannelCall {
             msg: [0u8; 100],
             x: x
         };
@@ -23,14 +25,16 @@ impl ChannelCall {
     }
 }
 
+#[allow(dead_code)]
 struct ChannelResponse {
     length: i32,
     new_msg: [u8; 100]
 }
 
+#[allow(dead_code)]
 impl ChannelResponse {
     pub fn new(length: i32, new_msg: &str) -> ChannelResponse {
-        let mut tmp = ChannelResponse {
+        let tmp = ChannelResponse {
             length: length,
             new_msg: [0u8; 100]
         };
@@ -47,19 +51,19 @@ impl ChannelResponse {
 
 fn main() {
     // to be nice, set a name for our application
-    Process::set_info("Application.DirectoryList");
+    Process::set_info("Application.DirectoryList").unwrap();
 
     // attempt to connect to the vfs service
     match Service::connect("vfs", None, None, None, 4096) {
         Ok(channel_wrap) => {
-            let mut channel = channel_wrap.lock().unwrap();
+            let channel = channel_wrap.lock().unwrap();
             channel.set(ChannelCall::new("test string", 77));
-            channel.call_sync(1, 1, 1000);
+            channel.call_sync(1, 1000).unwrap();
             let result = channel.get::<ChannelResponse>();
-            Process::emit_information(&format!("got result '{}' with len {}", result.get_new_msg(), result.length));
+            Process::emit_information(&format!("got result '{}' with len {}", result.get_new_msg(), result.length)).unwrap();
         },
         Err(error) => {
-            Process::emit_error(error, "Failed to connect to VFS service");
+            Process::emit_error(error, "Failed to connect to VFS service").unwrap();
         }
     }
 

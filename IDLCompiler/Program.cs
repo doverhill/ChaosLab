@@ -90,6 +90,8 @@ if (idl.Types != null)
     if (typesStream != null) libStream.WriteLine("pub mod types;");
 }
 
+int ipcNumber = 1;
+StreamWriter ipcStream = null;
 StreamWriter clientCallsStream = null;
 StreamWriter clientHandlersStream = null;
 StreamWriter serverCallsStream = null;
@@ -101,13 +103,28 @@ if (idl.ClientToServerCalls != null)
     foreach (var call in idl.ClientToServerCalls)
     {
         Console.WriteLine("  Emitting client->server call " + call.Name);
+        if (ipcStream == null)
+        {
+            ipcStream = new StreamWriter(File.Create("ipc.rs"));
+        }
         if (clientCallsStream == null)
         {
             clientCallsStream = new StreamWriter(File.Create("client_calls.rs"));
+            clientCallsStream.WriteLine("extern crate chaos;");
+            clientCallsStream.WriteLine("use chaos::channel::Channel;");
+            clientCallsStream.WriteLine("use crate::types::*;");
+            clientCallsStream.WriteLine("use crate::ipc::*;");
+            clientCallsStream.WriteLine();
         }
+        var callName = CasedString.FromPascal(call.Name);
+        ipcStream.WriteLine("pub const " + idl.Interface.Name.ToUpper() + "_" + callName.ToScreamingSnake() + "_MESSAGE: u64 = " + ipcNumber++ + ";");
         CallEmitter.Emit(clientCallsStream, idl, call);
     }
-    if (clientCallsStream != null) libStream.WriteLine("pub mod client_calls;");
+    if (clientCallsStream != null)
+    {
+        libStream.WriteLine("mod ipc;");
+        libStream.WriteLine("pub mod client_calls;");
+    }
 }
 
 
@@ -160,6 +177,7 @@ if (idl.ClientToServerCalls != null)
 //    Console.WriteLine("Error: Unknown side '" + side + "'");
 //}
 
+ipcStream?.Close();
 libStream?.Close();
 typesStream?.Close();
 clientCallsStream?.Close();

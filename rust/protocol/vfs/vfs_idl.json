@@ -9,7 +9,7 @@
         {
             "Name": "Mount",
             "Parameters": [
-                "string path"
+                "Path Path"
             ]
         }
     ]

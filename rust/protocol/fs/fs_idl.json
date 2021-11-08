@@ -6,18 +6,24 @@
 
     "Types": [
         {
+            "Name": "Path",
+            "Fields": [
+                "string(1024) Path"
+            ]
+        },
+        {
             "Name": "DirectoryChild",
             "Fields": [
-                "string name",
-                "bool is_directory"
+                "string(256) Name",
+                "bool IsDirectory"
             ]
         },
         {
             "Name": "FileInfo",
             "Fields": [
-                "string name",
-                "size size",
-                "datetime created_at"
+                "string(256) Name",
+                "u64 Size",
+                "datetime CreatedAt"
             ]
         }
     ],
@@ -26,37 +32,37 @@
         {
             "Name": "DirectoryList",
             "Parameters": [
-                "string full_path"
+                "Path FullPath"
             ],
             "ReturnsList": true,
             "Returns": [
-                "DirectoryChild children"
+                "DirectoryChild Children"
             ]
         },
         {
             "Name": "FileInfo",
             "Parameters": [
-                "string full_path"
+                "Path FullPath"
             ],
             "Returns": [
-                "FileInfo file_info"
+                "FileInfo FileInfo"
             ]
         },
         {
             "Name": "FileRead",
             "Parameters": [
-                "string full_path"
+                "Path FullPath"
             ],
             "ReturnsList": true,
             "Returns": [
-                "byte contents"
+                "byte Contents[4096]"
             ]
         },
         {
             "Name": "FileCopy",
             "Parameters": [
-                "string source_full_path",
-                "string target_full_path"
+                "Path SourceFullPath",
+                "Path TargetFullPath"
             ]
         }
     ]

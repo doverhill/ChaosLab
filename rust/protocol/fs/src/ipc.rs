@@ -1,3 +1,4 @@
-pub enum Functions {
-    DirectoryList = 0
-}
+pub const FS_DIRECTORY_LIST_MESSAGE: u64 = 1;
+pub const FS_FILE_INFO_MESSAGE: u64 = 2;
+pub const FS_FILE_READ_MESSAGE: u64 = 3;
+pub const FS_FILE_COPY_MESSAGE: u64 = 4;

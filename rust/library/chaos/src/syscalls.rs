@@ -118,9 +118,21 @@ pub fn channel_message(handle: Handle, message: u64) -> Result<(), Error> {
     }
 }
 
-pub fn event_wait(timeout_milliseconds: i32) -> Result<(Handle, Handle, Action, u64), Error> {
+pub fn event_wait(handle: Option<Handle>, action: Option<Action>, message: Option<u64>, timeout_milliseconds: i32) -> Result<(Handle, Handle, Action, u64), Error> {
+    let send_action = match action {
+        Some(action) => {
+            Some(action.to_i32())
+        },
+        None => {
+            None
+        }
+    };
+
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::EventWait as i32);
+    write_optional_u64(connection, handle);
+    write_optional_i32(connection, send_action);
+    write_optional_u64(connection, message);
     write_i32(connection, timeout_milliseconds);
 
     let result = Error::from_i32(read_i32(connection));
@@ -186,12 +198,32 @@ fn write_i32(mut connection: &TcpStream, value: i32) {
     connection.write(&value.to_ne_bytes()).unwrap();
 }
 
+fn write_optional_i32(connection: &TcpStream, value: Option<i32>) {
+    if let Some(value) = value {
+        write_bool(connection, true);
+        write_i32(connection, value);
+    }
+    else {
+        write_bool(connection, false);
+    }
+}
+
 fn write_u32(mut connection: &TcpStream, value: u32) {
     connection.write(&value.to_ne_bytes()).unwrap();
 }
 
 fn write_u64(mut connection: &TcpStream, value: u64) {
     connection.write(&value.to_ne_bytes()).unwrap();
+}
+
+fn write_optional_u64(connection: &TcpStream, value: Option<u64>) {
+    if let Some(value) = value {
+        write_bool(connection, true);
+        write_u64(connection, value);
+    }
+    else {
+        write_bool(connection, false);
+    }
 }
 
 fn write_bool(mut connection: &TcpStream, value: bool) {

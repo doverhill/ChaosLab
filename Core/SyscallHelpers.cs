@@ -10,6 +10,32 @@ namespace Core
 {
     public static class SyscallHelpers
     {
+        public static UInt64? ReadOptionalU64(BinaryReader reader)
+        {
+            var hasValue = reader.ReadBoolean();
+            if (hasValue)
+            {
+                return (UInt64)reader.ReadUInt64();
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        public static Int32? ReadOptionalI32(BinaryReader reader)
+        {
+            var hasValue = reader.ReadBoolean();
+            if (hasValue)
+            {
+                return reader.ReadInt32();
+            }
+            else
+            {
+                return null;
+            }
+        }
+
         public static void WriteText(BinaryWriter writer, string? text)
         {
             if (text == null)

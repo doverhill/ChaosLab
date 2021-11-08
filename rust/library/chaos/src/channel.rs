@@ -95,6 +95,14 @@ impl Channel {
         return format!("Local\\__chaos_channel_{}", handle);
     }
 
+    pub fn to_reply(message: u64) -> u64 {
+        message | 0x8000_0000_0000_0000
+    }
+
+    pub fn from_reply(reply_message: u64) -> u64 {
+        reply_message & 0x7fff_ffff_ffff_ffff
+    }
+
     pub fn on_message(&mut self, handler: fn(&Arc<Mutex<Channel>>, u64) -> ()) -> Result<(), Error> {
         match self.on_message {
             Some(_) => {
@@ -136,22 +144,11 @@ impl Channel {
         syscalls::channel_message(self.handle, message).unwrap();
     }
 
-    pub fn call_sync(&self, message: u64, reply: u64, timeout_milliseconds: i32) -> Result<(), Error> {
+    pub fn call_sync(&self, message: u64, timeout_milliseconds: i32) -> Result<(), Error> {
         syscalls::channel_message(self.handle, message)?;
-        match syscalls::event_wait(timeout_milliseconds) {
-            Ok((target_handle, _, action, parameter)) => {
-                if target_handle != self.handle {
-                    Err(Error::General)
-                }
-                else if action != Action::ChannelMessaged {
-                    Err(Error::General)
-                }
-                else if parameter != reply {
-                    Err(Error::General)
-                }
-                else {
-                    Ok(())
-                }
+        match syscalls::event_wait(Some(self.handle), Some(Action::ChannelMessaged), Some(Channel::to_reply(message)), timeout_milliseconds) {
+            Ok((_, _, _, _)) => {
+                Ok(())
             },
             Err(error) => {
                 Err(error)

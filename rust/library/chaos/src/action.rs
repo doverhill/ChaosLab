@@ -6,6 +6,14 @@ pub enum Action {
 }
 
 impl Action {
+    pub fn to_i32(&self) -> i32 {
+        match self {
+            Action::None => 0,
+            Action::ServiceConnected => 1,
+            Action::ChannelMessaged => 2
+        }
+    }
+
     pub fn from_i32(value: i32) -> Action {
         match value {
             0 => Action::None,

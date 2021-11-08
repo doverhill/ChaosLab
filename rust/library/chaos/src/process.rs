@@ -38,7 +38,7 @@ impl Process {
     pub fn run() -> Error {
         // this is the main event loop of an application
         loop {
-            match syscalls::event_wait(-1) {
+            match syscalls::event_wait(None, None, None, -1) {
                 Ok((target_handle, argument_handle, action, parameter)) => {
                     match action {
                         Action::ServiceConnected => {

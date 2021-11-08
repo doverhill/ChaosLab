@@ -5,14 +5,16 @@ use std::sync::Arc;
 use uuid::Uuid;
 use std::sync::Mutex;
 
+#[allow(dead_code)]
 struct ChannelCall {
     msg: [u8; 100],
     x: i32
 }
 
+#[allow(dead_code)]
 impl ChannelCall {
     pub fn new(msg: &str, x: i32) -> ChannelCall {
-        let mut tmp = ChannelCall {
+        let tmp = ChannelCall {
             msg: [0u8; 100],
             x: x
         };
@@ -27,14 +29,16 @@ impl ChannelCall {
     }
 }
 
+#[allow(dead_code)]
 struct ChannelResponse {
     length: i32,
     new_msg: [u8; 100]
 }
 
+#[allow(dead_code)]
 impl ChannelResponse {
     pub fn new(length: i32, new_msg: &str) -> ChannelResponse {
-        let mut tmp = ChannelResponse {
+        let tmp = ChannelResponse {
             length: length,
             new_msg: [0u8; 100]
         };
@@ -51,21 +55,21 @@ impl ChannelResponse {
 
 fn main() {
     // to be nice, set a name for our application
-    Process::set_info("Server.VFS");
-    Process::emit_debug("Starting VFS server");
+    Process::set_info("Server.VFS").unwrap();
+    Process::emit_debug("Starting VFS server").unwrap();
 
     match Service::create("vfs", "Chaos", "Virtual file system server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()) {
         Ok(service_wrap) => {
             {
                 let mut service = service_wrap.lock().unwrap();
-                Process::emit_debug(&format!("Created service {}", service));
-                service.on_connect(handle_connect);
+                Process::emit_debug(&format!("Created service {}", service)).unwrap();
+                service.on_connect(handle_connect).unwrap();
             }
             let error = Process::run();
-            Process::emit_error(error, "Event loop error");
+            Process::emit_error(error, "Event loop error").unwrap();
         }
         Err(error) => {
-            Process::emit_error(error, "Failed to create service");
+            Process::emit_error(error, "Failed to create service").unwrap();
         }
     }
 
@@ -76,13 +80,13 @@ fn main() {
 fn handle_connect(service_wrap: &Arc<Mutex<Service>>, channel_wrap: Arc<Mutex<Channel>>) {
     let service = service_wrap.lock().unwrap();
     let mut channel = channel_wrap.lock().unwrap();
-    Process::emit_debug(&format!("Connect on {} -> {}", service, channel));
-    channel.on_message(handle_message);
+    Process::emit_debug(&format!("Connect on {} -> {}", service, channel)).unwrap();
+    channel.on_message(handle_message).unwrap();
 }
 
 fn handle_message(channel_wrap: &Arc<Mutex<Channel>>, message: u64) {
     let channel = channel_wrap.lock().unwrap();
     let data = channel.get::<ChannelCall>();
     channel.set(ChannelResponse::new(data.msg.len() as i32, "hej"));
-    channel.send(1);
+    channel.send(Channel::to_reply(message));
 }

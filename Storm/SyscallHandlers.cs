@@ -106,18 +106,21 @@ namespace Storm
 
         public static void EventWait(Socket socket, BinaryReader reader, BinaryWriter writer, Process process)
         {
+            var handle = SyscallHelpers.ReadOptionalU64(reader);
+            var action = (HandleAction?)SyscallHelpers.ReadOptionalI32(reader);
+            var message = SyscallHelpers.ReadOptionalU64(reader);
             var timeoutMilliseconds = reader.ReadInt32();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL EventWait: timeout=" + timeoutMilliseconds);
-            var e = Events.Wait(socket, process.PID, timeoutMilliseconds);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL EventWait: handle=" + (handle.HasValue ? handle.Value : "any") + ", action=" + (action.HasValue ? action.ToString() : "any") + ", message=" + (message.HasValue ? message.Value : "any") + ", timeout=" + timeoutMilliseconds);
+            var e = Events.Wait(socket, process.PID, handle, action, message, timeoutMilliseconds);
 
             writer.Write((int)e.Error);
             if (e.Error == Error.None)
             {
                 writer.Write(e.TargetHandle);
-                writer.Write(e.ArgumentHandle);
+                writer.Write(e.ChannelHandle);
                 writer.Write((int)e.Action);
-                writer.Write(e.Parameter);
+                writer.Write(e.Message);
             }
         }
 

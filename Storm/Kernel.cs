@@ -23,7 +23,7 @@ namespace Storm
             var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             serverSocket.Bind(ipEndpoint);
             serverSocket.Listen();
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, "Listening on " + ipEndpoint.ToString());
+            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, "Storm started. Listening on " + ipEndpoint.ToString());
 
             do
             {
