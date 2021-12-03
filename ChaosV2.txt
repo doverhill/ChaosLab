@@ -1,8 +1,9 @@
 implementation notes:
 
 provide macros for information!() debug!() error!() and emit!(), last one emitting structured data
+
+maybe:
 use tokio to set up a runtime and call EventWait in a blocking task that can awake other tasks
-use Arc<> to be able to pass channels around
 use async functions for channels
 
 
@@ -11,7 +12,6 @@ use async functions for channels
 
 GOALS:
     * Kernel and system libraries written in Rust
-    * Port net core so that servers and
     * Multicore
     * Minimal drivers in kernel
         * Those drivers are exposed to userland in the same way as userland drivers, no distinction
@@ -19,6 +19,9 @@ GOALS:
         * x64 (main)
         * arm64 to run on raspberry pi/apple m1
     * Every object the kernel knows has a Handle
+        * service
+        * channel
+        * capability/claim
     * Since IPC is done using shared memory and only the channel primitive for signal synchronization:
         * Kernel sceduler should try to schedule processes on either side of a channel on separate cores
     * Measures should be taken to try to enforce consistent app development style. Wrap common application flows in library constructs
@@ -33,6 +36,7 @@ GOALS:
         * Object (JSON)
         * Primitive (int, string, number, bool)
         * List<Object|Primitive> - Streamed so that consumer can start working on data while producer is still emitting
+        * Table<Columns of Object|Primitive> - Streamed
         * Debug packet
         * Warning packet
         * Error packet
@@ -150,3 +154,16 @@ CLIENT APP ("tornado hello world", without ui lib)
 
 Pseudo:
     Storm.Handle tornadoServerHandle = Storm.Service.Open("tornado",)
+
+
+
+
+
+
+
+
+Vad genererar ett IPC Call för kod?
+
+Call name: DirectoryList
+Parameters:
+Returns:

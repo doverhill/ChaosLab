@@ -1,5 +1,0 @@
-pub const VFS_MOUNT_MESSAGE: u64 = 1;
-pub const VFS_DIRECTORY_LIST_MESSAGE: u64 = 2;
-pub const VFS_FILE_INFO_MESSAGE: u64 = 3;
-pub const VFS_FILE_READ_MESSAGE: u64 = 4;
-pub const VFS_FILE_COPY_MESSAGE: u64 = 5;
