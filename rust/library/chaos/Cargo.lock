@@ -9,15 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "chaos"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "uuid",
- "winapi",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -39,6 +30,15 @@ name = "libc"
 version = "0.2.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b2f96d100e1cf1929e7719b7edb3b90ab5298072638fccd77be9ce942ecdfce"
+
+[[package]]
+name = "library_chaos"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "uuid",
+ "winapi",
+]
 
 [[package]]
 name = "uuid"

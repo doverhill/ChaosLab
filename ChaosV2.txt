@@ -160,6 +160,25 @@ Pseudo:
 
 
 
+CHANNEL MEMORY LAYOUT:
+----------------------
+HEADER:
+    usize ChannelInitialized (0 = No, 0x1337 = Yes)
+    usize ProtocolVersion
+    usize ReplyReadyFlag
+    usize ProtocolNameLength
+    u8[] ProtocolName
+---
+BODY:
+    usize ObjectCount
+    [
+        usize ObjectId // created by IDL compiler for each type to be sent on the channel
+        usize ObjectLength
+        u8[] ObjectData
+    ]*
+
+
+
 
 
 Vad genererar ett IPC Call för kod?

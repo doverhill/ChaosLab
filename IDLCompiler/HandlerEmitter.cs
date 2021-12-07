@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace IDLCompiler
+﻿namespace IDLCompiler
 {
     internal class HandlerEmitter
     {
-        public static void Emit(IDL idl, IDLCall call)
+        public static void Emit(StreamWriter writer, TypeEmitter typeEmitter, IDL idl, IDLCall call)
         {
 
         }

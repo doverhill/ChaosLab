@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    },
+    "IDLCompiler - FileSystem": {
+      "commandName": "Project",
+      "commandLineArgs": "..\\FileSystem.IDL.json",
+      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\FileSystem\\src"
+    }
+  }
+}

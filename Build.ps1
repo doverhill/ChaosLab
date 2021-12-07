@@ -3,15 +3,18 @@ dotnet publish .\IDLCompiler\IDLCompiler.csproj -o publish
 
 # Compile protocols
 
-# fs
-Set-Location rust\protocol\fs\src
-..\..\..\..\publish\IDLCompiler ..\fs_idl.json
+# FileSystem
+Set-Location rust\Protocol\FileSystem\src
+..\..\..\..\publish\IDLCompiler ..\FileSystem.IDL.json
 Set-Location ..\..\..\..
 
-# fs
-Set-Location rust\protocol\vfs\src
-..\..\..\..\publish\IDLCompiler ..\vfs_idl.json
+# FrameBufferDisplay
+Set-Location rust\Protocol\FrameBufferDisplay\src
+..\..\..\..\publish\IDLCompiler ..\FrameBufferDisplay.IDL.json
 Set-Location ..\..\..\..
 
-# Compile everything
-dotnet publish .\ChaosLab.sln -o .\publish\
+# Tornado
+Set-Location rust\Protocol\Tornado\src
+..\..\..\..\publish\IDLCompiler ..\Tornado.IDL.json
+Set-Location ..\..\..\..
+

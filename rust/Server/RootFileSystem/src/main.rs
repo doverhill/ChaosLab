@@ -55,8 +55,8 @@ impl ChannelResponse {
 
 fn main() {
     // to be nice, set a name for our application
-    Process::set_info("Server.VFS").unwrap();
-    Process::emit_debug("Starting VFS server").unwrap();
+    Process::set_info("Server.RootFileSystem").unwrap();
+    Process::emit_debug("Starting RootFileSystem server").unwrap();
 
     match Service::create("vfs", "Chaos", "Virtual file system server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()) {
         Ok(service_wrap) => {

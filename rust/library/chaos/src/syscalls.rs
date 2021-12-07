@@ -1,6 +1,4 @@
-use crate::error::Error;
-use crate::handle::Handle;
-use crate::action::Action;
+use crate::{ Error, Handle, Action };
 
 use std::io::prelude::*;
 use std::net::{TcpStream, Shutdown};
@@ -27,6 +25,7 @@ enum SyscallNumber {
     ThreadDestroy = 51
 }
 
+#[allow(dead_code)]
 pub enum EmitType {
     Error = 1,
     Warning = 2,
@@ -173,11 +172,11 @@ pub fn process_set_info(process_name: &str) -> Result<(), Error> {
     }
 }
 
-pub fn process_emit(emit_type: EmitType, error: Error, text: Option<&str>) -> Result<(), Error> {
+pub fn process_emit(emit_type: EmitType, error: &Error, text: Option<&str>) -> Result<(), Error> {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessEmit as i32);
     write_i32(connection, emit_type as i32);
-    write_i32(connection, error as i32);
+    write_i32(connection, Error::to_i32(error));
     write_text(connection, text);
 
     let result = Error::from_i32(read_i32(connection));

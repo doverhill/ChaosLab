@@ -1,22 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace IDLCompiler
+﻿namespace IDLCompiler
 {
     internal class CommonEmitter
     {
         private StreamWriter writer;
+        private TypeEmitter typeEmitter;
         private IDL idl;
         private int indent = 0;
         private const int IndentationSteps = 4;
 
-        public CommonEmitter(IDL idl, StreamWriter writer)
+        public CommonEmitter(IDL idl, StreamWriter writer, TypeEmitter typeEmitter)
         {
             this.idl = idl;
             this.writer = writer;
+            this.typeEmitter = typeEmitter;
         }
 
         private void WriteIndent()
@@ -29,11 +25,6 @@ namespace IDLCompiler
             WriteIndent();
             writer.Write(field.Name.ToSnake() + ": ");
             writer.Write(field.GetStructType());
-
-            if (field.IsArray)
-            {
-                writer.Write("[" + field.ArrayLength + "]");
-            }
 
             if (lastField)
             {
@@ -78,7 +69,7 @@ namespace IDLCompiler
             writer.Write(field.Name.ToSnake() + ": ");
             if (field.Type == Field.DataType.String)
             {
-                writer.Write("[0u8; " + field.Capacity + "]");
+                writer.Write("[0u8; 44]");
             }
             else
             {
@@ -116,7 +107,7 @@ namespace IDLCompiler
             {
                 if (field.Type == Field.DataType.String)
                 {
-                    WriteIndent(); writer.WriteLine("unsafe { core::ptr::copy(" + field.Name.ToSnake() + ".as_ptr(), core::ptr::addr_of!(constructed_" + name.ToSnake() + "." + field.Name.ToSnake() + ") as *mut u8, core::cmp::min(" + (field.Capacity - 1) + ", " + field.Name.ToSnake() + ".len())); }");
+                    WriteIndent(); writer.WriteLine("unsafe { core::ptr::copy(" + field.Name.ToSnake() + ".as_ptr(), core::ptr::addr_of!(constructed_" + name.ToSnake() + "." + field.Name.ToSnake() + ") as *mut u8, core::cmp::min(98, " + field.Name.ToSnake() + ".len())); }");
                 }
             }
 

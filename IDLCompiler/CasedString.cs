@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace IDLCompiler
+﻿namespace IDLCompiler
 {
     internal class CasedString
     {
@@ -24,7 +18,6 @@ namespace IDLCompiler
                 if (char.IsUpper(c)) wordIndices.Add(index);
                 index++;
             }
-            var result = "";
             var parts = new List<string>();
             for (index = 0; index < wordIndices.Count; index++)
             {

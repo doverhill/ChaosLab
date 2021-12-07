@@ -1,0 +1,120 @@
+{
+    "Interface": {
+        "Name": "Tornado",
+        "Version": 1
+    },
+
+    "Enumerations": [
+        {
+            "Name": "ActionType",
+            "Values": [
+                "Optional",
+                "PrimarySafe",
+                "Dangerous"
+            ]
+        },
+        {
+            "Name": "Severity",
+            "Values": [
+                "Normal",
+                "Information",
+                "Warning",
+                "Error"
+            ]
+        },
+        {
+            "Name": "SizeMode",
+            "Values": [
+                "ContentMinimum",
+                "ContentMaximum",
+                "Fraction"
+            ]
+        }
+    ],
+
+    "Types": [
+        {
+            "Name": "Component",
+            "Fields": [
+                "u64 ComponentId",
+                "u64 ParentComponentId"
+            ]
+        },
+        {
+            "Inherits": "Component",
+            "Name": "Window",
+            "Fields": [
+                "string Title"
+            ]
+        },
+        {
+            "Inherits": "Component",
+            "Name": "VerticalLayout"
+        },
+        {
+            "Inherits": "Component",
+            "Name": "HorizontalLayout"
+        },
+        {
+            "Inherits": "Component",
+            "Name": "GridLayout"
+        },
+        {
+            "Inherits": "Component",
+            "Name": "GridLayoutColumn",
+            "Fields": [
+                "SizeMode SizeMode",
+                "usize Fraction"
+            ]
+        },
+        {
+            "Inherits": "Component",
+            "Name": "GridLayoutRow",
+            "Fields": [
+                "SizeMode SizeMode",
+                "usize Fraction"
+            ]
+        },
+        {
+            "Inherits": "Component",
+            "Name": "Label",
+            "Fields": [
+                "string Text"
+            ]
+        },
+        {
+            "Inherits": "Component",
+            "Name": "Button",
+            "Fields": [
+                "string IconName",
+                "string Text"
+            ]
+        }
+    ],
+
+    "ClientToServerCalls": [
+        {
+            "Name": "SetRenderTree",
+            "ParametersType": "MixedList",
+            "Parameters": [
+                "Window",
+                "VerticalLayout",
+                "HorizontalLayout",
+                "GridLayout",
+                "GridLayoutColumn",
+                "GridLayoutRow",
+                "Label",
+                "Button"
+            ],
+        }
+    ],
+
+    "ServerToClientCalls": [
+        {
+            "Name": "ComponentClicked",
+            "Parameters": [
+                "u64 ComponentId"
+            ]
+        }
+    ]
+}

@@ -1,25 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace IDLCompiler
+﻿namespace IDLCompiler
 {
-    internal class IDLInterface
+    public class IDLInterface
     {
-        public string? Name;
-        public string? InheritsFrom;
+        public string Name;
         public int Version;
     }
 
-    internal class IDLType
+    public class IDLType
     {
-        public string? Name;
-        public List<string>? Fields;
+        public string Inherits;
+        public string Name;
+        public List<string> Fields;
     }
 
-    internal enum IDLDataSetType
+    public enum IDLDataSetType
     {
         // The standard way of calling a function and returning a single result
         // No custom types allowed anywhere
@@ -40,21 +34,23 @@ namespace IDLCompiler
         MixedList
     }
 
-    internal class IDLCall
+    public class IDLCall
     {
-        public string? Name;
+        public string Name;
         public IDLDataSetType ParametersType = IDLDataSetType.ParameterSet;
-        public List<string>? Parameters;
+        public List<string> Parameters;
         public IDLDataSetType ReturnsType = IDLDataSetType.ParameterSet;
-        public List<string>? Returns;
+        public List<string> Returns;
+
+        // Number of items to ensure space for in channel memory
         public int BatchSize = 64;
     }
 
-    internal class IDL
+    public class IDL
     {
-        public IDLInterface? Interface;
-        public List<IDLType>? Types;
-        public List<IDLCall>? ClientToServerCalls;
-        public List<IDLCall>? ServerToClientCalls;
+        public IDLInterface Interface;
+        public List<IDLType> Types;
+        public List<IDLCall> ClientToServerCalls;
+        public List<IDLCall> ServerToClientCalls;
     }
 }

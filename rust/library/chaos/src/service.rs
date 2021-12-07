@@ -1,4 +1,4 @@
-use crate::{ syscalls, channel::Channel, error::Error, handle::Handle, process::Process };
+use crate::{ syscalls, Channel, Error, Handle, Process };
 use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -13,14 +13,14 @@ lazy_static! {
 
 pub struct Service {
     handle: Handle,
-    on_connect: Option<fn(&Arc<Mutex<Service>>, Arc<Mutex<Channel>>) -> ()>
+    connect_handler: Option<fn(&Arc<Mutex<Service>>, Arc<Mutex<Channel>>) -> ()>
 }
 
 impl Service {
     fn new(handle: Handle) -> Service {
         Service {
             handle: handle,
-            on_connect: None
+            connect_handler: None
         }
     }
 
@@ -52,12 +52,12 @@ impl Service {
     }
     
     pub fn on_connect(&mut self, handler: fn(&Arc<Mutex<Service>>, Arc<Mutex<Channel>>) -> ()) -> Result<(), Error> {
-        match self.on_connect {
+        match self.connect_handler {
             Some(_) => {
                 Err(Error::AlreadyExists)
             },
             None => {
-                self.on_connect = Some(handler);
+                self.connect_handler = Some(handler);
                 Ok(())
             }
         }
@@ -69,7 +69,7 @@ impl Service {
         let services = SERVICES.lock().unwrap();
         if let Some(service_wrap) = services.get(&handle) {
             let service = service_wrap.lock().unwrap();
-            if let Some(handler) = service.on_connect {
+            if let Some(handler) = service.connect_handler {
                 let channel = Channel::new(channel_handle, 4096);
                 drop(service); // release mutex
                 handler(service_wrap, channel);

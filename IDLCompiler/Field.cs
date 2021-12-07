@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace IDLCompiler
+﻿namespace IDLCompiler
 {
     internal class Field
     {
@@ -26,9 +20,9 @@ namespace IDLCompiler
         }
 
         public DataType Type;
-        public bool IsArray;
-        public int ArrayLength;
-        public int Capacity;
+        //public bool IsArray;
+        //public int ArrayLength;
+        //public int Capacity;
         public CasedString TypeName;
         public CasedString Name;
 
@@ -46,11 +40,7 @@ namespace IDLCompiler
             var fieldName = parts[1];
 
             // parse type
-            if (typeDescription.StartsWith("string(") && typeDescription.EndsWith(")"))
-            {
-                Type = DataType.String;
-                Capacity = int.Parse(typeDescription.Substring(7, typeDescription.Length - 8));
-            }
+            if (typeDescription == "string") Type = DataType.String;
             else if (typeDescription == "i32") Type = DataType.Signed32;
             else if (typeDescription == "u32") Type = DataType.Unsigned32;
             else if (typeDescription == "i64") Type = DataType.Signed64;
@@ -64,8 +54,6 @@ namespace IDLCompiler
             else if (typeDescription == "byte") Type = DataType.Byte;
             else
             {
-                Console.WriteLine("Running type search " + types.Count);
-
                 // see if there is a type for this
                 var foundType = false;
                 foreach (var otherType in types)
@@ -80,30 +68,12 @@ namespace IDLCompiler
                 TypeName = CasedString.FromPascal(typeDescription);
             }
 
-            // parse field name and array
-            if (fieldName.Contains("[") && fieldName.EndsWith("]"))
-            {
-                var bracketIndex = fieldName.IndexOf("[");
-                IsArray = true;
-                ArrayLength = int.Parse(fieldName.Substring(bracketIndex + 1, fieldName.Length - (bracketIndex + 1)));
-                Name = CasedString.FromPascal(fieldName.Substring(0, bracketIndex));
-            }
-            else if (fieldName.Contains("[") || fieldName.Contains("]"))
-            {
-                throw new Exception("Malformed array part: '" + fieldName + "'");
-            }
-            else
-            {
-                Name = CasedString.FromPascal(fieldName);
-            }
+            Name = CasedString.FromPascal(fieldName);
         }
 
         public string GetStructType()
         {
-            if (Type == DataType.String)
-            {
-                return "[u8; " + Capacity + "]";
-            }
+            if (Type == DataType.String) return "[u8; 2]";
             else if (Type == DataType.Signed32) return "i32";
             else if (Type == DataType.Unsigned32) return "u32";
             else if (Type == DataType.Signed64) return "i64";

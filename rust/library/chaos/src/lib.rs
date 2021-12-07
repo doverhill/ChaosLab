@@ -2,12 +2,17 @@
 extern crate lazy_static;
 
 mod syscalls;
+mod channel;
+mod handle;
+mod action;
+mod error;
+mod process;
+mod service;
 
-pub mod call;
-pub mod channel;
-pub mod channel_iterator;
-pub mod handle;
-pub mod action;
-pub mod error;
-pub mod process;
-pub mod service;
+pub use action::Action;
+pub use channel::Channel;
+pub use process::Process;
+pub use service::Service;
+pub use error::Error;
+pub use handle::Handle;
+pub use channel::ChannelObject;

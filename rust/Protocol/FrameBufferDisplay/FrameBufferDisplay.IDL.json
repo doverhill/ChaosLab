@@ -1,0 +1,34 @@
+{
+    "Interface": {
+        "Name": "FrameBufferDisplay",
+        "Version": 1
+    },
+
+    "ClientToServerCalls": [
+        {
+            "Name": "SetSize",
+            "Parameters": [
+                "usize Width",
+                "usize Height"
+            ],
+            "Returns": [
+                "bool success",
+                "usize SetWidth",
+                "usize SetHeight"
+            ]
+        },
+        {
+            "Name": "Render"
+        }
+    ],
+
+    "ServerToClientCalls": [
+        {
+            "Name": "SizeChanged",
+            "Parameters": [
+                "usize Width",
+                "usize Height"
+            ]
+        }
+    ]
+}

@@ -24,4 +24,17 @@ impl Error {
             _ => Error::General
         }
     }
+
+    pub fn to_i32(error: &Error) -> i32 {
+        match error {
+            Error::None => 0,
+            Error::NotFound => 1,
+            Error::PermissionDenied => 2,
+            Error::NotImplemented => 3,
+            Error::Timeout => 4,
+            Error::Cancelled => 5,
+            Error::AlreadyExists => 6,
+            Error::General => 7
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use crate::{ error::Error, syscalls, action::Action, service::Service, channel::Channel };
+use crate::{ syscalls, Error, Action, Service, Channel };
 
 pub struct Process {}
 
@@ -8,30 +8,18 @@ impl Process {
     }
 
     pub fn emit_debug(information_text: &str) -> Result<(), Error> {
-        syscalls::process_emit(
-            syscalls::EmitType::Debug,
-            Error::None,
-            Some(information_text),
-        )
+        syscalls::process_emit(syscalls::EmitType::Debug, &Error::None, Some(information_text))
     }
 
     pub fn emit_information(information_text: &str) -> Result<(), Error> {
-        syscalls::process_emit(
-            syscalls::EmitType::Information,
-            Error::None,
-            Some(information_text),
-        )
+        syscalls::process_emit(syscalls::EmitType::Information, &Error::None, Some(information_text))
     }
 
     pub fn emit_warning(information_text: &str) -> Result<(), Error> {
-        syscalls::process_emit(
-            syscalls::EmitType::Warning,
-            Error::None,
-            Some(information_text),
-        )
+        syscalls::process_emit(syscalls::EmitType::Warning, &Error::None, Some(information_text))
     }
 
-    pub fn emit_error(error: Error, information_text: &str) -> Result<(), Error> {
+    pub fn emit_error(error: &Error, information_text: &str) -> Result<(), Error> {
         syscalls::process_emit(syscalls::EmitType::Error, error, Some(information_text))
     }
 

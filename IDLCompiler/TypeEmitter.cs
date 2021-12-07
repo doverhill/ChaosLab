@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace IDLCompiler
+﻿namespace IDLCompiler
 {
     internal class TypeEmitter
     {
+        private static int TypeId = 1;
+
         public static void Emit(StreamWriter writer, IDL idl, IDLType type)
         {
+            if (type.Inherits != null)
+            {
+                find base type
+            }
             if (type.Fields == null || type.Fields.Count == 0) throw new Exception("Type '" + type.Name + "' does not have any fields");
 
             var emitter = new CommonEmitter(idl, writer);
