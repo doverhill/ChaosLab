@@ -39,9 +39,7 @@ impl Service {
     }
 
     pub fn connect(protocol_name: &str, vendor_name: Option<&str>, device_name: Option<&str>, device_id: Option<Uuid>, size: usize) -> Result<Arc<Mutex<Channel>>, Error> {
-        let result = syscalls::service_connect(protocol_name, vendor_name, device_name, device_id);
-    
-        match result {
+        match syscalls::service_connect(protocol_name, vendor_name, device_name, device_id) {
             Ok(handle) => {
                 Ok(Channel::new(handle, size))
             },

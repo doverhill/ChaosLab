@@ -40,9 +40,11 @@ impl BogusServer {
         // create default service
         match Service::create("test", "Chaos", "Test server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()) {
             Ok(service_reference) => {
+                
+
                 let mut service = service_reference.lock().unwrap();
                 service.on_connect(Self::handle_connect).unwrap();
-                //drop(service);
+                drop(service);
 
                 Ok(BogusServer {
                     service_reference: service_reference,
@@ -62,7 +64,7 @@ impl BogusServer {
         channel.on_message(Self::handle_message).unwrap();
     }
     
-    fn handle_message(&self, channel_reference: &Arc<Mutex<Channel>>, message: u64) {
+    fn handle_message(channel_reference: &Arc<Mutex<Channel>>, message: u64) {
         println!("message on channel");
 
         let channel = channel_reference.lock().unwrap();
