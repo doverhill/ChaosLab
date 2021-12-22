@@ -25,14 +25,15 @@ lazy_static! {
 }
 
 pub trait ChannelObject {
-    unsafe fn write_to_channel(self, pointer: *mut u8);
-    unsafe fn from_channel(pointer: *const u8) -> &'static mut Self;
+    unsafe fn write_to_channel(self, pointer: *mut u8) -> usize;
+    unsafe fn from_channel(pointer: *const u8) -> Self;
 }
 
 pub struct Channel {
-    handle: Handle,
+    pub handle: Handle,
     map_handle: HANDLE,
     map_pointer: *mut u8,
+    map_capacity: usize,
     body_pointer: *mut u8,
     allocation_pointer: *mut u8,
     message_handler: Option<fn(&Arc<Mutex<Channel>>, u64) -> ()>
@@ -82,6 +83,7 @@ impl Channel {
             handle: handle,
             map_handle: map_handle.unwrap(),
             map_pointer: map_pointer,
+            map_capacity: size,
             body_pointer: map_pointer,
             allocation_pointer: map_pointer,
             message_handler: None
@@ -122,12 +124,18 @@ impl Channel {
         return format!("Local\\__chaos_channel_{}", handle);
     }
 
-    pub fn to_reply(message: u64) -> u64 {
-        message | 0x8000_0000_0000_0000
+    pub fn to_reply(message: u64, has_more: bool) -> u64 {
+        message | (1 << 63) | if has_more { 1 << 62 } else { 0 }
     }
 
-    pub fn from_reply(reply_message: u64) -> u64 {
-        reply_message & 0x7fff_ffff_ffff_ffff
+    pub fn from_reply(reply_message: u64) -> (u64, bool) {
+        let is_reply = reply_message & (1 << 63) != 0;
+        assert_eq!(is_reply, true, "Tried to do from_reply on something that isn't a reply");
+
+        let has_more = reply_message & (1 << 62) != 0;
+        let message = reply_message & ((1 << 63) | (1 << 62));
+
+        (message, has_more)
     }
 
     pub fn on_message(&mut self, handler: fn(&Arc<Mutex<Channel>>, u64) -> ()) -> Result<(), Error> {
@@ -272,7 +280,7 @@ impl Channel {
         }
     }
 
-    pub fn get_object<T : ChannelObject>(&self, index: usize) -> &'static mut T {
+    pub fn get_object<T : ChannelObject>(&self, index: usize) -> T {
         unsafe {
             let pointer = self.get_object_wrapper_pointer(index);
             let pointer = pointer.offset(2 * mem::size_of::<usize>() as isize);
@@ -315,22 +323,26 @@ impl Channel {
             panic!("Tried to add object on uninitialized channel");
         }
 
+        // FIXME: Use self.map_capacity and self.allocation_pointer to figure out remaining space. pass along to object.write_to_channel and make that function fallible if there is not enough room
+        let _ = self.map_capacity;
+
         unsafe {
             let pointer = self.allocation_pointer;
             *(pointer as *mut usize) = object_id;
             let pointer = pointer.offset(mem::size_of::<usize>() as isize);
             *(pointer as *mut usize) = mem::size_of::<T>();
             let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-            object.write_to_channel(pointer);
+            let size = object.write_to_channel(pointer);
+            self.allocation_pointer = self.allocation_pointer.offset(size as isize);
 
             // increase object count
             *(self.body_pointer as *mut usize) = *(self.body_pointer as *const usize) + 1;
         }
     }
 
-    pub fn call_sync(&self, message: u64, timeout_milliseconds: i32) -> Result<(), Error> {
+    pub fn call_sync(&self, message: u64, has_more: bool, timeout_milliseconds: i32) -> Result<(), Error> {
         syscalls::channel_message(self.handle, message)?;
-        match syscalls::event_wait(Some(self.handle), Some(Action::ChannelMessaged), Some(Channel::to_reply(message)), timeout_milliseconds) {
+        match syscalls::event_wait(Some(self.handle), Some(Action::ChannelMessaged), Some(Channel::to_reply(message, has_more)), timeout_milliseconds) {
             Ok((_, _, _, _)) => {
                 Ok(())
             },

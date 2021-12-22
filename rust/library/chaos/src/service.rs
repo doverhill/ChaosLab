@@ -12,7 +12,7 @@ lazy_static! {
 }
 
 pub struct Service {
-    handle: Handle,
+    pub handle: Handle,
     connect_handler: Option<fn(&Arc<Mutex<Service>>, Arc<Mutex<Channel>>) -> ()>
 }
 
@@ -65,12 +65,12 @@ impl Service {
         Process::emit_debug(&format!("Service connect on {} -> channel {}", handle, channel_handle)).unwrap();
 
         let services = SERVICES.lock().unwrap();
-        if let Some(service_wrap) = services.get(&handle) {
-            let service = service_wrap.lock().unwrap();
+        if let Some(service_reference) = services.get(&handle) {
+            let service = service_reference.lock().unwrap();
             if let Some(handler) = service.connect_handler {
                 let channel = Channel::new(channel_handle, 4096);
                 drop(service); // release mutex
-                handler(service_wrap, channel);
+                handler(service_reference, channel);
             }
         }
     }

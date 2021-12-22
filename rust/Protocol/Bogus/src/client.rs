@@ -46,7 +46,10 @@ impl BogusClient {
     }
 
     pub fn simple_sum(&self, x: i32, y: i32) -> Result<i32, Error> {
-        let channel = &mut *self.channel_reference.lock().unwrap();
-        crate::simple_sum_client_call::call(channel, x, y)
+        crate::simple_sum_call::call(self.channel_reference.clone(), x, y)
+    }
+
+    pub fn get_files(&self, path: &str) -> Result<crate::get_files_call::ReturnIterator, Error> {
+        crate::get_files_call::call(self.channel_reference.clone(), path)
     }
 }
