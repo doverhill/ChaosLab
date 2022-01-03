@@ -49,7 +49,7 @@ impl ChannelObject for FileInfo {
         // read dynamic size fields
         let path_length = *(pointer as *const usize);
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        object.path = String::from_raw_parts(pointer as *mut u8, path_length, path_length);
+        object.path = std::str::from_utf8_unchecked(std::slice::from_raw_parts(pointer as *const u8, path_length)).to_owned();
 
         object
     }

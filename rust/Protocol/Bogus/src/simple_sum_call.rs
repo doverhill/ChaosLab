@@ -45,7 +45,7 @@ impl ChannelObject for SimpleSumResult {
 }
 
 pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i32, Error> {
-    let channel = &mut *channel_reference.lock().unwrap();
+    let mut channel = channel_reference.lock().unwrap();
     channel.start();
     let arguments = SimpleSumArguments {
         x: x,
@@ -55,18 +55,12 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i3
     
     match channel.call_sync(crate::client::BOGUS_SIMPLE_SUM_CLIENT_MESSAGE, false, 1000) {
         Ok(()) => {
-            if channel.get_object_count() != 1 {
-                println!("Error: Expected object count 1 in simple_sum result!");
-                Err(Error::General)
-            }
-            else {
-                // read result
-                if channel.get_object_id(0) != BOGUS_SIMPLE_SUM_RESULT_OBJECT_ID {
-                    println!("Error: Expected object id {} in simple_sum result!", BOGUS_SIMPLE_SUM_RESULT_OBJECT_ID);
-                    Err(Error::General)
-                }
-                else {
-                    Ok(channel.get_object::<SimpleSumResult>(0).result)
+            match channel.get_object::<SimpleSumResult>(0, BOGUS_SIMPLE_SUM_RESULT_OBJECT_ID) {
+                Ok(result) => {
+                    Ok(result.result)
+                },
+                Err(error) => {
+                    Err(error)
                 }
             }
         },
@@ -77,7 +71,15 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i3
 }
 
 pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel: &mut Channel) {
-    let arguments = channel.get_object::<SimpleSumArguments>(0);
+    let arguments = match channel.get_object::<SimpleSumArguments>(0, BOGUS_SIMPLE_SUM_ARGUMENTS_OBJECT_ID) {
+        Ok(arguments) => {
+            arguments
+        },
+        Err(error) => {
+            panic!("Failed to get arguments: {:?}", error);
+        }
+    };
+
     let result = handler.simple_sum(arguments.x, arguments.y);
     channel.start();
     let response = SimpleSumResult {

@@ -270,19 +270,28 @@ impl Channel {
         // skip initialized field, version and ready flag
         let pointer = self.map_pointer.offset(3 * mem::size_of::<usize>() as isize);
         let length = *(pointer as *const usize);
-        let mut pointer = pointer.offset((mem::size_of::<usize>() + length + mem::size_of::<usize>()) as isize);
-        for i in 0..=index {
-            if i == index {
-                return pointer
-            }
 
+        // skip protocol name length and actual string
+        let pointer = pointer.offset((mem::size_of::<usize>() + length) as isize);
+
+        // get object count
+        let object_count = *(pointer as *const usize);
+        let mut pointer = pointer.offset((mem::size_of::<usize>()) as isize);
+
+        for i in 0..index {
             // skip object id and get length
             pointer = pointer.offset(mem::size_of::<usize>() as isize);
             let object_length = *(pointer as *const usize);
             pointer = pointer.offset((mem::size_of::<usize>() + object_length) as isize);
         }
 
-        panic!("Internal error trying to get object at index {}", index);
+        pointer
+    }
+
+    pub unsafe fn get_object_pointer(&self, index: usize) -> *mut u8 {
+        let pointer = self.get_object_wrapper_pointer(index);
+        let pointer = pointer.offset(2 * mem::size_of::<usize>() as isize);
+        pointer as *mut u8
     }
 
     pub fn get_object_id(&self, index: usize) -> usize {
@@ -300,17 +309,23 @@ impl Channel {
         }
     }
 
-    pub fn get_object<T : ChannelObject>(&self, index: usize) -> T {
+    pub fn get_object<T : ChannelObject>(&self, index: usize, expected_id: usize) -> Result<T, Error> {
         unsafe {
-            let pointer = self.get_object_pointer(index);
-            T::from_channel(pointer)
-        }
-    }
+            let count = self.get_object_count();
+            if index >= count {
+                println!("ERROR: Tried to get object at index {}, but there are only {} objects", index, count);
+                return Err(Error::NotFound);
+            }
 
-    pub unsafe fn get_object_pointer(&self, index: usize) -> *mut u8 {
-        let pointer = self.get_object_wrapper_pointer(index);
-        let pointer = pointer.offset(2 * mem::size_of::<usize>() as isize);
-        pointer as *mut u8
+            let id = self.get_object_id(index);
+            if id != expected_id {
+                println!("Expected object with id {} at index {}, but found object with id {}", expected_id, index, id);
+                return Err(Error::NotFound);
+            }
+
+            let pointer = self.get_object_pointer(index);
+            Ok(T::from_channel(pointer))
+        }
     }
 
     pub fn send(&self, message: u64) {
@@ -349,10 +364,11 @@ impl Channel {
             let pointer = self.allocation_pointer;
             *(pointer as *mut usize) = object_id;
             let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-            *(pointer as *mut usize) = mem::size_of::<T>();
+            let size_pointer = pointer;
             let pointer = pointer.offset(mem::size_of::<usize>() as isize);
             let size = object.write_to_channel(pointer);
-            self.allocation_pointer = self.allocation_pointer.offset(size as isize);
+            *(size_pointer as *mut usize) = size;
+            self.allocation_pointer = self.allocation_pointer.offset((2 * mem::size_of::<usize>() + size) as isize);
 
             // increase object count
             *(self.body_pointer as *mut usize) = *(self.body_pointer as *const usize) + 1;
