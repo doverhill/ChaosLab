@@ -10,11 +10,11 @@ struct ServerHandler {
 
 impl BogusServerImplementation for ServerHandler {
     fn simple_sum(&mut self, x: i32, y: i32) -> i32 {
-        x + y + 2
+        x + y + 3
     }
 
     fn get_files(&mut self, path: &str) -> Vec<FileInfo> {
-        vec!()
+        vec!(FileInfo::new("test.txt", 199), FileInfo::new("imba.jpg", 74765))
     }
 
     fn fib(&mut self, n: usize) -> Vec<usize> {
@@ -26,7 +26,6 @@ impl BogusServerImplementation for ServerHandler {
     }
 
     fn get_next(&mut self) -> usize {
-        // how?
         self.counter += 1;
         self.counter
     }

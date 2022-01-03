@@ -58,7 +58,13 @@ namespace Storm
         {
             if (handleId.HasValue && e.TargetHandle != handleId.Value) return false;
             if (action.HasValue && e.Action != action.Value) return false;
-            if (message.HasValue && e.Message != message.Value) return false;
+            if (message.HasValue)
+            {
+                // mask out HasMore bit
+                var eventMessage = e.Message & ~((ulong)1 << 62);
+                var filterMessage = message.Value & ~((ulong)1 << 62);
+                if (eventMessage != filterMessage) return false;
+            }
             return true;
         }
 

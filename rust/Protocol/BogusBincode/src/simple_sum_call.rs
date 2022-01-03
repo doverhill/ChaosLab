@@ -1,48 +1,49 @@
-use library_chaos::{ Error, Channel, ChannelObject };
+use library_chaos::{ Error, Channel };
 use crate::server::BogusServerImplementation;
 use std::sync::{ Arc, Mutex };
-use std::mem;
+// use std::mem;
+use serde::{ Serialize, Deserialize };
 
 pub const BOGUS_SIMPLE_SUM_ARGUMENTS_OBJECT_ID: usize = 1;
-#[derive(Default)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct SimpleSumArguments {
     pub x: i32,
     pub y: i32
 }
 
-impl ChannelObject for SimpleSumArguments {
-    unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
-        *(pointer as *mut SimpleSumArguments) = self;
+// impl ChannelObject for SimpleSumArguments {
+//     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
+//         *(pointer as *mut SimpleSumArguments) = self;
 
-        mem::size_of::<SimpleSumArguments>()
-    }
+//         mem::size_of::<SimpleSumArguments>()
+//     }
 
-    unsafe fn from_channel(pointer: *const u8) -> Self {
-        let mut object = SimpleSumArguments::default();
-        core::ptr::copy(pointer as *mut SimpleSumArguments, &mut object, 1);
-        object
-    }
-}
+//     unsafe fn from_channel(pointer: *const u8) -> Self {
+//         let mut object = SimpleSumArguments::default();
+//         core::ptr::copy(pointer as *mut SimpleSumArguments, &mut object, mem::size_of::<SimpleSumArguments>());
+//         object
+//     }
+// }
 
 pub const BOGUS_SIMPLE_SUM_RESULT_OBJECT_ID: usize = 2;
-#[derive(Default)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 struct SimpleSumResult {
     result: i32
 }
 
-impl ChannelObject for SimpleSumResult {
-    unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
-        *(pointer as *mut SimpleSumResult) = self;
+// impl ChannelObject for SimpleSumResult {
+//     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
+//         *(pointer as *mut SimpleSumResult) = self;
 
-        mem::size_of::<SimpleSumResult>()
-    }
+//         mem::size_of::<SimpleSumResult>()
+//     }
 
-    unsafe fn from_channel(pointer: *const u8) -> Self {
-        let mut object = SimpleSumResult::default();
-        core::ptr::copy(pointer as *mut SimpleSumResult, &mut object, 1);
-        object
-    }
-}
+//     unsafe fn from_channel(pointer: *const u8) -> Self {
+//         let mut object = SimpleSumResult::default();
+//         core::ptr::copy(pointer as *mut SimpleSumResult, &mut object, mem::size_of::<SimpleSumResult>());
+//         object
+//     }
+// }
 
 pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i32, Error> {
     let channel = &mut *channel_reference.lock().unwrap();

@@ -24,6 +24,9 @@ lazy_static! {
     };
 }
 
+pub type Message = u64;
+pub type ComposedMessage = u64;
+
 pub trait ChannelObject {
     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize;
     unsafe fn from_channel(pointer: *const u8) -> Self;
@@ -124,18 +127,35 @@ impl Channel {
         return format!("Local\\__chaos_channel_{}", handle);
     }
 
-    pub fn to_reply(message: u64, has_more: bool) -> u64 {
-        message | (1 << 63) | if has_more { 1 << 62 } else { 0 }
+    pub fn compose_message(message: Message, is_reply: bool, has_more: bool) -> ComposedMessage {
+        message
+            | if is_reply { 1 << 63 } else { 0 }
+            | if has_more { 1 << 62 } else { 0 }
     }
 
-    pub fn from_reply(reply_message: u64) -> (u64, bool) {
-        let is_reply = reply_message & (1 << 63) != 0;
-        assert_eq!(is_reply, true, "Tried to do from_reply on something that isn't a reply");
+    pub fn get_message(message: ComposedMessage) -> Message {
+        message & !((1 << 63) | (1 << 62))
+    }
 
-        let has_more = reply_message & (1 << 62) != 0;
-        let message = reply_message & ((1 << 63) | (1 << 62));
+    pub fn get_is_reply(message: ComposedMessage) -> bool {
+        message & (1 << 63) != 0
+    }
 
-        (message, has_more)
+    pub fn get_has_more(message: ComposedMessage) -> bool {
+        message & (1 << 62) != 0
+    }
+
+    pub fn to_reply(message: Message, has_more: bool) -> ComposedMessage {
+        Self::compose_message(message, true, has_more)
+    }
+
+    pub fn from_reply(message: ComposedMessage) -> Message {
+        let is_reply = Self::get_is_reply(message);
+        if !is_reply {
+            panic!("Tried to get reply from composed message which is not a reply");
+        }
+        
+        Self::get_message(message)
     }
 
     pub fn on_message(&mut self, handler: fn(&Arc<Mutex<Channel>>, u64) -> ()) -> Result<(), Error> {
@@ -172,7 +192,7 @@ impl Channel {
             let pointer = self.map_pointer;
 
             // initialized
-            *(pointer as *mut usize) = 0x1337;
+            *(pointer as *mut usize) = 0x1337_1337_1337_1337;
             let pointer = pointer.offset(mem::size_of::<usize>() as isize);
 
             // version
@@ -197,7 +217,7 @@ impl Channel {
 
     pub fn is_initialized(&self) -> bool {
         unsafe {
-            *(self.map_pointer as *mut usize) == 0x1337
+            *(self.map_pointer as *mut usize) == 0x1337_1337_1337_1337
         }
     }
 
@@ -282,8 +302,7 @@ impl Channel {
 
     pub fn get_object<T : ChannelObject>(&self, index: usize) -> T {
         unsafe {
-            let pointer = self.get_object_wrapper_pointer(index);
-            let pointer = pointer.offset(2 * mem::size_of::<usize>() as isize);
+            let pointer = self.get_object_pointer(index);
             T::from_channel(pointer)
         }
     }
@@ -341,8 +360,8 @@ impl Channel {
     }
 
     pub fn call_sync(&self, message: u64, has_more: bool, timeout_milliseconds: i32) -> Result<(), Error> {
-        syscalls::channel_message(self.handle, message)?;
-        match syscalls::event_wait(Some(self.handle), Some(Action::ChannelMessaged), Some(Channel::to_reply(message, has_more)), timeout_milliseconds) {
+        syscalls::channel_message(self.handle, Self::compose_message(message, false, has_more))?;
+        match syscalls::event_wait(Some(self.handle), Some(Action::ChannelMessaged), Some(Channel::to_reply(message, false)), timeout_milliseconds) {
             Ok((_, _, _, _)) => {
                 Ok(())
             },
