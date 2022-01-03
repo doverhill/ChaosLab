@@ -6,13 +6,13 @@ use library_chaos::{ Channel, Error, Process, Service };
 // calls
 // simple_sum(x: i32, y: i32) -> i32
 // get_files(path: &str) -> [file: FileInfo]
-// fib(n: usize) -> [fib numbers]
-// render(mixed list) -> _
+// render(components: mixed list) -> _
+// get_next() -> usize  // returns a counter local to each connection/client
 
 pub const BOGUS_SIMPLE_SUM_CLIENT_MESSAGE: u64 = 1;
 pub const BOGUS_GET_FILES_CLIENT_MESSAGE: u64 = 2;
-pub const BOGUS_FIB_CLIENT_MESSAGE: u64 = 3;
-pub const BOGUS_RENDER_CLIENT_MESSAGE: u64 = 4;
+pub const BOGUS_RENDER_CLIENT_MESSAGE: u64 = 3;
+pub const BOGUS_GET_NEXT_CLIENT_MESSAGE: u64 = 4;
 
 pub struct BogusClient {
     channel_reference: Arc<Mutex<Channel>>
@@ -49,7 +49,23 @@ impl BogusClient {
         crate::simple_sum_call::call(self.channel_reference.clone(), x, y)
     }
 
-    pub fn get_files(&self, path: &str) -> Result<crate::get_files_call::ReturnIterator, Error> {
+    pub fn get_files(&self, path: &str) -> Result<crate::get_files_call::GetFilesCallIterator, Error> {
         crate::get_files_call::call(self.channel_reference.clone(), path)
+    }
+
+    pub fn render_start(&self) {
+        crate::render_call::start(self.channel_reference.clone());
+    }
+
+    pub fn render_add(&self, component: crate::render_call::RenderTypeArguments) {
+        crate::render_call::add(self.channel_reference.clone(), component);
+    }
+
+    pub fn render_done(&self) {
+        crate::render_call::call(self.channel_reference.clone());
+    }
+
+    pub fn get_next(&self) -> Result<usize, Error> {
+        crate::get_next_call::call(self.channel_reference.clone())
     }
 }

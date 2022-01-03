@@ -2,7 +2,7 @@ extern crate library_chaos;
 extern crate protocol_bogus;
 
 use library_chaos::Process;
-use protocol_bogus::{ BogusServer, BogusServerImplementation, FileInfo, Component };
+use protocol_bogus::{ BogusServer, BogusServerImplementation, FileInfo, RenderTypeArguments, RenderHandleIterator };
 
 struct ServerHandler {
     counter: usize
@@ -17,12 +17,18 @@ impl BogusServerImplementation for ServerHandler {
         vec!(FileInfo::new("test.txt", 199), FileInfo::new("imba.jpg", 74765))
     }
 
-    fn fib(&mut self, n: usize) -> Vec<usize> {
-        vec!{ 1, 2, 3 }
-    }
-
-    fn render(&mut self, components: &dyn Iterator<Item = Component>) {
-
+    fn render(&mut self, components: RenderHandleIterator) {
+        println!("rendering {} components", components.item_count());
+        for component in components {
+            match component {
+                RenderTypeArguments::Button(button) => {
+                    println!("  rendering button {}:{} with icon={} and text={}", button.base.component_id, button.base.parent_component_id, button.icon_name, button.text);
+                },
+                RenderTypeArguments::Window(window) => {
+                    println!("  rendering window {}:{} with title={}", window.base.component_id, window.base.parent_component_id, window.title);
+                }
+            }
+        }
     }
 
     fn get_next(&mut self) -> usize {

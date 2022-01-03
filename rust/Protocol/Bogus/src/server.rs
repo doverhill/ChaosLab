@@ -10,28 +10,13 @@ use crate::types::*;
 // calls
 // simple_sum(x: i32, y: i32) -> i32
 // get_files(path: &str) -> [file: FileInfo]
-// fib(n: usize) -> [fib numbers]
 // render(components: mixed list) -> _
 // get_next() -> usize  // returns a counter local to each connection/client
-
-pub struct Window {
-    
-}
-
-pub struct Button {
-
-}
-
-pub enum Component {
-    Window(Window),
-    Button(Button)
-}
 
 pub trait BogusServerImplementation {
     fn simple_sum(&mut self, x: i32, y: i32) -> i32;
     fn get_files(&mut self, path: &str) -> Vec<FileInfo>;
-    fn fib(&mut self, n: usize) -> Vec<usize>;
-    fn render(&mut self, components: &dyn Iterator<Item = Component>);
+    fn render(&mut self, components: crate::render_call::RenderHandleIterator);
     fn get_next(&mut self) -> usize;
 }
 
@@ -107,7 +92,7 @@ impl BogusServer {
 
     fn handle_connect(service_reference: &Arc<Mutex<Service>>, channel_reference: Arc<Mutex<Channel>>) {
         let service = service_reference.lock().unwrap();
-        let servers = &*SERVERS.lock().unwrap();
+        let servers = SERVERS.lock().unwrap();
         if let Some(server_reference) = servers.get(&service.handle) {
             let channels = &mut *CHANNELS.lock().unwrap();
             let mut channel = channel_reference.lock().unwrap();
@@ -121,16 +106,25 @@ impl BogusServer {
         }
     }
     
-    fn handle_message(channel_reference: &Arc<Mutex<Channel>>, message: u64) {
-        let channel = &mut *channel_reference.lock().unwrap();
-        let implementations = &mut *IMPLEMENTATIONS.lock().unwrap();
-        if let Some(implementation) = implementations.get_mut(&channel.handle) {
+    fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64) {
+        let mut channel = channel_reference.lock().unwrap();
+        let channel_handle = channel.handle;
+        drop(channel);
+
+        let mut implementations = IMPLEMENTATIONS.lock().unwrap();
+        if let Some(implementation) = implementations.get_mut(&channel_handle) {
             match message {
                 crate::client::BOGUS_SIMPLE_SUM_CLIENT_MESSAGE => {
-                    crate::simple_sum_call::handle(implementation, channel);
+                    crate::simple_sum_call::handle(implementation, channel_reference);
                 },
                 crate::client::BOGUS_GET_FILES_CLIENT_MESSAGE => {
-                    crate::get_files_call::handle(implementation, channel);
+                    crate::get_files_call::handle(implementation, channel_reference);
+                },
+                crate::client::BOGUS_RENDER_CLIENT_MESSAGE => {
+                    crate::render_call::handle(implementation, channel_reference);
+                },
+                crate::client::BOGUS_GET_NEXT_CLIENT_MESSAGE => {
+                    crate::get_next_call::handle(implementation, channel_reference);
                 },
                 _ => {
                     panic!("Unknown message {} for protocol Bogus", message);

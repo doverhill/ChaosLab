@@ -70,7 +70,9 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i3
     }
 }
 
-pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel: &mut Channel) {
+pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
+    let mut channel = channel_reference.lock().unwrap();
+
     let arguments = match channel.get_object::<SimpleSumArguments>(0, BOGUS_SIMPLE_SUM_ARGUMENTS_OBJECT_ID) {
         Ok(arguments) => {
             arguments

@@ -46,19 +46,19 @@ impl ChannelObject for GetFilesArguments {
     }
 }
 
-pub struct ReturnIterator {
+pub struct GetFilesCallIterator {
     channel_reference: Arc<Mutex<Channel>>,
     index: usize,
     item_count: usize
 }
 
-impl ReturnIterator {
-    pub fn new(channel_reference: Arc<Mutex<Channel>>) -> ReturnIterator {
+impl GetFilesCallIterator {
+    pub fn new(channel_reference: Arc<Mutex<Channel>>) -> Self {
         let channel = channel_reference.lock().unwrap();
         let item_count = channel.get_object_count();
         drop(channel);
 
-        ReturnIterator { 
+        GetFilesCallIterator { 
             channel_reference: channel_reference.clone(), 
             index: 0,
             item_count: item_count
@@ -70,7 +70,7 @@ impl ReturnIterator {
     }
 }
 
-impl Iterator for ReturnIterator {
+impl Iterator for GetFilesCallIterator {
     type Item = FileInfo;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -92,7 +92,7 @@ impl Iterator for ReturnIterator {
     }
 }
 
-pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<ReturnIterator, Error> {
+pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<GetFilesCallIterator, Error> {
     let mut channel = channel_reference.lock().unwrap();
     channel.start();
     let arguments = GetFilesArguments::new(path);
@@ -103,7 +103,7 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<Return
 
     match result {
         Ok(()) => {
-            Ok(ReturnIterator::new(channel_reference.clone()))
+            Ok(GetFilesCallIterator::new(channel_reference.clone()))
         },
         Err(error) => {
             Err(error)
@@ -111,7 +111,9 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<Return
     }
 }
 
-pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel: &mut Channel) {
+pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
+    let mut channel = channel_reference.lock().unwrap();
+
     let arguments = match channel.get_object::<GetFilesArguments>(0, BOGUS_GET_FILES_ARGUMENTS_OBJECT_ID) {
         Ok(arguments) => {
             arguments

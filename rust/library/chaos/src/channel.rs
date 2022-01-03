@@ -39,7 +39,7 @@ pub struct Channel {
     map_capacity: usize,
     body_pointer: *mut u8,
     allocation_pointer: *mut u8,
-    message_handler: Option<fn(&Arc<Mutex<Channel>>, u64) -> ()>
+    message_handler: Option<fn(Arc<Mutex<Channel>>, u64) -> ()>
 }
 
 unsafe impl Send for Channel {}
@@ -158,7 +158,7 @@ impl Channel {
         Self::get_message(message)
     }
 
-    pub fn on_message(&mut self, handler: fn(&Arc<Mutex<Channel>>, u64) -> ()) -> Result<(), Error> {
+    pub fn on_message(&mut self, handler: fn(Arc<Mutex<Channel>>, u64) -> ()) -> Result<(), Error> {
         match self.message_handler {
             Some(_) => {
                 Err(Error::AlreadyExists)
@@ -178,7 +178,7 @@ impl Channel {
             let channel = channel_wrap.lock().unwrap();
             if let Some(handler) = channel.message_handler {
                 drop(channel); // release mutex
-                handler(channel_wrap, message);
+                handler(channel_wrap.clone(), message);
             }
         }
     }
@@ -262,11 +262,6 @@ impl Channel {
     }
 
     pub unsafe fn get_object_wrapper_pointer(&self, index: usize) -> *const u8 {
-        let count = self.get_object_count();
-        if index >= count {
-            panic!("Tried to get object {}, but there are only {} objects", index, count);
-        }
-
         // skip initialized field, version and ready flag
         let pointer = self.map_pointer.offset(3 * mem::size_of::<usize>() as isize);
         let length = *(pointer as *const usize);
@@ -276,9 +271,12 @@ impl Channel {
 
         // get object count
         let object_count = *(pointer as *const usize);
+        if index >= object_count {
+            panic!("Tried to get object {}, but there are only {} objects", index, object_count);
+        }
         let mut pointer = pointer.offset((mem::size_of::<usize>()) as isize);
 
-        for i in 0..index {
+        for _ in 0..index {
             // skip object id and get length
             pointer = pointer.offset(mem::size_of::<usize>() as isize);
             let object_length = *(pointer as *const usize);
