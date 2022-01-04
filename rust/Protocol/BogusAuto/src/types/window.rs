@@ -7,7 +7,7 @@ pub const BOGUS_AUTO_WINDOW_OBJECT_ID: usize = 3;
 pub struct Window {
     // fixed size fields
     pub component_id: u64,
-    pub parent_component_id: u64
+    pub parent_component_id: u64,
     // dynamically sized fields
     pub title: String
 }
@@ -32,7 +32,7 @@ impl ChannelObject for Window {
 
         // write dynamically sized field title
         let title_length = self.title.len();
-        *(pointer as *mut usize) = len;
+        *(pointer as *mut usize) = title_length;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         ptr::copy(self.title.as_ptr(), pointer, title_length);
 

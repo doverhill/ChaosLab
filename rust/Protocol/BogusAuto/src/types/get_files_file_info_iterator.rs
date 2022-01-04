@@ -1,5 +1,8 @@
 use library_chaos::Channel;
-use std::{ iter::Iterator, Arc, Mutex };
+use core::{ mem, ptr, str, slice };
+use std::iter::Iterator;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub struct GetFilesFileInfoIterator {
     channel_reference: Arc<Mutex<Channel>>,
@@ -22,13 +25,13 @@ impl GetFilesFileInfoIterator {
 }
 
 impl Iterator for GetFilesFileInfoIterator {
-    type Item = FileInfo;
+    type Item = crate::FileInfo;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.item_count {
             let channel = self.channel_reference.lock().unwrap();
             self.index += 1;
-            match channel.get_object::<FileInfo>(self.index - 1, BOGUS_AUTO_FILE_INFO_OBJECT_ID) {
+            match channel.get_object::<crate::FileInfo>(self.index - 1, crate::BOGUS_AUTO_FILE_INFO_OBJECT_ID) {
                 Ok(object) => {
                     Some(object)
                 },

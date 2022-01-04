@@ -1,6 +1,7 @@
 use library_chaos::{ Error, Channel, ChannelObject };
 use core::{ mem, ptr, str, slice };
-use std::{ Arc, Mutex };
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub const BOGUS_AUTO_GET_FILES_CLIENT_TO_SERVER_MESSAGE: u64 = 2;
 
@@ -14,8 +15,6 @@ pub struct GetFilesArguments {
 }
 
 impl GetFilesArguments {
-    const FIXED_SIZE: usize = ;
-
     pub fn new(path: &str) -> Self {
         GetFilesArguments {
             path: path.to_string()
@@ -27,7 +26,7 @@ impl ChannelObject for GetFilesArguments {
     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
         // write dynamically sized field path
         let path_length = self.path.len();
-        *(pointer as *mut usize) = len;
+        *(pointer as *mut usize) = path_length;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         ptr::copy(self.path.as_ptr(), pointer, path_length);
 
@@ -47,11 +46,9 @@ impl ChannelObject for GetFilesArguments {
 }
 
 pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<crate::GetFilesFileInfoIterator, Error> {
-    let channel = channel_reference.lock().unwrap();
+    let mut channel = channel_reference.lock().unwrap();
     channel.start();
-    let arguments = GetFilesArguments {
-        path: path
-    };
+    let arguments = GetFilesArguments::new(path);
     channel.add_object(BOGUS_AUTO_GET_FILES_ARGUMENTS_OBJECT_ID, arguments);
     let result = channel.call_sync(BOGUS_AUTO_GET_FILES_CLIENT_TO_SERVER_MESSAGE, false, 1000);
     drop(channel);

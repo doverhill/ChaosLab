@@ -7,7 +7,7 @@ pub const BOGUS_AUTO_BUTTON_OBJECT_ID: usize = 4;
 pub struct Button {
     // fixed size fields
     pub component_id: u64,
-    pub parent_component_id: u64
+    pub parent_component_id: u64,
     // dynamically sized fields
     pub icon_name: String,
     pub text: String
@@ -34,14 +34,14 @@ impl ChannelObject for Button {
 
         // write dynamically sized field icon_name
         let icon_name_length = self.icon_name.len();
-        *(pointer as *mut usize) = len;
+        *(pointer as *mut usize) = icon_name_length;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         ptr::copy(self.icon_name.as_ptr(), pointer, icon_name_length);
-        let pointer = pointer.offset(length as isize);
+        let pointer = pointer.offset(icon_name_length as isize);
 
         // write dynamically sized field text
         let text_length = self.text.len();
-        *(pointer as *mut usize) = len;
+        *(pointer as *mut usize) = text_length;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         ptr::copy(self.text.as_ptr(), pointer, text_length);
 

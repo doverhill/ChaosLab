@@ -1,5 +1,8 @@
 use library_chaos::{ Channel, ChannelObject };
-use std::{ iter::Iterator, Arc, Mutex };
+use core::{ mem, ptr, str, slice };
+use std::iter::Iterator;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub const BOGUS_AUTO_RENDER_ENUM_OBJECT_ID: usize = 8;
 
@@ -65,13 +68,13 @@ impl RenderMixedIterator {
 }
 
 impl Iterator for RenderMixedIterator {
-    type Item = Mixed;
+    type Item = crate::RenderEnum;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.item_count {
             let channel = self.channel_reference.lock().unwrap();
             self.index += 1;
-            match channel.get_object::<Mixed>(self.index - 1, BOGUS_AUTO_RENDER_ENUM_OBJECT_ID) {
+            match channel.get_object::<crate::RenderEnum>(self.index - 1, crate::BOGUS_AUTO_RENDER_ENUM_OBJECT_ID) {
                 Ok(object) => {
                     Some(object)
                 },

@@ -12,7 +12,7 @@ namespace IDLCompiler
         {
             var stream = new StreamWriter(File.Create("types/" + callName.ToSnake() + "_" + field.TypeName.ToSnake() + "_iterator.rs"));
             var output = new StructuredWriter(stream);
-            Emit(output, idl, callName, field.TypeName.ToPascal(), field.TypeName.ToScreamingSnake(), true);
+            Emit(output, idl, callName, field.TypeName.ToPascal(), false, field.TypeName.ToScreamingSnake(), true);
             stream.Close();
 
             // append to crate
@@ -30,7 +30,7 @@ namespace IDLCompiler
             var stream = new StreamWriter(File.Create("types/" + callName.ToSnake() + "_mixed_iterator.rs"));
             var output = new StructuredWriter(stream);
             EmitEnum(output, idl, callName, fields);
-            Emit(output, idl, callName, "Mixed", callName.ToScreamingSnake() + "_ENUM", false);
+            Emit(output, idl, callName, callName.ToPascal() + "Enum", true, callName.ToScreamingSnake() + "_ENUM", false);
             stream.Close();
 
             // append to crate
@@ -49,7 +49,10 @@ namespace IDLCompiler
             var protocolName = CasedString.FromPascal(idl.Interface.Name);
 
             output.WriteLine("use library_chaos::{ Channel, ChannelObject };");
-            output.WriteLine("use std::{ iter::Iterator, Arc, Mutex };");
+            output.WriteLine("use core::{ mem, ptr, str, slice };");
+            output.WriteLine("use std::iter::Iterator;");
+            output.WriteLine("use std::sync::Arc;");
+            output.WriteLine("use std::sync::Mutex;");
             output.BlankLine();
 
             output.WriteLine("pub const " + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ENUM_OBJECT_ID: usize = " + TypeEmitter.GetId() + ";");
@@ -104,19 +107,22 @@ namespace IDLCompiler
             output.BlankLine();
         }
 
-        public static void Emit(StructuredWriter output, IDL idl, CasedString callName, string pascalTypeName, string screamingSnakeTypeName, bool emitImports)
+        public static void Emit(StructuredWriter output, IDL idl, CasedString callName, string pascalTypeName, bool isMixed, string screamingSnakeTypeName, bool emitImports)
         {
             var protocolName = CasedString.FromPascal(idl.Interface.Name);
 
             if (emitImports)
             {
                 output.WriteLine("use library_chaos::Channel;");
-                output.WriteLine("use std::{ iter::Iterator, Arc, Mutex };");
+                output.WriteLine("use core::{ mem, ptr, str, slice };");
+                output.WriteLine("use std::iter::Iterator;");
+                output.WriteLine("use std::sync::Arc;");
+                output.WriteLine("use std::sync::Mutex;");
                 output.BlankLine();
             }
 
             // write type struct
-            output.WriteLine("pub struct " + callName.ToPascal() + pascalTypeName + "Iterator", true);
+            output.WriteLine("pub struct " + callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
             output.WriteLine("channel_reference: Arc<Mutex<Channel>>,");
             output.WriteLine("index: usize,");
             output.WriteLine("item_count: usize");
@@ -124,13 +130,13 @@ namespace IDLCompiler
             output.BlankLine();
 
             // impl
-            output.WriteLine("impl " + callName.ToPascal() + pascalTypeName + "Iterator", true);
+            output.WriteLine("impl " + callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
             output.WriteLine("pub fn new(channel_reference: Arc<Mutex<Channel>>) -> Self", true);
             output.WriteLine("let channel = channel_reference.lock().unwrap();");
             output.WriteLine("let item_count = channel.get_object_count();");
             output.WriteLine("drop(channel);");
             output.BlankLine();
-            output.WriteLine(callName.ToPascal() + pascalTypeName + "Iterator", true);
+            output.WriteLine(callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
             output.WriteLine("channel_reference: channel_reference.clone(),");
             output.WriteLine("index: 0,");
             output.WriteLine("item_count: item_count");
@@ -140,14 +146,14 @@ namespace IDLCompiler
             output.BlankLine();
 
             // impl Iterator
-            output.WriteLine("impl Iterator for " + callName.ToPascal() + pascalTypeName + "Iterator", true);
-            output.WriteLine("type Item = " + pascalTypeName + ";");
+            output.WriteLine("impl Iterator for " + callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
+            output.WriteLine("type Item = crate::" + pascalTypeName + ";");
             output.BlankLine();
             output.WriteLine("fn next(&mut self) -> Option<Self::Item>", true);
             output.WriteLine("if self.index < self.item_count", true);
             output.WriteLine("let channel = self.channel_reference.lock().unwrap();");
             output.WriteLine("self.index += 1;");
-            output.WriteLine("match channel.get_object::<" + pascalTypeName + ">(self.index - 1, " + protocolName.ToScreamingSnake() + "_" + screamingSnakeTypeName + "_OBJECT_ID)", true);
+            output.WriteLine("match channel.get_object::<crate::" + pascalTypeName + ">(self.index - 1, crate::" + protocolName.ToScreamingSnake() + "_" + screamingSnakeTypeName + "_OBJECT_ID)", true);
             output.WriteLine("Ok(object) =>", true);
             output.WriteLine("Some(object)");
             output.CloseScope(",");

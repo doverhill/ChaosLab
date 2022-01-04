@@ -21,7 +21,7 @@ pub trait BogusServerImplementation {
 
 lazy_static! {
     // Service handle -> BogusServer
-    static ref SERVERS: Mutex<HashMap<Handle, Arc<Mutex<BogusServer>>>> = {
+    static ref INSTANCES: Mutex<HashMap<Handle, Arc<Mutex<BogusServer>>>> = {
         Mutex::new(HashMap::new())
     };
 
@@ -54,8 +54,8 @@ impl BogusServer {
 
         // register this server as handler for this service
         let server_reference = Arc::new(Mutex::new(server));
-        let mut servers = SERVERS.lock().unwrap();
-        servers.insert(service.handle, server_reference.clone());
+        let mut instances = INSTANCES.lock().unwrap();
+        instances.insert(service.handle, server_reference.clone());
 
         server_reference
     }
@@ -77,8 +77,8 @@ impl BogusServer {
 
                 // register this server as handler for this service
                 let server_reference = Arc::new(Mutex::new(server));
-                let mut servers = SERVERS.lock().unwrap();
-                servers.insert(service.handle, server_reference.clone());
+                let mut instances = INSTANCES.lock().unwrap();
+                instances.insert(service.handle, server_reference.clone());
 
                 Ok(server_reference)
             },
@@ -91,8 +91,8 @@ impl BogusServer {
 
     fn handle_connect(service_reference: &Arc<Mutex<Service>>, channel_reference: Arc<Mutex<Channel>>) {
         let service = service_reference.lock().unwrap();
-        let servers = SERVERS.lock().unwrap();
-        if let Some(server_reference) = servers.get(&service.handle) {
+        let instances = INSTANCES.lock().unwrap();
+        if let Some(server_reference) = instances.get(&service.handle) {
             let mut channels = CHANNELS.lock().unwrap();
             let mut channel = channel_reference.lock().unwrap();
             channels.insert(channel.handle, service.handle);

@@ -85,6 +85,7 @@ if (idl.ClientToServerCalls != null)
     if (emittedClientToServerCall)
     {
         libStream.WriteLine("mod client_to_server_calls;");
+        libStream.WriteLine();
     }
 }
 
@@ -104,16 +105,21 @@ if (idl.ServerToClientCalls != null)
     if (emittedServerToClientCall)
     {
         libStream.WriteLine("mod server_to_client_calls;");
+        libStream.WriteLine();
     }
 }
 
-#if false
 // emit "server"
 ClientServerEmitter.Emit(ClientServerEmitter.Side.Server, idl, idl.ClientToServerCalls, idl.ServerToClientCalls);
+libStream.WriteLine("mod server;");
+libStream.WriteLine("pub use server;");
+libStream.WriteLine();
 
 // emit "client"
 ClientServerEmitter.Emit(ClientServerEmitter.Side.Client, idl, idl.ServerToClientCalls, idl.ClientToServerCalls);
-#endif
+libStream.WriteLine("mod client;");
+libStream.WriteLine("pub use client;");
+libStream.WriteLine();
 
 if (!emittedClientToServerCall && !emittedServerToClientCall)
 {

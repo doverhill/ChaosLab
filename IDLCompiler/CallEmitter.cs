@@ -79,7 +79,7 @@
                     Name = callName.ToPascal() + callType.ToString(),
                     Fields = fields
                 };
-                TypeEmitter.Emit(output, idl, type, false);
+                TypeEmitter.Emit(output, idl, type, callType == CallType.Arguments, false);
             }
             else if (fieldsType == IDLDataSetType.List)
             {
@@ -109,7 +109,11 @@
             var parsedReturns = returns.Select(f => new Field(f, idl.Types)).ToList();
             if (returnsType == IDLDataSetType.ParameterSet)
             {
-                if (returns.Count == 1)
+                if (returns.Count == 0)
+                {
+                    returnSignature = "()";
+                }
+                else if (returns.Count == 1)
                 {
                     returnSignature = parsedReturns[0].GetStructType();
                 }
@@ -132,15 +136,13 @@
             if (parametersType == IDLDataSetType.ParameterSet)
             {
                 output.WriteLine("pub fn call(channel_reference: Arc<Mutex<Channel>>, " + Common.GetCallArguments(parsedParameters) + ") -> Result<" + returnSignature + ", Error>", true);
-                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("let mut channel = channel_reference.lock().unwrap();");
                 output.WriteLine("channel.start();");
-                output.WriteLine("let arguments = " + callName.ToPascal() + CallType.Arguments.ToString(), true);
-                Common.ForEach(parsedParameters, (p, isLast) =>
+                if (parameters.Count > 0)
                 {
-                    output.WriteLine(p.Name.ToSnake() + ": " + p.Name.ToSnake() + (isLast ? "" : ","));
-                });
-                output.CloseScope(";");
-                output.WriteLine("channel.add_object(" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ARGUMENTS_OBJECT_ID, arguments);");
+                    output.WriteLine("let arguments = " + callName.ToPascal() + CallType.Arguments.ToString() + "::new(" + string.Join(", ", parsedParameters.Select(p => p.Name.ToSnake())) + ");");
+                    output.WriteLine("channel.add_object(" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ARGUMENTS_OBJECT_ID, arguments);");
+                }
             }
             else if (parametersType == IDLDataSetType.List || parametersType == IDLDataSetType.MixedList)
             {
@@ -152,22 +154,22 @@
                     (protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ENUM_OBJECT_ID");
 
                 output.WriteLine("pub fn call_vec(channel_reference: Arc<Mutex<Channel>>, objects: Vec<crate::" + parameterName + ">) -> Result<" + returnSignature + ", Error>", true);
-                output.WriteLine("start(channel_reference);");
+                output.WriteLine("start(channel_reference.clone());");
                 output.WriteLine("for object in objects", true);
-                output.WriteLine("add(channel_reference, object);");
+                output.WriteLine("add(channel_reference.clone(), object);");
                 output.CloseScope();
-                output.WriteLine("call(channel_reference)");
+                output.WriteLine("call(channel_reference.clone())");
                 output.CloseScope();
                 output.BlankLine();
 
                 output.WriteLine("pub fn start(channel_reference: Arc<Mutex<Channel>>)", true);
-                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("let mut channel = channel_reference.lock().unwrap();");
                 output.WriteLine("channel.start();");
                 output.CloseScope();
                 output.BlankLine();
 
                 output.WriteLine("pub fn add(channel_reference: Arc<Mutex<Channel>>, object: crate::" + parameterName + ")", true);
-                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("let mut channel = channel_reference.lock().unwrap();");
                 output.WriteLine("channel.add_object(crate::" + objectId + ", object);");
                 output.CloseScope();
                 output.BlankLine();
@@ -179,28 +181,35 @@
             // write call and handle result
             if (returnsType == IDLDataSetType.ParameterSet)
             {
-                output.WriteLine("match channel.call_sync(" + messageName + ", false, 1000)", true);
-                output.WriteLine("Ok(()) =>", true);
-                output.WriteLine("match channel.get_object::<" + callName.ToPascal() + CallType.Result.ToString() + ">(0, " + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_RESULT_OBJECT_ID)", true);
-                output.WriteLine("Ok(result) =>", true);
-                if (returns.Count == 1)
+                if (returns.Count == 0)
                 {
-                    output.WriteLine("Ok(result.result)");
+                    output.WriteLine("channel.call_sync(" + messageName + ", false, 1000)");
                 }
                 else
                 {
-                    output.WriteLine("Ok(result)");
+                    output.WriteLine("match channel.call_sync(" + messageName + ", false, 1000)", true);
+                    output.WriteLine("Ok(()) =>", true);
+                    output.WriteLine("match channel.get_object::<" + callName.ToPascal() + CallType.Result.ToString() + ">(0, " + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_RESULT_OBJECT_ID)", true);
+                    output.WriteLine("Ok(result) =>", true);
+                    if (returns.Count == 1)
+                    {
+                        output.WriteLine("Ok(result.result)");
+                    }
+                    else
+                    {
+                        output.WriteLine("Ok(result)");
+                    }
+                    output.CloseScope(",");
+                    output.WriteLine("Err(error) =>", true);
+                    output.WriteLine("Err(error)");
+                    output.CloseScope();
+                    output.CloseScope();
+                    output.CloseScope(",");
+                    output.WriteLine("Err(error) =>", true);
+                    output.WriteLine("Err(error)");
+                    output.CloseScope();
+                    output.CloseScope();
                 }
-                output.CloseScope(",");
-                output.WriteLine("Err(error) =>", true);
-                output.WriteLine("Err(error)");
-                output.CloseScope();
-                output.CloseScope();
-                output.CloseScope(",");
-                output.WriteLine("Err(error) =>", true);
-                output.WriteLine("Err(error)");
-                output.CloseScope();
-                output.CloseScope();
             }
             else if (returnsType == IDLDataSetType.List || returnsType == IDLDataSetType.MixedList)
             {
@@ -234,7 +243,8 @@
             // write imports
             output.WriteLine("use library_chaos::{ Error, Channel, ChannelObject };");
             output.WriteLine("use core::{ mem, ptr, str, slice };");
-            output.WriteLine("use std::{ Arc, Mutex };");
+            output.WriteLine("use std::sync::Arc;");
+            output.WriteLine("use std::sync::Mutex;");
             output.BlankLine();
 
             // call message

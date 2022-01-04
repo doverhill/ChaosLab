@@ -22,7 +22,7 @@
             var typeName = CasedString.FromPascal(type.Name);
             var stream = new StreamWriter(File.Create("types/" + typeName.ToSnake() + ".rs"));
             var output = new StructuredWriter(stream);
-            Emit(output, idl, type, true);
+            Emit(output, idl, type, true, true);
             stream.Close();
 
             // append to crate
@@ -37,7 +37,9 @@
 
         private static string GetFixedSize(List<Field> fields)
         {
-            return string.Join(" + ", fields.Where(f => f.Type != Field.DataType.String).Select(f => "mem::size_of::<" + f.GetCallType() + ">()"));
+            var fixedFields = fields.Where(f => f.Type != Field.DataType.String).Select(f => "mem::size_of::<" + f.GetCallType() + ">()").ToList();
+            if (fixedFields.Count == 0) return null;
+            return string.Join(" + ", fixedFields);
         }
 
         private static void WriteConstructorFields(StructuredWriter output, List<Field> fields)
@@ -48,7 +50,7 @@
             });
         }
 
-        public static void Emit(StructuredWriter output, IDL idl, IDLType type, bool emitImports)
+        public static void Emit(StructuredWriter output, IDL idl, IDLType type, bool emitConstructor, bool emitImports)
         {
             if (type.Inherits != null)
             {
@@ -88,7 +90,7 @@
             output.WriteLine("// fixed size fields");
             Common.ForEach(fixedFields, (field, isLast) =>
             {
-                output.WriteLine("pub " + field.Name.ToSnake() + ": " + field.GetStructType() + (isLast ? "" : ","));
+                output.WriteLine("pub " + field.Name.ToSnake() + ": " + field.GetStructType() + (isLast && dynamicFields.Count == 0 ? "" : ","));
             });
             output.WriteLine("// dynamically sized fields");
             Common.ForEach(dynamicFields, (field, isLast) =>
@@ -100,15 +102,22 @@
 
             // impl
             output.WriteLine("impl " + typeName.ToPascal(), true);
-            output.WriteLine("const FIXED_SIZE: usize = " + GetFixedSize(fields) + ";");
-            output.BlankLine();
+            var fixedSize = GetFixedSize(fields);
+            if (fixedSize != null)
+            {
+                output.WriteLine("const FIXED_SIZE: usize = " + fixedSize + ";");
+            }
 
             // constructor
-            output.WriteLine("pub fn new(" + Common.GetCallArguments(fields) + ") -> Self", true);
-            output.WriteLine(typeName.ToPascal(), true);
-            WriteConstructorFields(output, fields);
-            output.CloseScope();
-            output.CloseScope();
+            if (emitConstructor)
+            {
+                if (fixedSize != null) output.BlankLine();
+                output.WriteLine("pub fn new(" + Common.GetCallArguments(fields) + ") -> Self", true);
+                output.WriteLine(typeName.ToPascal(), true);
+                WriteConstructorFields(output, fields);
+                output.CloseScope();
+                output.CloseScope();
+            }
 
             output.CloseScope();
             output.BlankLine();
@@ -133,12 +142,12 @@
                 if (fixedFields.Count > 0) output.BlankLine();
                 output.WriteLine("// write dynamically sized field " + field.Name.ToSnake());
                 output.WriteLine("let " + field.Name.ToSnake() + "_length = self." + field.Name.ToSnake() + ".len();");
-                output.WriteLine("*(pointer as *mut usize) = len;");
+                output.WriteLine("*(pointer as *mut usize) = " + field.Name.ToSnake() + "_length;");
                 output.WriteLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                 output.WriteLine("ptr::copy(self." + field.Name.ToSnake() + ".as_ptr(), pointer, " + field.Name.ToSnake() + "_length);");
                 if (!isLast)
                 {
-                    output.WriteLine("let pointer = pointer.offset(length as isize);");
+                    output.WriteLine("let pointer = pointer.offset(" + field.Name.ToSnake() + "_length as isize);");
                 }
                 totalLength += (totalLength != "" ? " + " : "") + "mem::size_of::<usize>() + " + field.Name.ToSnake() + "_length";
             });
