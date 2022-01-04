@@ -1,6 +1,6 @@
 use library_chaos::{ Error, Channel, ChannelObject };
 use core::{ mem, ptr, str, slice };
-use std::{ iter::Iterator, Arc, Mutex };
+use std::{ Arc, Mutex };
 
 pub const BOGUS_AUTO_SIMPLE_SUM_CLIENT_TO_SERVER_MESSAGE: u64 = 1;
 
@@ -72,3 +72,19 @@ impl ChannelObject for SimpleSumResult {
     }
 }
 
+pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i32, Error> {
+    let channel = channel_reference.lock().unwrap();
+    channel.start();
+    let arguments = SimpleSumArguments {
+        x: x,
+        y: y
+    };
+    channel.add_object(BOGUS_AUTO_SIMPLE_SUM_ARGUMENTS_OBJECT_ID, arguments);
+    match channel.call_sync(BOGUS_AUTO_SIMPLE_SUM_CLIENT_TO_SERVER_MESSAGE, false, 1000) {
+        Ok(()) => {
+        },
+        Err(error) => {
+            Err(error)
+        }
+    }
+}

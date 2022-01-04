@@ -43,7 +43,7 @@
             Emit(output, direction, idl, call);
             stream.Close();
 
-            // append to
+            // append to crate
             File.AppendAllLines(directoryName + "/mod.rs", new string[]
             {
                 "mod " + callName.ToSnake() + ";",
@@ -85,17 +85,108 @@
             {
                 if (parsedFields.Count != 1) throw new ArgumentException(callName.ToPascal() + callType.ToString() + ": Only one field allowed when using List");
                 var field = parsedFields[0];
+                if (field.Type != Field.DataType.Type) throw new ArgumentException(callName.ToPascal() + callType.ToString() + ": Field must be custom type when using List");
                 if (field.Name != null) throw new ArgumentException(callName.ToPascal() + callType.ToString() + ": Field can not be named when using List");
 
-                //IteratorEmitter()
+                IteratorTypeEmitter.Emit(idl, callName, field);
             }
             else if (fieldsType == IDLDataSetType.MixedList)
             {
                 if (parsedFields.Count < 2) throw new ArgumentException(callName.ToPascal() + callType.ToString() + ": At least two fields needed when using MixedList");
                 if (parsedFields.Any(f => f.Name != null)) throw new ArgumentException(callName.ToPascal() + callType.ToString() + ": Fields can not be named when using MixedList");
+                if (parsedFields.Any(f => f.Type != Field.DataType.Type)) throw new ArgumentException(callName.ToPascal() + callType.ToString() + ": All fields must be custom type when using MixedList");
 
+                IteratorTypeEmitter.EmitMixed(idl, callName, parsedFields);
+            }
+        }
+
+        private static void EmitCall(StructuredWriter output, IDL idl, Direction direction, CasedString callName, List<string> parameters, List<string> returns, IDLDataSetType parametersType, IDLDataSetType returnsType)
+        {
+            var protocolName = CasedString.FromPascal(idl.Interface.Name);
+            var messageName = protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + (direction == Direction.ClientToServer ? "_CLIENT_TO_SERVER" : "_SERVER_TO_CLIENT") + "_MESSAGE";
+
+            var returnSignature = "";
+            var parsedReturns = returns.Select(f => new Field(f, idl.Types)).ToList();
+            if (returnsType == IDLDataSetType.ParameterSet)
+            {
+                if (returns.Count == 1)
+                {
+                    returnSignature = parsedReturns[0].GetStructType();
+                }
+                else
+                {
+                    returnSignature = callName.ToPascal() + CallType.Result.ToString();
+                }
+            }
+            else if (returnsType == IDLDataSetType.List)
+            {
+                returnSignature = "crate::" + callName.ToPascal() + parsedReturns[0].TypeName.ToPascal() + "Iterator";
+            }
+            else if (returnsType == IDLDataSetType.MixedList)
+            {
+                returnSignature = "crate::" + callName.ToPascal() + "MixedIterator";
             }
 
+            // write call functions
+            var parsedParameters = parameters.Select(f => new Field(f, idl.Types)).ToList();
+            if (parametersType == IDLDataSetType.ParameterSet)
+            {
+                output.WriteLine("pub fn call(channel_reference: Arc<Mutex<Channel>>, " + Common.GetCallArguments(parsedParameters) + ") -> Result<" + returnSignature + ", Error>", true);
+                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("channel.start();");
+                output.WriteLine("let arguments = " + callName.ToPascal() + CallType.Arguments.ToString(), true);
+                Common.ForEach(parsedParameters, (p, isLast) =>
+                {
+                    output.WriteLine(p.Name.ToSnake() + ": " + p.Name.ToSnake() + (isLast ? "" : ","));
+                });
+                output.CloseScope(";");
+                output.WriteLine("channel.add_object(" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ARGUMENTS_OBJECT_ID, arguments);");
+            }
+            else if (parametersType == IDLDataSetType.List || parametersType == IDLDataSetType.MixedList)
+            {
+                var parameterName = parametersType == IDLDataSetType.List ? 
+                    parsedParameters[0].TypeName.ToPascal() :
+                    (callName.ToPascal() + "Enum");
+                var objectId = parametersType == IDLDataSetType.List ?
+                    (protocolName.ToScreamingSnake() + "_" + parsedParameters[0].TypeName.ToScreamingSnake() + "_OBJECT_ID") :
+                    (protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ENUM_OBJECT_ID");
+
+                output.WriteLine("pub fn call_vec(channel_reference: Arc<Mutex<Channel>>, objects: Vec<crate::" + parameterName + ">) -> Result<" + returnSignature + ", Error>", true);
+                output.WriteLine("start(channel_reference);");
+                output.WriteLine("for object in objects", true);
+                output.WriteLine("add(channel_reference, object);");
+                output.CloseScope();
+                output.WriteLine("call(channel_reference)");
+                output.CloseScope();
+                output.BlankLine();
+
+                output.WriteLine("pub fn start(channel_reference: Arc<Mutex<Channel>>)", true);
+                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("channel.start();");
+                output.CloseScope();
+                output.BlankLine();
+
+                output.WriteLine("pub fn add(channel_reference: Arc<Mutex<Channel>>, object: crate::" + parameterName + ")", true);
+                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("channel.add_object(crate::" + objectId + ", object);");
+                output.CloseScope();
+                output.BlankLine();
+
+                output.WriteLine("pub fn call(channel_reference: Arc<Mutex<Channel>>) -> Result<" + returnSignature + ", Error>", true);
+                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+            }
+
+            // write call and handle result
+            output.WriteLine("match channel.call_sync(" + messageName + ", false, 1000)", true);
+            output.WriteLine("Ok(()) =>", true);
+
+            output.CloseScope(",");
+            output.WriteLine("Err(error) =>", true);
+            output.WriteLine("Err(error)");
+            output.CloseScope();
+            output.CloseScope();
+
+            output.CloseScope();
         }
 
         public static void Emit(StructuredWriter output, Direction direction, IDL idl, IDLCall call)
@@ -106,7 +197,7 @@
             // write imports
             output.WriteLine("use library_chaos::{ Error, Channel, ChannelObject };");
             output.WriteLine("use core::{ mem, ptr, str, slice };");
-            output.WriteLine("use std::{ iter::Iterator, Arc, Mutex };");
+            output.WriteLine("use std::{ Arc, Mutex };");
             output.BlankLine();
 
             // call message
@@ -127,6 +218,11 @@
                 EmitType(output, idl, returns, call.ReturnsType, callName, CallType.Result);
             }
 
+            // calls
+            EmitCall(output, idl, direction, callName, parameters, returns, call.ParametersType, call.ReturnsType);
+
+            // handle
+            //EmitHandle(output)
 
         }
     }

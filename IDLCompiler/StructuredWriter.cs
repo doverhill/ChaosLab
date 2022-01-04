@@ -12,21 +12,22 @@
             this.writer = writer;
         }
 
-        public void EnterBlock()
-        {
-            indent++;
-        }
+        //public void EnterBlock()
+        //{
+        //    indent++;
+        //}
 
-        public void LeaveBlock()
+        public void CloseScope(string append = null)
         {
             indent--;
+            WriteLine("}" + (append ?? ""));
         }
 
-        public void WriteLine(string line)
+        public void WriteLine(string line, bool openScope = false)
         {
-            Console.WriteLine("writing '" + line + "' at level " + indent);
             writer.Write(new string(' ', IndentationSteps * indent));
-            writer.WriteLine(line);
+            writer.WriteLine(line + (openScope ? " {" : ""));
+            if (openScope) indent++;
         }
 
         public void BlankLine()

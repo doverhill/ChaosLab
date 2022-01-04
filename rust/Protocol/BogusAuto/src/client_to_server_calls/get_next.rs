@@ -1,10 +1,10 @@
 use library_chaos::{ Error, Channel, ChannelObject };
 use core::{ mem, ptr, str, slice };
-use std::{ iter::Iterator, Arc, Mutex };
+use std::{ Arc, Mutex };
 
 pub const BOGUS_AUTO_GET_NEXT_CLIENT_TO_SERVER_MESSAGE: u64 = 4;
 
-pub const BOGUS_AUTO_GET_NEXT_RESULT_OBJECT_ID: usize = 8;
+pub const BOGUS_AUTO_GET_NEXT_RESULT_OBJECT_ID: usize = 9;
 
 #[derive(Default)]
 pub struct GetNextResult {
@@ -37,3 +37,17 @@ impl ChannelObject for GetNextResult {
     }
 }
 
+pub fn call(channel_reference: Arc<Mutex<Channel>>, ) -> Result<usize, Error> {
+    let channel = channel_reference.lock().unwrap();
+    channel.start();
+    let arguments = GetNextArguments {
+    };
+    channel.add_object(BOGUS_AUTO_GET_NEXT_ARGUMENTS_OBJECT_ID, arguments);
+    match channel.call_sync(BOGUS_AUTO_GET_NEXT_CLIENT_TO_SERVER_MESSAGE, false, 1000) {
+        Ok(()) => {
+        },
+        Err(error) => {
+            Err(error)
+        }
+    }
+}
