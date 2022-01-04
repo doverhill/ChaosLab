@@ -13,7 +13,7 @@ impl BogusServerImplementation for ServerHandler {
         x + y + 3
     }
 
-    fn get_files(&mut self, path: &str) -> Vec<FileInfo> {
+    fn get_files(&mut self, _path: &str) -> Vec<FileInfo> {
         vec!(FileInfo::new("test.txt", 199), FileInfo::new("imba.jpg", 74765))
     }
 

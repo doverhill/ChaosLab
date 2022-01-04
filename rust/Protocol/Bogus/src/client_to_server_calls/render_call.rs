@@ -1,9 +1,11 @@
-use library_chaos::{ Error, Channel, ChannelObject };
+use library_chaos::{ Channel, ChannelObject };
 use std::mem;
 use std::iter::Iterator;
 use std::sync::{ Arc, Mutex };
 use crate::server::BogusServerImplementation;
 use crate::types::*;
+
+pub const BOGUS_RENDER_CLIENT_MESSAGE: u64 = 3;
 
 pub const BOGUS_RENDER_TYPE_ARGUMENTS_OBJECT_ID: usize = 9;
 pub enum RenderTypeArguments {
@@ -83,7 +85,7 @@ impl Iterator for RenderHandleIterator {
                 Ok(object) => {
                     Some(object)
                 },
-                Err(error) => {
+                Err(_) => {
                     None
                 }
             }
@@ -105,13 +107,13 @@ pub fn add(channel_reference: Arc<Mutex<Channel>>, component: RenderTypeArgument
 }
 
 pub fn call(channel_reference: Arc<Mutex<Channel>>) {
-    let mut channel = channel_reference.lock().unwrap();
-    channel.call_sync(crate::client::BOGUS_RENDER_CLIENT_MESSAGE, false, 1000);
+    let channel = channel_reference.lock().unwrap();
+    channel.call_sync(BOGUS_RENDER_CLIENT_MESSAGE, false, 1000).unwrap();
 }
 
 pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
     let iterator = RenderHandleIterator::new(channel_reference.clone());
-    handler.render(iterator);;
-    let mut channel = channel_reference.lock().unwrap();
-    channel.send(Channel::to_reply(crate::client::BOGUS_RENDER_CLIENT_MESSAGE, false));
+    handler.render(iterator);
+    let channel = channel_reference.lock().unwrap();
+    channel.send(Channel::to_reply(BOGUS_RENDER_CLIENT_MESSAGE, false));
 }

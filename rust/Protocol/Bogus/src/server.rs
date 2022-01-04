@@ -1,7 +1,6 @@
 extern crate library_chaos;
 
 use std::sync::{ Arc, Mutex };
-use std::iter::Iterator;
 use std::collections::HashMap;
 use library_chaos::{ Channel, Error, Process, Service, Handle };
 use uuid::Uuid;
@@ -16,7 +15,7 @@ use crate::types::*;
 pub trait BogusServerImplementation {
     fn simple_sum(&mut self, x: i32, y: i32) -> i32;
     fn get_files(&mut self, path: &str) -> Vec<FileInfo>;
-    fn render(&mut self, components: crate::render_call::RenderHandleIterator);
+    fn render(&mut self, components: crate::RenderHandleIterator);
     fn get_next(&mut self) -> usize;
 }
 
@@ -38,16 +37,16 @@ lazy_static! {
 }
 
 pub struct BogusServer {
-    service_reference: Arc<Mutex<Service>>,
-    initialized: bool,
+    // service_reference: Arc<Mutex<Service>>,
+    // initialized: bool,
     pub implementation_factory: fn() -> Box<dyn BogusServerImplementation + Send>
 }
 
 impl BogusServer {
     pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn BogusServerImplementation + Send>) -> Arc<Mutex<BogusServer>> {
         let server = BogusServer {
-            service_reference: service_reference.clone(),
-            initialized: false,
+            // service_reference: service_reference.clone(),
+            // initialized: false,
             implementation_factory: implementation_factory
         };
 
@@ -55,7 +54,7 @@ impl BogusServer {
 
         // register this server as handler for this service
         let server_reference = Arc::new(Mutex::new(server));
-        let servers = &mut *SERVERS.lock().unwrap();
+        let mut servers = SERVERS.lock().unwrap();
         servers.insert(service.handle, server_reference.clone());
 
         server_reference
@@ -71,14 +70,14 @@ impl BogusServer {
                 // drop(service);
 
                 let server = BogusServer {
-                    service_reference: service_reference.clone(),
-                    initialized: false,
+                    // service_reference: service_reference.clone(),
+                    // initialized: false,
                     implementation_factory: implementation_factory
                 };
 
                 // register this server as handler for this service
                 let server_reference = Arc::new(Mutex::new(server));
-                let servers = &mut *SERVERS.lock().unwrap();
+                let mut servers = SERVERS.lock().unwrap();
                 servers.insert(service.handle, server_reference.clone());
 
                 Ok(server_reference)
@@ -94,37 +93,37 @@ impl BogusServer {
         let service = service_reference.lock().unwrap();
         let servers = SERVERS.lock().unwrap();
         if let Some(server_reference) = servers.get(&service.handle) {
-            let channels = &mut *CHANNELS.lock().unwrap();
+            let mut channels = CHANNELS.lock().unwrap();
             let mut channel = channel_reference.lock().unwrap();
             channels.insert(channel.handle, service.handle);
             channel.on_message(Self::handle_message).unwrap();
 
-            let implementations = &mut *IMPLEMENTATIONS.lock().unwrap();
-            let server = &*server_reference.lock().unwrap();
+            let mut implementations = IMPLEMENTATIONS.lock().unwrap();
+            let server = server_reference.lock().unwrap();
             let implementation = (server.implementation_factory)();
             implementations.insert(channel.handle, implementation);
         }
     }
     
     fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64) {
-        let mut channel = channel_reference.lock().unwrap();
+        let channel = channel_reference.lock().unwrap();
         let channel_handle = channel.handle;
         drop(channel);
 
         let mut implementations = IMPLEMENTATIONS.lock().unwrap();
         if let Some(implementation) = implementations.get_mut(&channel_handle) {
             match message {
-                crate::client::BOGUS_SIMPLE_SUM_CLIENT_MESSAGE => {
-                    crate::simple_sum_call::handle(implementation, channel_reference);
+                crate::client_to_server_calls::BOGUS_SIMPLE_SUM_CLIENT_MESSAGE => {
+                    crate::client_to_server_calls::simple_sum_call::handle(implementation, channel_reference);
                 },
-                crate::client::BOGUS_GET_FILES_CLIENT_MESSAGE => {
-                    crate::get_files_call::handle(implementation, channel_reference);
+                crate::client_to_server_calls::BOGUS_GET_FILES_CLIENT_MESSAGE => {
+                    crate::client_to_server_calls::get_files_call::handle(implementation, channel_reference);
                 },
-                crate::client::BOGUS_RENDER_CLIENT_MESSAGE => {
-                    crate::render_call::handle(implementation, channel_reference);
+                crate::client_to_server_calls::BOGUS_RENDER_CLIENT_MESSAGE => {
+                    crate::client_to_server_calls::render_call::handle(implementation, channel_reference);
                 },
-                crate::client::BOGUS_GET_NEXT_CLIENT_MESSAGE => {
-                    crate::get_next_call::handle(implementation, channel_reference);
+                crate::client_to_server_calls::BOGUS_GET_NEXT_CLIENT_MESSAGE => {
+                    crate::client_to_server_calls::get_next_call::handle(implementation, channel_reference);
                 },
                 _ => {
                     panic!("Unknown message {} for protocol Bogus", message);

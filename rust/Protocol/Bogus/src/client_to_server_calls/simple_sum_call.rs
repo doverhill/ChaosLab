@@ -3,6 +3,8 @@ use crate::server::BogusServerImplementation;
 use std::sync::{ Arc, Mutex };
 use std::mem;
 
+pub const BOGUS_SIMPLE_SUM_CLIENT_MESSAGE: u64 = 1;
+
 pub const BOGUS_SIMPLE_SUM_ARGUMENTS_OBJECT_ID: usize = 1;
 #[derive(Default)]
 pub struct SimpleSumArguments {
@@ -53,7 +55,7 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i3
     };
     channel.add_object(BOGUS_SIMPLE_SUM_ARGUMENTS_OBJECT_ID, arguments);
     
-    match channel.call_sync(crate::client::BOGUS_SIMPLE_SUM_CLIENT_MESSAGE, false, 1000) {
+    match channel.call_sync(BOGUS_SIMPLE_SUM_CLIENT_MESSAGE, false, 1000) {
         Ok(()) => {
             match channel.get_object::<SimpleSumResult>(0, BOGUS_SIMPLE_SUM_RESULT_OBJECT_ID) {
                 Ok(result) => {
@@ -88,5 +90,5 @@ pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel_r
         result: result
     };
     channel.add_object(BOGUS_SIMPLE_SUM_RESULT_OBJECT_ID, response);
-    channel.send(Channel::to_reply(crate::client::BOGUS_SIMPLE_SUM_CLIENT_MESSAGE, false));
+    channel.send(Channel::to_reply(BOGUS_SIMPLE_SUM_CLIENT_MESSAGE, false));
 }

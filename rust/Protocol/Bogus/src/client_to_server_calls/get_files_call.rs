@@ -3,7 +3,9 @@ use std::mem;
 use std::iter::Iterator;
 use std::sync::{ Arc, Mutex };
 use crate::server::BogusServerImplementation;
-use crate::types::FileInfo;
+use crate::FileInfo;
+
+pub const BOGUS_GET_FILES_CLIENT_MESSAGE: u64 = 2;
 
 pub const BOGUS_GET_FILES_ARGUMENTS_OBJECT_ID: usize = 3;
 #[derive(Default)]
@@ -81,7 +83,7 @@ impl Iterator for GetFilesCallIterator {
                 Ok(object) => {
                     Some(object)
                 },
-                Err(error) => {
+                Err(_) => {
                     None
                 }
             }
@@ -98,7 +100,7 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<GetFil
     let arguments = GetFilesArguments::new(path);
     channel.add_object(BOGUS_GET_FILES_ARGUMENTS_OBJECT_ID, arguments);
     
-    let result = channel.call_sync(crate::client::BOGUS_GET_FILES_CLIENT_MESSAGE, false, 1000);
+    let result = channel.call_sync(BOGUS_GET_FILES_CLIENT_MESSAGE, false, 1000);
     drop(channel);
 
     match result {
@@ -131,5 +133,5 @@ pub fn handle(handler: &mut Box<dyn BogusServerImplementation + Send>, channel_r
         channel.add_object(crate::types::BOGUS_TYPE_FILE_INFO_OBJECT_ID, object);
     }
 
-    channel.send(Channel::to_reply(crate::client::BOGUS_GET_FILES_CLIENT_MESSAGE, false));
+    channel.send(Channel::to_reply(BOGUS_GET_FILES_CLIENT_MESSAGE, false));
 }

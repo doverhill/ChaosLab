@@ -4,16 +4,13 @@ extern crate lazy_static;
 mod client;
 mod server;
 mod types;
+mod client_to_server_calls;
 
 pub use types::*;
 pub use client::BogusClient;
 pub use server::BogusServer;
 pub use server::BogusServerImplementation;
 
-mod simple_sum_call;
-mod get_files_call;
-mod render_call;
-mod get_next_call;
-
-pub use render_call::RenderTypeArguments;
-pub use render_call::RenderHandleIterator;
+// these will be moved to own files
+pub use client_to_server_calls::render_call::RenderTypeArguments;
+pub use client_to_server_calls::render_call::RenderHandleIterator;
