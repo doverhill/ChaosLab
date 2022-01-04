@@ -55,7 +55,7 @@
 
         private string GetConstructorParameter(Field field)
         {
-            return field.Name.ToSnake() + ": " + field.GetConstructorType();
+            return field.Name.ToSnake() + ": " + field.GetCallType();
         }
 
         private void WriteConstructorParameters(List<Field> fields)
@@ -133,7 +133,7 @@
         private string GetParameterString(string parameter)
         {
             var field = new Field(parameter, idl.Types);
-            return field.Name.ToSnake() + ": " + field.GetConstructorType();
+            return field.Name.ToSnake() + ": " + field.GetCallType();
         }
 
         private string GetParametersString(IDLCall call)

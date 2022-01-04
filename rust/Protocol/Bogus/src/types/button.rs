@@ -1,5 +1,6 @@
 use library_chaos::ChannelObject;
-use std::mem;
+use core::mem;
+use core::ptr;
 
 pub const BOGUS_TYPE_BUTTON_OBJECT_ID: usize = 8;
 #[derive(Default)]
@@ -57,12 +58,12 @@ impl ChannelObject for Button {
         // read dynamic size fields
         let icon_name_length = *(pointer as *const usize);
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        object.icon_name = std::str::from_utf8_unchecked(std::slice::from_raw_parts(pointer as *const u8, icon_name_length)).to_owned();
+        object.icon_name = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, icon_name_length)).to_owned();
         let pointer = pointer.offset(icon_name_length as isize);
 
         let text_length = *(pointer as *const usize);
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        object.text = std::str::from_utf8_unchecked(std::slice::from_raw_parts(pointer as *const u8, text_length)).to_owned();
+        object.text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, text_length)).to_owned();
         // let pointer = pointer.offset(text_length as isize);
 
         object

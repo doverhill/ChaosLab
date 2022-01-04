@@ -9,6 +9,8 @@
             Unsigned32,
             Signed64,
             Unsigned64,
+            UnsignedNative,
+            SignedNative,
             Float32,
             Float64,
             Boolean,
@@ -16,7 +18,8 @@
             Date,
             Time,
             Byte,
-            Type
+            Type,
+            Enum
         }
 
         public DataType Type;
@@ -28,16 +31,10 @@
 
         public Field(string fieldDescription, List<IDLType> types)
         {
-            // format is
-            // string(100) FieldName
-            // string(100) FieldNames[3]
-            // u64 Count
-            // u64 Counts[4]
-
             var parts = fieldDescription.Split(" ");
-            if (parts.Length != 2) throw new Exception("Malformed type and name: '" + fieldDescription + "'");
+            if (parts.Length == 0 || parts.Length > 2) throw new Exception("Malformed type and name: '" + fieldDescription + "'");
+
             var typeDescription = parts[0];
-            var fieldName = parts[1];
 
             // parse type
             if (typeDescription == "string") Type = DataType.String;
@@ -45,6 +42,8 @@
             else if (typeDescription == "u32") Type = DataType.Unsigned32;
             else if (typeDescription == "i64") Type = DataType.Signed64;
             else if (typeDescription == "u64") Type = DataType.Unsigned64;
+            else if (typeDescription == "isize") Type = DataType.SignedNative;
+            else if (typeDescription == "usize") Type = DataType.UnsignedNative;
             else if (typeDescription == "f32") Type = DataType.Float32;
             else if (typeDescription == "f64") Type = DataType.Float64;
             else if (typeDescription == "bool") Type = DataType.Boolean;
@@ -68,16 +67,22 @@
                 TypeName = CasedString.FromPascal(typeDescription);
             }
 
-            Name = CasedString.FromPascal(fieldName);
+            if (parts.Length == 2)
+            {
+                var fieldName = parts[1];
+                Name = CasedString.FromPascal(fieldName);
+            }
         }
 
         public string GetStructType()
         {
-            if (Type == DataType.String) return "[u8; 2]";
+            if (Type == DataType.String) return "String";
             else if (Type == DataType.Signed32) return "i32";
             else if (Type == DataType.Unsigned32) return "u32";
             else if (Type == DataType.Signed64) return "i64";
             else if (Type == DataType.Unsigned64) return "u64";
+            else if (Type == DataType.SignedNative) return "isize";
+            else if (Type == DataType.UnsignedNative) return "usize";
             else if (Type == DataType.Float32) return "f32";
             else if (Type == DataType.Float64) return "f64";
             else if (Type == DataType.Boolean) return "bool";
@@ -90,13 +95,15 @@
             throw new Exception("Unknown field type");
         }
 
-        public string GetConstructorType()
+        public string GetCallType()
         {
             if (Type == DataType.String) return "&str";
             else if (Type == DataType.Signed32) return "i32";
             else if (Type == DataType.Unsigned32) return "u32";
             else if (Type == DataType.Signed64) return "i64";
             else if (Type == DataType.Unsigned64) return "u64";
+            else if (Type == DataType.SignedNative) return "isize";
+            else if (Type == DataType.UnsignedNative) return "usize";
             else if (Type == DataType.Float32) return "f32";
             else if (Type == DataType.Float64) return "f64";
             else if (Type == DataType.Boolean) return "bool";

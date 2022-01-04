@@ -45,74 +45,32 @@ if (idl.Interface == null)
 
 Console.WriteLine("Building interface " + idl.Interface.Name + " (version " + idl.Interface.Version + ")");
 
-//if (idl.Interface.InheritsFrom != null)
-//{
-//    Console.WriteLine("Inherits from " + idl.Interface.InheritsFrom);
-//    var path = Path.Combine(Path.GetDirectoryName(filename), idl.Interface.InheritsFrom);
-//    var baseContents = File.ReadAllText(path);
-//    var baseIdl = JsonSerializer.Deserialize<IDL>(baseContents, options);
+// set up lib
+var libStream = new StreamWriter(File.Create("lib.rs"));
+libStream.WriteLine("#[macro_use]");
+libStream.WriteLine("extern crate lazy_static;");
+libStream.WriteLine();
 
-//    if (baseIdl.Types != null)
-//    {
-//        if (idl.Types == null)
-//        {
-//            idl.Types = baseIdl.Types;
-//        }
-//        else
-//        {
-//            idl.Types.AddRange(baseIdl.Types);
-//        }
-//    }
-//    if (baseIdl.ClientToServerCalls != null)
-//    {
-//        if (idl.ClientToServerCalls == null)
-//        {
-//            idl.ClientToServerCalls = baseIdl.ClientToServerCalls;
-//        }
-//        else
-//        {
-//            idl.ClientToServerCalls.AddRange(baseIdl.ClientToServerCalls);
-//        }
-//    }
-//    if (baseIdl.ServerToClientCalls != null)
-//    {
-//        if (idl.ServerToClientCalls == null)
-//        {
-//            idl.ServerToClientCalls = baseIdl.ServerToClientCalls;
-//        }
-//        else
-//        {
-//            idl.ServerToClientCalls.AddRange(baseIdl.ServerToClientCalls);
-//        }
-//    }
-//}
-
-StreamWriter libStream = new(File.Create("lib.rs"));
-StreamWriter typesStream = null;
-
+// emit types
+TypeEmitter.Reset();
 if (idl.Types != null)
 {
     Console.WriteLine(idl.Types.Count + " type(s)");
 
+    libStream.WriteLine("mod types;");
+    libStream.WriteLine("pub use types::*");
+    libStream.WriteLine();
+
     foreach (var type in idl.Types)
     {
         Console.WriteLine("  Emitting type " + type.Name);
-        if (typesStream == null)
-        {
-            typesStream = new StreamWriter(File.Create("types.rs"));
-        }
-        TypeEmitter.Emit(typesStream, idl, type);
+        TypeEmitter.Emit(idl, type);
     }
-    if (typesStream != null) libStream.WriteLine("pub mod types;");
 }
 
-int ipcNumber = 1;
-StreamWriter ipcStream = null;
-StreamWriter clientCallsStream = null;
-StreamWriter clientHandlersStream = null;
-StreamWriter serverCallsStream = null;
-StreamWriter serverHandlersStream = null;
-
+// emit client to server calls
+CallEmitter.Reset();
+var emittedClientToServerCall = false;
 if (idl.ClientToServerCalls != null)
 {
     Console.WriteLine(idl.ClientToServerCalls.Count + " client->server call(s)");
@@ -120,35 +78,18 @@ if (idl.ClientToServerCalls != null)
     foreach (var call in idl.ClientToServerCalls)
     {
         Console.WriteLine("  Emitting client->server call " + call.Name);
-        if (ipcStream == null)
-        {
-            ipcStream = new StreamWriter(File.Create("ipc.rs"));
-        }
-        if (clientCallsStream == null)
-        {
-            clientCallsStream = new StreamWriter(File.Create("client_calls.rs"));
-            clientCallsStream.WriteLine("extern crate chaos;");
-            clientCallsStream.WriteLine("use chaos::channel::Channel;");
-            clientCallsStream.WriteLine("use crate::types::*;");
-            clientCallsStream.WriteLine("use crate::ipc::*;");
-            clientCallsStream.WriteLine();
-        }
-        if (serverHandlersStream == null)
-        {
-            serverHandlersStream = new StreamWriter(File.Create("server_handlers.rs"));
-            serverHandlersStream.WriteLine("extern crate chaos;");
-        }
-        var callName = CasedString.FromPascal(call.Name);
-        ipcStream.WriteLine("pub const " + idl.Interface.Name.ToUpper() + "_" + callName.ToScreamingSnake() + "_CLIENT_MESSAGE: u64 = " + ipcNumber++ + ";");
-        CallEmitter.Emit(clientCallsStream, idl, call);
-        HandlerEmitter.Emit(serverHandlersStream, idl, call);
+        CallEmitter.Emit(CallEmitter.Direction.ClientToServer, idl, call);
+        emittedClientToServerCall = true;
     }
-    if (clientCallsStream != null)
+
+    if (emittedClientToServerCall)
     {
-        libStream.WriteLine("pub mod client_calls;");
+        libStream.WriteLine("mod client_to_server_calls;");
     }
 }
 
+// emit server to client calls
+var emittedServerToClientCall = false;
 if (idl.ServerToClientCalls != null)
 {
     Console.WriteLine(idl.ServerToClientCalls.Count + " server->client call(s)");
@@ -156,50 +97,29 @@ if (idl.ServerToClientCalls != null)
     foreach (var call in idl.ServerToClientCalls)
     {
         Console.WriteLine("  Emitting server->client call " + call.Name);
-        if (ipcStream == null)
-        {
-            ipcStream = new StreamWriter(File.Create("ipc.rs"));
-        }
-        if (serverCallsStream == null)
-        {
-            serverCallsStream = new StreamWriter(File.Create("server_calls.rs"));
-            serverCallsStream.WriteLine("extern crate chaos;");
-            serverCallsStream.WriteLine("use chaos::channel::Channel;");
-            serverCallsStream.WriteLine("use crate::types::*;");
-            serverCallsStream.WriteLine("use crate::ipc::*;");
-            serverCallsStream.WriteLine();
-        }
-        if (clientHandlersStream == null)
-        {
-            clientHandlersStream = new StreamWriter(File.Create("client_handlers.rs"));
-            clientHandlersStream.WriteLine("extern crate chaos;");
-        }
-        var callName = CasedString.FromPascal(call.Name);
-        ipcStream.WriteLine("pub const " + idl.Interface.Name.ToUpper() + "_" + callName.ToScreamingSnake() + "_SERVER_MESSAGE: u64 = " + ipcNumber++ + ";");
-        CallEmitter.Emit(serverCallsStream, idl, call);
-        HandlerEmitter.Emit(clientHandlersStream, idl, call);
+        CallEmitter.Emit(CallEmitter.Direction.ServerToClient, idl, call);
+        emittedServerToClientCall = true;
     }
-    if (clientCallsStream != null)
+
+    if (emittedServerToClientCall)
     {
-        libStream.WriteLine("pub mod client_calls;");
+        libStream.WriteLine("mod server_to_client_calls;");
     }
 }
 
-if (idl.ClientToServerCalls != null || idl.ServerToClientCalls != null)
-{
-    libStream.WriteLine("mod ipc;");
-}
-else
+#if false
+// emit "server"
+ClientServerEmitter.Emit(ClientServerEmitter.Side.Server, idl, idl.ClientToServerCalls, idl.ServerToClientCalls);
+
+// emit "client"
+ClientServerEmitter.Emit(ClientServerEmitter.Side.Client, idl, idl.ServerToClientCalls, idl.ClientToServerCalls);
+#endif
+
+if (!emittedClientToServerCall && !emittedServerToClientCall)
 {
     Console.WriteLine("Warning: No calls emitted!");
 }
 
-ipcStream?.Close();
-libStream?.Close();
-typesStream?.Close();
-clientCallsStream?.Close();
-clientHandlersStream?.Close();
-serverCallsStream?.Close();
-serverHandlersStream?.Close();
+libStream.Close();
 
 Console.WriteLine("Done");

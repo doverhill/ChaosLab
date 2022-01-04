@@ -1,0 +1,79 @@
+{
+    "Interface": {
+        "Name": "BogusAuto",
+        "Version": 1
+    },
+
+    "Types": [
+        {
+            "Name": "FileInfo",
+            "Fields": [
+                "string Path",
+                "usize Size"
+            ]
+        },
+        {
+            "Name": "Component",
+            "Fields": [
+                "u64 ComponentId",
+                "u64 ParentComponentId"
+            ]
+        },
+        {
+            "Name": "Window",
+            "Inherits": "Component",
+            "Fields": [
+                "string Title"
+            ]
+        },
+        {
+            "Name": "Button",
+            "Inherits": "Component",
+            "Fields": [
+                "string IconName",
+                "string Text"
+            ]
+        }
+    ],
+
+    "ClientToServerCalls": [
+        {
+            "Name": "SimpleSum",
+            "Parameters": [
+                "i32 X",
+                "i32 Y"
+            ],
+            "Returns": [
+                "i32"
+            ]
+        },
+        {
+            "Name": "GetFiles",
+            "Parameters": [
+                "string Path"
+            ],
+            "ReturnsType": "List",
+            "Returns": [
+                "FileInfo"
+            ]
+        },
+        {
+            "Name": "Render",
+            "ParametersType": "MixedList",
+            "Parameters": [
+                "Window",
+                "Button"
+            ],
+            "Returns": [
+            ]
+        },
+        {
+            "Name": "GetNext",
+            "Parameters": [
+            ],
+            "Returns": [
+                "usize"
+            ]
+        }
+    ]
+}
