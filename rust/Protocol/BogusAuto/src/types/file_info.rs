@@ -29,13 +29,15 @@ impl ChannelObject for FileInfo {
         let pointer = pointer.offset(Self::FIXED_SIZE as isize);
 
         // write dynamically sized field path
-        let length = self.path.len();
+        let path_length = self.path.len();
         *(pointer as *mut usize) = len;
-        let pointer = pointer.offset(mem::size_of::<usize>());
-        ptr::copy(self.path.as_ptr(), pointer, length);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        ptr::copy(self.path.as_ptr(), pointer, path_length);
+
+        Self::FIXED_SIZE + mem::size_of::<usize>() + path_length
     }
 
-    unsafe fn from_channel(pointer: *mut u8) -> Self {
+    unsafe fn from_channel(pointer: *const u8) -> Self {
         let mut object = FileInfo::default();
 
         // read fixed size fields
@@ -44,8 +46,10 @@ impl ChannelObject for FileInfo {
 
         // read dynamically sized field path
         let length = *(pointer as *const usize);
-        let pointer = pointer.offset(mem::size_of::<usize>());
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         object.path = str::from_utf8_unchecked(slice::from_raw_parts(pointer as *const u8, length)).to_owned();
+
+        object
     }
 }
 

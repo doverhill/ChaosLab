@@ -177,14 +177,51 @@
             }
 
             // write call and handle result
-            output.WriteLine("match channel.call_sync(" + messageName + ", false, 1000)", true);
-            output.WriteLine("Ok(()) =>", true);
-
-            output.CloseScope(",");
-            output.WriteLine("Err(error) =>", true);
-            output.WriteLine("Err(error)");
-            output.CloseScope();
-            output.CloseScope();
+            if (returnsType == IDLDataSetType.ParameterSet)
+            {
+                output.WriteLine("match channel.call_sync(" + messageName + ", false, 1000)", true);
+                output.WriteLine("Ok(()) =>", true);
+                output.WriteLine("match channel.get_object::<" + callName.ToPascal() + CallType.Result.ToString() + ">(0, " + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_RESULT_OBJECT_ID)", true);
+                output.WriteLine("Ok(result) =>", true);
+                if (returns.Count == 1)
+                {
+                    output.WriteLine("Ok(result.result)");
+                }
+                else
+                {
+                    output.WriteLine("Ok(result)");
+                }
+                output.CloseScope(",");
+                output.WriteLine("Err(error) =>", true);
+                output.WriteLine("Err(error)");
+                output.CloseScope();
+                output.CloseScope();
+                output.CloseScope(",");
+                output.WriteLine("Err(error) =>", true);
+                output.WriteLine("Err(error)");
+                output.CloseScope();
+                output.CloseScope();
+            }
+            else if (returnsType == IDLDataSetType.List || returnsType == IDLDataSetType.MixedList)
+            {
+                output.WriteLine("let result = channel.call_sync(" + messageName + ", false, 1000);");
+                output.WriteLine("drop(channel);");
+                output.WriteLine("match result", true);
+                output.WriteLine("Ok(()) =>", true);
+                if (returnsType == IDLDataSetType.List)
+                {
+                    output.WriteLine("Ok(crate::" + callName.ToPascal() + parsedReturns[0].TypeName.ToPascal() + "Iterator::new(channel_reference.clone()))");
+                }
+                else
+                {
+                    output.WriteLine("Ok(crate::" + callName.ToPascal() + "MixedIterator::new(channel_reference.clone()))");
+                }
+                output.CloseScope(",");
+                output.WriteLine("Err(error) =>", true);
+                output.WriteLine("Err(error)");
+                output.CloseScope();
+                output.CloseScope();
+            }
 
             output.CloseScope();
         }

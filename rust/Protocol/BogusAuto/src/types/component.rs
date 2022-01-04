@@ -26,13 +26,17 @@ impl ChannelObject for Component {
     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
         // write fixed size fields
         ptr::copy(mem::transmute::<&Component, *mut u8>(&self), pointer as *mut u8, Self::FIXED_SIZE);
+
+        Self::FIXED_SIZE
     }
 
-    unsafe fn from_channel(pointer: *mut u8) -> Self {
+    unsafe fn from_channel(pointer: *const u8) -> Self {
         let mut object = Component::default();
 
         // read fixed size fields
         ptr::copy(pointer as *mut u8, mem::transmute::<&Component, *mut u8>(&object), Self::FIXED_SIZE);
+
+        object
     }
 }
 

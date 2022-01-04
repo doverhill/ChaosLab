@@ -26,6 +26,14 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>) -> Result<RenderResult, Erro
     let channel = channel_reference.lock().unwrap();
     match channel.call_sync(BOGUS_AUTO_RENDER_CLIENT_TO_SERVER_MESSAGE, false, 1000) {
         Ok(()) => {
+            match channel.get_object::<RenderResult>(0, BOGUS_AUTO_RENDER_RESULT_OBJECT_ID) {
+                Ok(result) => {
+                    Ok(result)
+                },
+                Err(error) => {
+                    Err(error)
+                }
+            }
         },
         Err(error) => {
             Err(error)

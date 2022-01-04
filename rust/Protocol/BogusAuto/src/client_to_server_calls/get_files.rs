@@ -26,19 +26,23 @@ impl GetFilesArguments {
 impl ChannelObject for GetFilesArguments {
     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
         // write dynamically sized field path
-        let length = self.path.len();
+        let path_length = self.path.len();
         *(pointer as *mut usize) = len;
-        let pointer = pointer.offset(mem::size_of::<usize>());
-        ptr::copy(self.path.as_ptr(), pointer, length);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        ptr::copy(self.path.as_ptr(), pointer, path_length);
+
+        mem::size_of::<usize>() + path_length
     }
 
-    unsafe fn from_channel(pointer: *mut u8) -> Self {
+    unsafe fn from_channel(pointer: *const u8) -> Self {
         let mut object = GetFilesArguments::default();
 
         // read dynamically sized field path
         let length = *(pointer as *const usize);
-        let pointer = pointer.offset(mem::size_of::<usize>());
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         object.path = str::from_utf8_unchecked(slice::from_raw_parts(pointer as *const u8, length)).to_owned();
+
+        object
     }
 }
 
@@ -49,8 +53,11 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<crate:
         path: path
     };
     channel.add_object(BOGUS_AUTO_GET_FILES_ARGUMENTS_OBJECT_ID, arguments);
-    match channel.call_sync(BOGUS_AUTO_GET_FILES_CLIENT_TO_SERVER_MESSAGE, false, 1000) {
+    let result = channel.call_sync(BOGUS_AUTO_GET_FILES_CLIENT_TO_SERVER_MESSAGE, false, 1000);
+    drop(channel);
+    match result {
         Ok(()) => {
+            Ok(crate::GetFilesFileInfoIterator::new(channel_reference.clone()))
         },
         Err(error) => {
             Err(error)

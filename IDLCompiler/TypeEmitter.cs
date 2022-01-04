@@ -119,32 +119,38 @@
             // write_to_channel
             output.WriteLine("unsafe fn write_to_channel(self, pointer: *mut u8) -> usize", true);
 
+            var totalLength = "";
             if (fixedFields.Count > 0)
             {
                 output.WriteLine("// write fixed size fields");
                 output.WriteLine("ptr::copy(mem::transmute::<&" + typeName.ToPascal() + ", *mut u8>(&self), pointer as *mut u8, Self::FIXED_SIZE);");
                 if (dynamicFields.Count > 0) output.WriteLine("let pointer = pointer.offset(Self::FIXED_SIZE as isize);");
+                totalLength = "Self::FIXED_SIZE";
             }
 
             Common.ForEach(dynamicFields, (field, isLast) =>
             {
                 if (fixedFields.Count > 0) output.BlankLine();
                 output.WriteLine("// write dynamically sized field " + field.Name.ToSnake());
-                output.WriteLine("let length = self." + field.Name.ToSnake() + ".len();");
+                output.WriteLine("let " + field.Name.ToSnake() + "_length = self." + field.Name.ToSnake() + ".len();");
                 output.WriteLine("*(pointer as *mut usize) = len;");
-                output.WriteLine("let pointer = pointer.offset(mem::size_of::<usize>());");
-                output.WriteLine("ptr::copy(self." + field.Name.ToSnake() + ".as_ptr(), pointer, length);");
+                output.WriteLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                output.WriteLine("ptr::copy(self." + field.Name.ToSnake() + ".as_ptr(), pointer, " + field.Name.ToSnake() + "_length);");
                 if (!isLast)
                 {
                     output.WriteLine("let pointer = pointer.offset(length as isize);");
                 }
+                totalLength += (totalLength != "" ? " + " : "") + "mem::size_of::<usize>() + " + field.Name.ToSnake() + "_length";
             });
+
+            output.BlankLine();
+            output.WriteLine(totalLength);
 
             output.CloseScope();
             output.BlankLine();
 
             // from_channel
-            output.WriteLine("unsafe fn from_channel(pointer: *mut u8) -> Self", true);
+            output.WriteLine("unsafe fn from_channel(pointer: *const u8) -> Self", true);
 
             output.WriteLine("let mut object = " + typeName.ToPascal() + "::default();");
             output.BlankLine();
@@ -161,13 +167,16 @@
                 if (fixedFields.Count > 0) output.BlankLine();
                 output.WriteLine("// read dynamically sized field " + field.Name.ToSnake());
                 output.WriteLine("let length = *(pointer as *const usize);");
-                output.WriteLine("let pointer = pointer.offset(mem::size_of::<usize>());");
+                output.WriteLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                 output.WriteLine("object." + field.Name.ToSnake() + " = str::from_utf8_unchecked(slice::from_raw_parts(pointer as *const u8, length)).to_owned();");
                 if (!isLast)
                 {
                     output.WriteLine("let pointer = pointer.offset(length as isize);");
                 }
             });
+
+            output.BlankLine();
+            output.WriteLine("object");
 
             output.CloseScope();
 

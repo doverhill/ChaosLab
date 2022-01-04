@@ -58,7 +58,7 @@ if (idl.Types != null)
     Console.WriteLine(idl.Types.Count + " type(s)");
 
     libStream.WriteLine("mod types;");
-    libStream.WriteLine("pub use types::*");
+    libStream.WriteLine("pub use types::*;");
     libStream.WriteLine();
 
     foreach (var type in idl.Types)

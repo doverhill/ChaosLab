@@ -29,13 +29,17 @@ impl ChannelObject for SimpleSumArguments {
     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
         // write fixed size fields
         ptr::copy(mem::transmute::<&SimpleSumArguments, *mut u8>(&self), pointer as *mut u8, Self::FIXED_SIZE);
+
+        Self::FIXED_SIZE
     }
 
-    unsafe fn from_channel(pointer: *mut u8) -> Self {
+    unsafe fn from_channel(pointer: *const u8) -> Self {
         let mut object = SimpleSumArguments::default();
 
         // read fixed size fields
         ptr::copy(pointer as *mut u8, mem::transmute::<&SimpleSumArguments, *mut u8>(&object), Self::FIXED_SIZE);
+
+        object
     }
 }
 
@@ -62,13 +66,17 @@ impl ChannelObject for SimpleSumResult {
     unsafe fn write_to_channel(self, pointer: *mut u8) -> usize {
         // write fixed size fields
         ptr::copy(mem::transmute::<&SimpleSumResult, *mut u8>(&self), pointer as *mut u8, Self::FIXED_SIZE);
+
+        Self::FIXED_SIZE
     }
 
-    unsafe fn from_channel(pointer: *mut u8) -> Self {
+    unsafe fn from_channel(pointer: *const u8) -> Self {
         let mut object = SimpleSumResult::default();
 
         // read fixed size fields
         ptr::copy(pointer as *mut u8, mem::transmute::<&SimpleSumResult, *mut u8>(&object), Self::FIXED_SIZE);
+
+        object
     }
 }
 
@@ -82,6 +90,14 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i3
     channel.add_object(BOGUS_AUTO_SIMPLE_SUM_ARGUMENTS_OBJECT_ID, arguments);
     match channel.call_sync(BOGUS_AUTO_SIMPLE_SUM_CLIENT_TO_SERVER_MESSAGE, false, 1000) {
         Ok(()) => {
+            match channel.get_object::<SimpleSumResult>(0, BOGUS_AUTO_SIMPLE_SUM_RESULT_OBJECT_ID) {
+                Ok(result) => {
+                    Ok(result.result)
+                },
+                Err(error) => {
+                    Err(error)
+                }
+            }
         },
         Err(error) => {
             Err(error)

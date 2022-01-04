@@ -33,20 +33,22 @@ impl ChannelObject for Button {
         let pointer = pointer.offset(Self::FIXED_SIZE as isize);
 
         // write dynamically sized field icon_name
-        let length = self.icon_name.len();
+        let icon_name_length = self.icon_name.len();
         *(pointer as *mut usize) = len;
-        let pointer = pointer.offset(mem::size_of::<usize>());
-        ptr::copy(self.icon_name.as_ptr(), pointer, length);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        ptr::copy(self.icon_name.as_ptr(), pointer, icon_name_length);
         let pointer = pointer.offset(length as isize);
 
         // write dynamically sized field text
-        let length = self.text.len();
+        let text_length = self.text.len();
         *(pointer as *mut usize) = len;
-        let pointer = pointer.offset(mem::size_of::<usize>());
-        ptr::copy(self.text.as_ptr(), pointer, length);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        ptr::copy(self.text.as_ptr(), pointer, text_length);
+
+        Self::FIXED_SIZE + mem::size_of::<usize>() + icon_name_length + mem::size_of::<usize>() + text_length
     }
 
-    unsafe fn from_channel(pointer: *mut u8) -> Self {
+    unsafe fn from_channel(pointer: *const u8) -> Self {
         let mut object = Button::default();
 
         // read fixed size fields
@@ -55,14 +57,16 @@ impl ChannelObject for Button {
 
         // read dynamically sized field icon_name
         let length = *(pointer as *const usize);
-        let pointer = pointer.offset(mem::size_of::<usize>());
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         object.icon_name = str::from_utf8_unchecked(slice::from_raw_parts(pointer as *const u8, length)).to_owned();
         let pointer = pointer.offset(length as isize);
 
         // read dynamically sized field text
         let length = *(pointer as *const usize);
-        let pointer = pointer.offset(mem::size_of::<usize>());
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         object.text = str::from_utf8_unchecked(slice::from_raw_parts(pointer as *const u8, length)).to_owned();
+
+        object
     }
 }
 
