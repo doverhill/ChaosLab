@@ -55,6 +55,12 @@ pub struct SimpleSumResult {
 
 impl SimpleSumResult {
     const FIXED_SIZE: usize = mem::size_of::<i32>();
+
+    pub fn new(result: i32) -> Self {
+        SimpleSumResult {
+            result: result
+        }
+    }
 }
 
 impl ChannelObject for SimpleSumResult {
@@ -97,8 +103,8 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i3
     }
 }
 
-pub fn handle(handler: &mut Box<dyn BogusAutoServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
-    let channel = channel_reference.lock().unwrap();
+pub fn handle(handler: &mut Box<dyn crate::BogusAutoServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
+    let mut channel = channel_reference.lock().unwrap();
     let arguments = match channel.get_object::<SimpleSumArguments>(0, BOGUS_AUTO_SIMPLE_SUM_ARGUMENTS_OBJECT_ID) {
         Ok(arguments) => {
             arguments
@@ -106,7 +112,7 @@ pub fn handle(handler: &mut Box<dyn BogusAutoServerImplementation + Send>, chann
         Err(error) => {
             panic!("Failed to get arguments for SimpleSum: {:?}", error);
         }
-    }
+    };
 
     let result = handler.simple_sum(arguments.x, arguments.y);
 

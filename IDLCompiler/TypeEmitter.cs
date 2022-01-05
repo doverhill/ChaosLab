@@ -22,7 +22,7 @@
             var typeName = CasedString.FromPascal(type.Name);
             var stream = new StreamWriter(File.Create("types/" + typeName.ToSnake() + ".rs"));
             var output = new StructuredWriter(stream);
-            Emit(output, idl, type, true, true);
+            Emit(output, idl, type, true);
             stream.Close();
 
             // append to crate
@@ -50,7 +50,7 @@
             });
         }
 
-        public static void Emit(StructuredWriter output, IDL idl, IDLType type, bool emitConstructor, bool emitImports)
+        public static void Emit(StructuredWriter output, IDL idl, IDLType type, bool emitImports)
         {
             if (type.Inherits != null)
             {
@@ -109,15 +109,12 @@
             }
 
             // constructor
-            if (emitConstructor)
-            {
-                if (fixedSize != null) output.BlankLine();
-                output.WriteLine("pub fn new(" + Common.GetCallArguments(fields) + ") -> Self", true);
-                output.WriteLine(typeName.ToPascal(), true);
-                WriteConstructorFields(output, fields);
-                output.CloseScope();
-                output.CloseScope();
-            }
+            if (fixedSize != null) output.BlankLine();
+            output.WriteLine("pub fn new(" + Common.GetCallArguments(fields) + ") -> Self", true);
+            output.WriteLine(typeName.ToPascal(), true);
+            WriteConstructorFields(output, fields);
+            output.CloseScope();
+            output.CloseScope();
 
             output.CloseScope();
             output.BlankLine();

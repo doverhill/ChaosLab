@@ -16,6 +16,12 @@ pub struct GetNextResult {
 
 impl GetNextResult {
     const FIXED_SIZE: usize = mem::size_of::<usize>();
+
+    pub fn new(result: usize) -> Self {
+        GetNextResult {
+            result: result
+        }
+    }
 }
 
 impl ChannelObject for GetNextResult {
@@ -56,8 +62,8 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, ) -> Result<usize, Error> {
     }
 }
 
-pub fn handle(handler: &mut Box<dyn BogusAutoServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
-    let channel = channel_reference.lock().unwrap();
+pub fn handle(handler: &mut Box<dyn crate::BogusAutoServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
+    let mut channel = channel_reference.lock().unwrap();
     let result = handler.get_next();
 
     channel.start();

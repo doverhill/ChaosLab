@@ -77,8 +77,74 @@ namespace IDLCompiler
             }
         }
 
+        private static void EmitCall(StructuredWriter output, IDL idl, Side side, IDLCall call)
+        {
+            output.BlankLine();
+
+            var callName = CasedString.FromPascal(call.Name);
+            var parsedReturns = call.Returns?.Select(f => new Field(f, idl.Types)).ToList();
+            var returnSignature = "";
+
+            if (call.ReturnsType == IDLDataSetType.ParameterSet)
+            {
+                if (parsedReturns == null || parsedReturns.Count == 0)
+                {
+                    returnSignature = " -> Result<(), Error>";
+                }
+                else if (parsedReturns.Count == 1)
+                {
+                    returnSignature = " -> Result<" + parsedReturns[0].GetStructType() + ", Error>";
+                }
+                else
+                {
+                    returnSignature = " -> Result<(" + (parsedReturns == null ? "" : string.Join(", ", parsedReturns.Select(p => p.GetStructType()))) + "), Error>";
+                }
+            }
+            else if (call.ReturnsType == IDLDataSetType.List)
+            {
+                returnSignature = " -> Result<crate::" + callName.ToPascal() + parsedReturns[0].TypeName.ToPascal() + "Iterator, Error>";
+            }
+            else if (call.ReturnsType == IDLDataSetType.MixedList)
+            {
+                returnSignature = " -> Result<crate::" + callName.ToPascal() + "MixedResultIterator, Error>";
+            }
+
+            var parsedParameters = call.Parameters?.Select(p => new Field(p, idl.Types)).ToList();
+
+            if (call.ParametersType == IDLDataSetType.ParameterSet)
+            {
+                if (call.Parameters == null || call.Parameters.Count == 0)
+                {
+                    output.WriteLine("pub fn " + callName.ToSnake() + "(&self)" + returnSignature, true);
+                    output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone())");
+                    output.CloseScope(); // fn
+                }
+                else
+                {
+                    var parameterSignature = Common.GetCallArguments(parsedParameters);
+                    output.WriteLine("pub fn " + callName.ToSnake() + "(&self, " + parameterSignature + ")" + returnSignature, true);
+                    var callSignature = string.Join(", ", parsedParameters.Select(p => p.Name.ToSnake()));
+                    output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone(), " + callSignature + ")");
+                    output.CloseScope(); // fn
+                }
+            }
+            else if (call.ParametersType == IDLDataSetType.List)
+            {
+                output.WriteLine("pub fn " + callName.ToSnake() + "(&self, objects: Vec<crate::" + parsedParameters[0].TypeName.ToPascal() + ">)" + returnSignature, true);
+                output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone(), objects)");
+                output.CloseScope(); // fn
+            }
+            else if (call.ParametersType == IDLDataSetType.MixedList)
+            {
+                output.WriteLine("pub fn " + callName.ToSnake() + "(&self, objects: Vec<crate::" + callName.ToPascal() + "ArgumentsEnum>)" + returnSignature, true);
+                output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone(), objects)");
+                output.CloseScope(); // fn
+            }
+        }
+
         public static void Emit(StructuredWriter output, Side side, IDL idl, List<IDLCall> inboundCalls, List<IDLCall> outboundCalls)
         {
+            var protocolName = CasedString.FromPascal(idl.Interface.Name);
             var structName = idl.Interface.Name + (side == Side.Client ? "Client" : "Server");
 
             output.WriteLine("extern crate library_chaos;");
@@ -119,7 +185,14 @@ namespace IDLCompiler
 
             // struct
             output.WriteLine("pub struct " + structName, true);
-            output.WriteLine("pub implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>");
+            if (side == Side.Client)
+            {
+                output.WriteLine("channel_reference: Arc<Mutex<Channel>>" + (inboundCalls != null && inboundCalls.Count > 0 ? "," : ""));
+            }
+            if (inboundCalls != null && inboundCalls.Count > 0)
+            {
+                output.WriteLine("pub implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>");
+            }
             output.CloseScope();
             output.BlankLine();
 
@@ -134,7 +207,7 @@ namespace IDLCompiler
                 output.WriteLine("implementation_factory: implementation_factory");
                 output.CloseScope(";");
                 output.BlankLine();
-                output.WriteLine("let service = service_reference.lock().unwrap();");
+                output.WriteLine("let mut service = service_reference.lock().unwrap();");
                 output.WriteLine("service.on_connect(Self::handle_connect).unwrap();");
                 output.BlankLine();
                 output.WriteLine("let instance_reference = Arc::new(Mutex::new(instance));");
@@ -146,7 +219,7 @@ namespace IDLCompiler
                 output.BlankLine();
 
                 // default
-                output.WriteLine("pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>) -> Arc<Mutex<" + structName + ">>", true);
+                output.WriteLine("pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>) -> Result<Arc<Mutex<" + structName + ">>, Error>", true);
                 output.WriteLine("match Service::create(\"" + idl.Interface.Name + "\", vendor, description, Uuid::parse_str(\"00000000-0000-0000-0000-000000000000\").unwrap())", true);
                 output.WriteLine("Ok(service_reference) =>", true);
                 output.WriteLine("Ok(Self::from_service(service_reference, implementation_factory))");
@@ -179,7 +252,42 @@ namespace IDLCompiler
             else
             {
                 // client side
+                if (inboundCalls != null && inboundCalls.Count > 0)
+                {
+                    // from_channel
+                    output.WriteLine("pub fn from_channel(channel_reference: Arc<Mutex<Channel>>) -> Self");
 
+                }
+                else
+                {
+                    // from_channel
+                    output.WriteLine("pub fn from_channel(channel_reference: Arc<Mutex<Channel>>) -> Self", true);
+                    output.WriteLine(structName, true);
+                    output.WriteLine("channel_reference: channel_reference");
+                    output.CloseScope();
+                    output.CloseScope(); // fn from_channel
+                    output.BlankLine();
+
+                    // default
+                    output.WriteLine("pub fn default() -> Result<Self, Error>", true);
+                    output.WriteLine("match Service::connect(\"" + protocolName.ToPascal() + "\", None, None, None, 4096)", true);
+                    output.WriteLine("Ok(channel_reference) =>", true);
+                    output.WriteLine("let mut channel = channel_reference.lock().unwrap();");
+                    output.WriteLine("channel.initialize(\"" + protocolName.ToPascal() + "\", " + idl.Interface.Version + ");");
+                    output.WriteLine("drop(channel);");
+                    output.BlankLine();
+                    output.WriteLine("Ok(" + structName, true);
+                    output.WriteLine("channel_reference: channel_reference");
+                    output.CloseScope(")"); // Return
+                    output.CloseScope(","); // Ok
+                    output.WriteLine("Err(error) =>", true);
+                    output.WriteLine("Process::emit_error(&error, \"Failed to connect to " + protocolName.ToPascal() + " service\").unwrap();");
+                    output.WriteLine("Err(error)");
+                    output.CloseScope(); // Err
+                    output.CloseScope(); // match Service::connect
+                    output.CloseScope(); // fn default
+                    output.BlankLine();
+                }
             }
 
             // handle_message
@@ -192,7 +300,6 @@ namespace IDLCompiler
             output.WriteLine("if let Some(implementation) = implementations.get_mut(&channel_handle)", true);
             output.WriteLine("match message", true);
 
-            var protocolName = CasedString.FromPascal(idl.Interface.Name);
             if (inboundCalls != null)
             {
                 foreach (var call in inboundCalls)
@@ -216,9 +323,7 @@ namespace IDLCompiler
             {
                 foreach (var call in outboundCalls)
                 {
-                    var callName = CasedString.FromPascal(call.Name);
-                    output.BlankLine();
-                    output.WriteLine("pub fn " + callName.ToSnake() + "() {}");
+                    EmitCall(output, idl, side, call);
                 }
             }
 

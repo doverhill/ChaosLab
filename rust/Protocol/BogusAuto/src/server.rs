@@ -36,7 +36,7 @@ impl BogusAutoServer {
             implementation_factory: implementation_factory
         };
 
-        let service = service_reference.lock().unwrap();
+        let mut service = service_reference.lock().unwrap();
         service.on_connect(Self::handle_connect).unwrap();
 
         let instance_reference = Arc::new(Mutex::new(instance));
@@ -46,7 +46,7 @@ impl BogusAutoServer {
         instance_reference
     }
 
-    pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn BogusAutoServerImplementation + Send>) -> Arc<Mutex<BogusAutoServer>> {
+    pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn BogusAutoServerImplementation + Send>) -> Result<Arc<Mutex<BogusAutoServer>>, Error> {
         match Service::create("BogusAuto", vendor, description, Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()) {
             Ok(service_reference) => {
                 Ok(Self::from_service(service_reference, implementation_factory))

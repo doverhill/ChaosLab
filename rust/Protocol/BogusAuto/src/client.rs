@@ -22,10 +22,34 @@ pub trait BogusAutoClientImplementation {
 }
 
 pub struct BogusAutoClient {
-    pub implementation_factory: fn() -> Box<dyn BogusAutoClientImplementation + Send>
+    channel_reference: Arc<Mutex<Channel>>
 }
 
 impl BogusAutoClient {
+    pub fn from_channel(channel_reference: Arc<Mutex<Channel>>) -> Self {
+        BogusAutoClient {
+            channel_reference: channel_reference
+        }
+    }
+
+    pub fn default() -> Result<Self, Error> {
+        match Service::connect("BogusAuto", None, None, None, 4096) {
+            Ok(channel_reference) => {
+                let mut channel = channel_reference.lock().unwrap();
+                channel.initialize("BogusAuto", 1);
+                drop(channel);
+
+                Ok(BogusAutoClient {
+                    channel_reference: channel_reference
+                })
+            },
+            Err(error) => {
+                Process::emit_error(&error, "Failed to connect to BogusAuto service").unwrap();
+                Err(error)
+            }
+        }
+    }
+
     fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64) {
         let channel = channel_reference.lock().unwrap();
         let channel_handle = channel.handle;
@@ -41,13 +65,23 @@ impl BogusAutoClient {
         }
     }
 
-    pub fn simple_sum() {}
+    pub fn simple_sum(&self, x: i32, y: i32) -> Result<i32, Error> {
+        crate::client_to_server_calls::simple_sum::call(self.channel_reference.clone(), x, y)
+    }
 
-    pub fn get_files() {}
+    pub fn get_files(&self, path: &str) -> Result<crate::GetFilesFileInfoIterator, Error> {
+        crate::client_to_server_calls::get_files::call(self.channel_reference.clone(), path)
+    }
 
-    pub fn render() {}
+    pub fn render(&self, objects: Vec<crate::RenderArgumentsEnum>) -> Result<(), Error> {
+        crate::client_to_server_calls::render::call(self.channel_reference.clone(), objects)
+    }
 
-    pub fn get_next() {}
+    pub fn get_next(&self) -> Result<usize, Error> {
+        crate::client_to_server_calls::get_next::call(self.channel_reference.clone())
+    }
 
-    pub fn both_mixed() {}
+    pub fn both_mixed(&self, objects: Vec<crate::BothMixedArgumentsEnum>) -> Result<crate::BothMixedMixedResultIterator, Error> {
+        crate::client_to_server_calls::both_mixed::call(self.channel_reference.clone(), objects)
+    }
 }

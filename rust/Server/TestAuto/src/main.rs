@@ -2,7 +2,7 @@ extern crate library_chaos;
 extern crate protocol_bogus_auto;
 
 use library_chaos::Process;
-use protocol_bogus_auto::{ BogusAutoServer, BogusAutoServerImplementation, FileInfo, RenderArgumentsEnum, RenderMixedArgumentsIterator };
+use protocol_bogus_auto::*;
 
 struct ServerHandler {
     counter: usize
@@ -17,15 +17,14 @@ impl BogusAutoServerImplementation for ServerHandler {
         vec!(FileInfo::new("test.txt", 199), FileInfo::new("imba.jpg", 74765))
     }
 
-    fn render(&mut self, components: RenderMixedArgumentsIterator) {
-        println!("rendering {} components", components.item_count());
-        for component in components {
+    fn render(&mut self, objects: RenderMixedArgumentsIterator) {
+        for component in objects {
             match component {
                 RenderArgumentsEnum::Button(button) => {
-                    println!("  rendering button {}:{} with icon={} and text={}", button.base.component_id, button.base.parent_component_id, button.icon_name, button.text);
+                    println!("  rendering button {}:{} with icon={} and text={}", button.component_id, button.parent_component_id, button.icon_name, button.text);
                 },
                 RenderArgumentsEnum::Window(window) => {
-                    println!("  rendering window {}:{} with title={}", window.base.component_id, window.base.parent_component_id, window.title);
+                    println!("  rendering window {}:{} with title={}", window.component_id, window.parent_component_id, window.title);
                 }
             }
         }
@@ -35,6 +34,10 @@ impl BogusAutoServerImplementation for ServerHandler {
         self.counter += 1;
         self.counter
     }
+
+    fn both_mixed(&mut self, objects: BothMixedMixedArgumentsIterator) -> Vec<BothMixedResultEnum> {
+        vec!()
+    }
 }
 
 fn main() {
@@ -43,7 +46,7 @@ fn main() {
 
     // create server (protocol handler) and provide it with a way of calling our implementation
     // create a unique handler for each connection
-    let _ = BogusAutoServer::default(|| Box::new(ServerHandler { counter: 0 })).unwrap();
+    let _ = BogusAutoServer::default("Henrik", "Henriks testserver", || Box::new(ServerHandler { counter: 0 })).unwrap();
 
     // create server (protocol handler) and provide it with a way of calling our implementation
     // share the same handler for each connection

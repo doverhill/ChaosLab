@@ -23,7 +23,7 @@
         }
 
         public DataType Type;
-        //public bool IsArray;
+        public bool IsArray;
         //public int ArrayLength;
         //public int Capacity;
         public CasedString TypeName;
@@ -35,6 +35,11 @@
             if (parts.Length == 0 || parts.Length > 2) throw new Exception("Malformed type and name: '" + fieldDescription + "'");
 
             var typeDescription = parts[0];
+            if (typeDescription.EndsWith("[]"))
+            {
+                IsArray = true;
+                typeDescription = typeDescription.Substring(0, typeDescription.Length - 2);
+            }
 
             // parse type
             if (typeDescription == "string") Type = DataType.String;
@@ -42,8 +47,8 @@
             else if (typeDescription == "u32") Type = DataType.Unsigned32;
             else if (typeDescription == "i64") Type = DataType.Signed64;
             else if (typeDescription == "u64") Type = DataType.Unsigned64;
-            else if (typeDescription == "isize") Type = DataType.SignedNative;
-            else if (typeDescription == "usize") Type = DataType.UnsignedNative;
+            else if (typeDescription == "int") Type = DataType.SignedNative;
+            else if (typeDescription == "uint") Type = DataType.UnsignedNative;
             else if (typeDescription == "f32") Type = DataType.Float32;
             else if (typeDescription == "f64") Type = DataType.Float64;
             else if (typeDescription == "bool") Type = DataType.Boolean;

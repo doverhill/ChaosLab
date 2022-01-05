@@ -1,0 +1,112 @@
+{
+    "Interface": {
+        "Name": "Console",
+        "Version": 1
+    },
+
+    "Types": [
+        {
+            "Name": "Color",
+            "Fields": [
+                "byte Red",
+                "byte Green",
+                "byte Blue",
+                "byte Alpha"
+            ]
+        },
+        {
+            "Name": "BitmapPatch",
+            "Fields": [
+                "uint X",
+                "uint Y",
+                "uint Width",
+                "uint Height",
+                "Color[] Data"
+            ]
+        }
+    ],
+
+    "ClientToServerCalls": [
+        {
+            "Name": "GetCapabilities",
+            "Returns": [
+                "bool IsFramebuffer",
+                "uint FramebufferWidth",
+                "uint FramebufferHeight",
+                "uint TextColumns",
+                "uint TextRows"
+            ]
+        },
+        {
+            "Name": "SetTextColor",
+            "Parameters": [
+                "Color Color",
+                "Color BackgroundColor"
+            ]
+        },
+        {
+            "Name": "SetTextCursorPosition",
+            "Parameters": [
+                "uint Column",
+                "uint Row"
+            ]
+        },
+        {
+            "Name": "WriteText",
+            "Parameters": [
+                "string Text"
+            ]
+        },
+        {
+            "Name": "RenderBitmapPatches",
+            "ParametersType": "List",
+            "Parameters": [
+                "BitmapPatch"
+            ]
+        }
+    ],
+
+    "ServerToClientCalls": [
+        {
+            "Name": "KeyPressed",
+            "Parameters": [
+                "uint KeyCode"
+            ]
+        },
+        {
+            "Name": "KeyReleased",
+            "Parameters": [
+                "uint KeyCode"
+            ]
+        },
+        {
+            "Name": "TextAvailable",
+            "Parameters": [
+                "string Text"
+            ]
+        },
+        {
+            "Name": "PointerMoved",
+            "Parameters": [
+                "uint X",
+                "uint Y"
+            ]
+        },
+        {
+            "Name": "PointerButtonPressed",
+            "Parameters": [
+                "uint X",
+                "uint Y",
+                "uint ButtonNumber"
+            ]
+        },
+        {
+            "Name": "PointerButtonReleased",
+            "Parameters": [
+                "uint X",
+                "uint Y",
+                "uint ButtonNumber"
+            ]
+        }
+    ]
+}

@@ -19,6 +19,11 @@
       "commandName": "Project",
       "commandLineArgs": "..\\BogusAuto.IDL.json",
       "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\BogusAuto\\src"
+    },
+    "IDLCompiler - Console": {
+      "commandName": "Project",
+      "commandLineArgs": "..\\Console.IDL.json",
+      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\Console\\src"
     }
   }
 }
