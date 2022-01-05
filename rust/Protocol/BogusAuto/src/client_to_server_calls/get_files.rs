@@ -61,3 +61,20 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, path: &str) -> Result<crate:
         }
     }
 }
+
+pub fn handle(handler: &mut Box<dyn BogusAutoServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
+    let channel = channel_reference.lock().unwrap();
+    let arguments = match channel.get_object::<GetFilesArguments>(0, BOGUS_AUTO_GET_FILES_ARGUMENTS_OBJECT_ID) {
+        Ok(arguments) => {
+            arguments
+        },
+        Err(error) => {
+            panic!("Failed to get arguments for GetFiles: {:?}", error);
+        }
+    }
+
+    let result = handler.get_files(&arguments.path);
+
+    channel.start();
+    channel.send(Channel::to_reply(BOGUS_AUTO_GET_FILES_CLIENT_TO_SERVER_MESSAGE, false));
+}

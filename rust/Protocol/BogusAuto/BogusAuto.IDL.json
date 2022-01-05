@@ -74,6 +74,19 @@
             "Returns": [
                 "usize"
             ]
+        },
+        {
+            "Name": "BothMixed",
+            "ParametersType": "MixedList",
+            "Parameters": [
+                "Window",
+                "Button"
+            ],
+            "ReturnsType": "MixedList",
+            "Returns": [
+                "FileInfo",
+                "Component"
+            ]
         }
     ]
 }

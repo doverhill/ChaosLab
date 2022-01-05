@@ -12,7 +12,7 @@ namespace IDLCompiler
         {
             var stream = new StreamWriter(File.Create("types/" + callName.ToSnake() + "_" + field.TypeName.ToSnake() + "_iterator.rs"));
             var output = new StructuredWriter(stream);
-            Emit(output, idl, callName, field.TypeName.ToPascal(), false, field.TypeName.ToScreamingSnake(), true);
+            Emit(output, idl, callName, field.TypeName.ToPascal(), false, CallEmitter.CallType.NotRelevant, field.TypeName.ToScreamingSnake(), true);
             stream.Close();
 
             // append to crate
@@ -24,27 +24,29 @@ namespace IDLCompiler
             });
         }
 
-        public static void EmitMixed(IDL idl, CasedString callName, List<Field> fields)
+        public static void EmitMixed(IDL idl, CasedString callName, List<Field> fields, CallEmitter.CallType callType)
         {
             var protocolName = CasedString.FromPascal(idl.Interface.Name);
-            var stream = new StreamWriter(File.Create("types/" + callName.ToSnake() + "_mixed_iterator.rs"));
+            var typeName = callName.ToSnake() + "_mixed_" + callType.ToString().ToLower() + "_iterator";
+            var stream = new StreamWriter(File.Create("types/" + typeName + ".rs"));
             var output = new StructuredWriter(stream);
-            EmitEnum(output, idl, callName, fields);
-            Emit(output, idl, callName, callName.ToPascal() + "Enum", true, callName.ToScreamingSnake() + "_ENUM", false);
+            EmitEnum(output, idl, callName, callType, fields);
+            Emit(output, idl, callName, callName.ToPascal() + callType.ToString() + "Enum", true, callType, callName.ToScreamingSnake() + "_" + callType.ToString().ToUpper() + "_ENUM", false);
             stream.Close();
 
             // append to crate
             File.AppendAllLines("types/mod.rs", new string[]
             {
-                "mod " + callName.ToSnake() + "_mixed_iterator;",
-                "pub use " + callName.ToSnake() + "_mixed_iterator::" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ENUM_OBJECT_ID;",
-                "pub use " + callName.ToSnake() + "_mixed_iterator::" + callName.ToPascal() + "Enum;",
-                "pub use " + callName.ToSnake() + "_mixed_iterator::" + callName.ToPascal() + "MixedIterator;",
+                
+                "mod " + typeName + ";",
+                "pub use " + typeName + "::" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_" + callType.ToString().ToUpper() + "_ENUM_OBJECT_ID;",
+                "pub use " + typeName + "::" + callName.ToPascal() + callType.ToString() + "Enum;",
+                "pub use " + typeName + "::" + callName.ToPascal() + "Mixed" + callType.ToString() + "Iterator;",
                 ""
             });
         }
 
-        public static void EmitEnum(StructuredWriter output, IDL idl, CasedString callName, List<Field> fields)
+        public static void EmitEnum(StructuredWriter output, IDL idl, CasedString callName, CallEmitter.CallType callType, List<Field> fields)
         {
             var protocolName = CasedString.FromPascal(idl.Interface.Name);
 
@@ -55,10 +57,10 @@ namespace IDLCompiler
             output.WriteLine("use std::sync::Mutex;");
             output.BlankLine();
 
-            output.WriteLine("pub const " + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_ENUM_OBJECT_ID: usize = " + TypeEmitter.GetId() + ";");
+            output.WriteLine("pub const " + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_" + callType.ToString().ToUpper() + "_ENUM_OBJECT_ID: usize = " + TypeEmitter.GetId() + ";");
             output.BlankLine();
 
-            output.WriteLine("pub enum " + callName.ToPascal() + "Enum", true);
+            output.WriteLine("pub enum " + callName.ToPascal() + callType.ToString() + "Enum", true);
             Common.ForEach(fields, (field, isLast) =>
             {
                 output.WriteLine(field.TypeName.ToPascal() + "(crate::" + field.TypeName.ToPascal() + ")" + (isLast ? "" : ","));
@@ -67,7 +69,7 @@ namespace IDLCompiler
             output.BlankLine();
 
             // impl ChannelObject
-            output.WriteLine("impl ChannelObject for " + callName.ToPascal() + "Enum", true);
+            output.WriteLine("impl ChannelObject for " + callName.ToPascal() + callType.ToString() + "Enum", true);
 
             // write_to_channel
             output.WriteLine("unsafe fn write_to_channel(self, pointer: *mut u8) -> usize", true);
@@ -98,7 +100,7 @@ namespace IDLCompiler
                 output.CloseScope(",");
             });
             output.WriteLine("_ =>", true);
-            output.WriteLine("panic!(\"Received unexpected value for " + callName.ToPascal() + "Enum\");");
+            output.WriteLine("panic!(\"Received unexpected value for " + callName.ToPascal() + callType.ToString() + "Enum\");");
             output.CloseScope();
             output.CloseScope();
             output.CloseScope();
@@ -107,7 +109,7 @@ namespace IDLCompiler
             output.BlankLine();
         }
 
-        public static void Emit(StructuredWriter output, IDL idl, CasedString callName, string pascalTypeName, bool isMixed, string screamingSnakeTypeName, bool emitImports)
+        public static void Emit(StructuredWriter output, IDL idl, CasedString callName, string pascalTypeName, bool isMixed, CallEmitter.CallType callType, string screamingSnakeTypeName, bool emitImports)
         {
             var protocolName = CasedString.FromPascal(idl.Interface.Name);
 
@@ -122,7 +124,7 @@ namespace IDLCompiler
             }
 
             // write type struct
-            output.WriteLine("pub struct " + callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
+            output.WriteLine("pub struct " + callName.ToPascal() + (isMixed ? ("Mixed" + callType.ToString()) : pascalTypeName) + "Iterator", true);
             output.WriteLine("channel_reference: Arc<Mutex<Channel>>,");
             output.WriteLine("index: usize,");
             output.WriteLine("item_count: usize");
@@ -130,13 +132,13 @@ namespace IDLCompiler
             output.BlankLine();
 
             // impl
-            output.WriteLine("impl " + callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
+            output.WriteLine("impl " + callName.ToPascal() + (isMixed ? ("Mixed" + callType.ToString()) : pascalTypeName) + "Iterator", true);
             output.WriteLine("pub fn new(channel_reference: Arc<Mutex<Channel>>) -> Self", true);
             output.WriteLine("let channel = channel_reference.lock().unwrap();");
             output.WriteLine("let item_count = channel.get_object_count();");
             output.WriteLine("drop(channel);");
             output.BlankLine();
-            output.WriteLine(callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
+            output.WriteLine(callName.ToPascal() + (isMixed ? ("Mixed" + callType.ToString()) : pascalTypeName) + "Iterator", true);
             output.WriteLine("channel_reference: channel_reference.clone(),");
             output.WriteLine("index: 0,");
             output.WriteLine("item_count: item_count");
@@ -146,7 +148,7 @@ namespace IDLCompiler
             output.BlankLine();
 
             // impl Iterator
-            output.WriteLine("impl Iterator for " + callName.ToPascal() + (isMixed ? "Mixed" : pascalTypeName) + "Iterator", true);
+            output.WriteLine("impl Iterator for " + callName.ToPascal() + (isMixed ? ("Mixed" + callType.ToString()) : pascalTypeName) + "Iterator", true);
             output.WriteLine("type Item = crate::" + pascalTypeName + ";");
             output.BlankLine();
             output.WriteLine("fn next(&mut self) -> Option<Self::Item>", true);

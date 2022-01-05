@@ -112,13 +112,15 @@ if (idl.ServerToClientCalls != null)
 // emit "server"
 ClientServerEmitter.Emit(ClientServerEmitter.Side.Server, idl, idl.ClientToServerCalls, idl.ServerToClientCalls);
 libStream.WriteLine("mod server;");
-libStream.WriteLine("pub use server;");
+libStream.WriteLine("pub use server::" + idl.Interface.Name + "Server;");
+libStream.WriteLine("pub use server::" + idl.Interface.Name + "ServerImplementation;");
 libStream.WriteLine();
 
 // emit "client"
 ClientServerEmitter.Emit(ClientServerEmitter.Side.Client, idl, idl.ServerToClientCalls, idl.ClientToServerCalls);
 libStream.WriteLine("mod client;");
-libStream.WriteLine("pub use client;");
+libStream.WriteLine("pub use client::" + idl.Interface.Name + "Client;");
+libStream.WriteLine("pub use client::" + idl.Interface.Name + "ClientImplementation;");
 libStream.WriteLine();
 
 if (!emittedClientToServerCall && !emittedServerToClientCall)

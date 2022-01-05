@@ -1,5 +1,5 @@
 [package]
-name = "server_test"
+name = "server_test_auto"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +7,4 @@ edition = "2021"
 
 [dependencies]
 library_chaos = { path = "../../Library/Chaos" }
-protocol_bogus = { path = "../../Protocol/Bogus" }
-# protocol_bogus_auto = { path = "../../Protocol/BogusAuto" }
+protocol_bogus_auto = { path = "../../Protocol/BogusAuto" }

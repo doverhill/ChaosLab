@@ -2,7 +2,7 @@
 {
     public class IDLInterface
     {
-        public string Name;
+        public string Name; // the protocol name
         public int Version;
     }
 

@@ -55,3 +55,13 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, ) -> Result<usize, Error> {
         }
     }
 }
+
+pub fn handle(handler: &mut Box<dyn BogusAutoServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
+    let channel = channel_reference.lock().unwrap();
+    let result = handler.get_next();
+
+    channel.start();
+    let response = GetNextResult::new(result);
+    channel.add_object(BOGUS_AUTO_GET_NEXT_RESULT_OBJECT_ID, response);
+    channel.send(Channel::to_reply(BOGUS_AUTO_GET_NEXT_CLIENT_TO_SERVER_MESSAGE, false));
+}

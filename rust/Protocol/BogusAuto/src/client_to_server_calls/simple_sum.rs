@@ -96,3 +96,22 @@ pub fn call(channel_reference: Arc<Mutex<Channel>>, x: i32, y: i32) -> Result<i3
         }
     }
 }
+
+pub fn handle(handler: &mut Box<dyn BogusAutoServerImplementation + Send>, channel_reference: Arc<Mutex<Channel>>) {
+    let channel = channel_reference.lock().unwrap();
+    let arguments = match channel.get_object::<SimpleSumArguments>(0, BOGUS_AUTO_SIMPLE_SUM_ARGUMENTS_OBJECT_ID) {
+        Ok(arguments) => {
+            arguments
+        },
+        Err(error) => {
+            panic!("Failed to get arguments for SimpleSum: {:?}", error);
+        }
+    }
+
+    let result = handler.simple_sum(arguments.x, arguments.y);
+
+    channel.start();
+    let response = SimpleSumResult::new(result);
+    channel.add_object(BOGUS_AUTO_SIMPLE_SUM_RESULT_OBJECT_ID, response);
+    channel.send(Channel::to_reply(BOGUS_AUTO_SIMPLE_SUM_CLIENT_TO_SERVER_MESSAGE, false));
+}

@@ -10,3 +10,6 @@ pub use render::BOGUS_AUTO_RENDER_CLIENT_TO_SERVER_MESSAGE;
 mod get_next;
 pub use get_next::BOGUS_AUTO_GET_NEXT_CLIENT_TO_SERVER_MESSAGE;
 
+mod both_mixed;
+pub use both_mixed::BOGUS_AUTO_BOTH_MIXED_CLIENT_TO_SERVER_MESSAGE;
+
