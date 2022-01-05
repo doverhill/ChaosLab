@@ -6,6 +6,8 @@ pub use types::*;
 
 mod client_to_server_calls;
 
+mod server_to_client_calls;
+
 mod server;
 pub use server::BogusAutoServer;
 pub use server::BogusAutoServerImplementation;

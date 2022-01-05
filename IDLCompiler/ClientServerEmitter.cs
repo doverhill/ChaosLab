@@ -109,35 +109,43 @@ namespace IDLCompiler
                 returnSignature = " -> Result<crate::" + callName.ToPascal() + "MixedResultIterator, Error>";
             }
 
+            var channelParameter = "";
+            var self = "self.";
+            if (side == Side.Server)
+            {
+                channelParameter = ", channel_reference: Arc<Mutex<Channel>>";
+                self = "";
+            }
+
             var parsedParameters = call.Parameters?.Select(p => new Field(p, idl.Types)).ToList();
 
             if (call.ParametersType == IDLDataSetType.ParameterSet)
             {
                 if (call.Parameters == null || call.Parameters.Count == 0)
                 {
-                    output.WriteLine("pub fn " + callName.ToSnake() + "(&self)" + returnSignature, true);
-                    output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone())");
+                    output.WriteLine("pub fn " + callName.ToSnake() + "(&self" + channelParameter + ")" + returnSignature, true);
+                    output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(" + self + "channel_reference.clone())");
                     output.CloseScope(); // fn
                 }
                 else
                 {
                     var parameterSignature = Common.GetCallArguments(parsedParameters);
-                    output.WriteLine("pub fn " + callName.ToSnake() + "(&self, " + parameterSignature + ")" + returnSignature, true);
+                    output.WriteLine("pub fn " + callName.ToSnake() + "(&self" + channelParameter + ", " + parameterSignature + ")" + returnSignature, true);
                     var callSignature = string.Join(", ", parsedParameters.Select(p => p.Name.ToSnake()));
-                    output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone(), " + callSignature + ")");
+                    output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(" + self + "channel_reference.clone(), " + callSignature + ")");
                     output.CloseScope(); // fn
                 }
             }
             else if (call.ParametersType == IDLDataSetType.List)
             {
-                output.WriteLine("pub fn " + callName.ToSnake() + "(&self, objects: Vec<crate::" + parsedParameters[0].TypeName.ToPascal() + ">)" + returnSignature, true);
-                output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone(), objects)");
+                output.WriteLine("pub fn " + callName.ToSnake() + "(&self" + channelParameter + ", objects: Vec<crate::" + parsedParameters[0].TypeName.ToPascal() + ">)" + returnSignature, true);
+                output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(" + self + "channel_reference.clone(), objects)");
                 output.CloseScope(); // fn
             }
             else if (call.ParametersType == IDLDataSetType.MixedList)
             {
-                output.WriteLine("pub fn " + callName.ToSnake() + "(&self, objects: Vec<crate::" + callName.ToPascal() + "ArgumentsEnum>)" + returnSignature, true);
-                output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(self.channel_reference.clone(), objects)");
+                output.WriteLine("pub fn " + callName.ToSnake() + "(&self" + channelParameter + ", objects: Vec<crate::" + callName.ToPascal() + "ArgumentsEnum>)" + returnSignature, true);
+                output.WriteLine("crate::" + (side == Side.Client ? "client_to_server_calls" : "server_to_client_calls") + "::" + callName.ToSnake() + "::call(" + self + "channel_reference.clone(), objects)");
                 output.CloseScope(); // fn
             }
         }
@@ -158,17 +166,29 @@ namespace IDLCompiler
             output.BlankLine();
 
             // statics
-            output.WriteLine("lazy_static!", true);
-            output.WriteLine("static ref INSTANCES: Mutex<HashMap<Handle, Arc<Mutex<" + structName + ">>>> =", true);
-            output.WriteLine("Mutex::new(HashMap::new())");
-            output.CloseScope(";");
-            output.WriteLine("static ref CHANNELS: Mutex<HashMap<Handle, Handle>> =", true);
-            output.WriteLine("Mutex::new(HashMap::new())");
-            output.CloseScope(";");
-            output.WriteLine("static ref IMPLEMENTATIONS: Mutex<HashMap<Handle, Box<dyn " + structName + "Implementation + Send>>> =", true);
-            output.WriteLine("Mutex::new(HashMap::new())");
-            output.CloseScope(";");
-            output.CloseScope();
+            if (side == Side.Client)
+            {
+                output.WriteLine("lazy_static!", true);
+                output.WriteLine("static ref INSTANCES: Mutex<HashMap<Handle, Arc<Mutex<" + structName + ">>>> =", true);
+                output.WriteLine("Mutex::new(HashMap::new())");
+                output.CloseScope(";");
+                output.CloseScope();
+            }
+            else
+            {
+                output.WriteLine("lazy_static!", true);
+                output.WriteLine("static ref INSTANCES: Mutex<HashMap<Handle, Arc<Mutex<" + structName + ">>>> =", true);
+                output.WriteLine("Mutex::new(HashMap::new())");
+                output.CloseScope(";");
+                output.WriteLine("static ref CHANNELS: Mutex<HashMap<Handle, Handle>> =", true);
+                output.WriteLine("Mutex::new(HashMap::new())");
+                output.CloseScope(";");
+                output.WriteLine("static ref IMPLEMENTATIONS: Mutex<HashMap<Handle, Box<dyn " + structName + "Implementation + Send>>> =", true);
+                output.WriteLine("Mutex::new(HashMap::new())");
+                output.CloseScope(";");
+                output.CloseScope();
+            }
+
             output.BlankLine();
 
             // implementation trait
@@ -184,16 +204,20 @@ namespace IDLCompiler
             output.BlankLine();
 
             // struct
-            output.WriteLine("pub struct " + structName, true);
             if (side == Side.Client)
             {
-                output.WriteLine("channel_reference: Arc<Mutex<Channel>>" + (inboundCalls != null && inboundCalls.Count > 0 ? "," : ""));
+                output.WriteLine("pub struct " + structName, true);
+                output.WriteLine("channel_reference: Arc<Mutex<Channel>>,");
+                output.WriteLine("pub implementation: Box<dyn " + structName + "Implementation + Send>");
+                output.CloseScope();
             }
-            if (inboundCalls != null && inboundCalls.Count > 0)
+            else
             {
+                output.WriteLine("pub struct " + structName, true);
                 output.WriteLine("pub implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>");
+                output.CloseScope();
             }
-            output.CloseScope();
+
             output.BlankLine();
 
             // impl
@@ -202,24 +226,23 @@ namespace IDLCompiler
             if (side == Side.Server)
             {
                 // from_service
-                output.WriteLine("pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>) -> Arc<Mutex<" + structName + ">>", true);
+                output.WriteLine("pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>) -> Arc<Mutex<Self>>", true);
                 output.WriteLine("let instance = " + structName, true);
                 output.WriteLine("implementation_factory: implementation_factory");
                 output.CloseScope(";");
                 output.BlankLine();
-                output.WriteLine("let mut service = service_reference.lock().unwrap();");
-                output.WriteLine("service.on_connect(Self::handle_connect).unwrap();");
-                output.BlankLine();
                 output.WriteLine("let instance_reference = Arc::new(Mutex::new(instance));");
                 output.WriteLine("let mut instances = INSTANCES.lock().unwrap();");
+                output.WriteLine("let mut service = service_reference.lock().unwrap();");
                 output.WriteLine("instances.insert(service.handle, instance_reference.clone());");
+                output.WriteLine("service.on_connect(Self::handle_connect).unwrap();");
                 output.BlankLine();
                 output.WriteLine("instance_reference");
                 output.CloseScope(); // fn from_service
                 output.BlankLine();
 
                 // default
-                output.WriteLine("pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>) -> Result<Arc<Mutex<" + structName + ">>, Error>", true);
+                output.WriteLine("pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn " + structName + "Implementation + Send>) -> Result<Arc<Mutex<Self>>, Error>", true);
                 output.WriteLine("match Service::create(\"" + idl.Interface.Name + "\", vendor, description, Uuid::parse_str(\"00000000-0000-0000-0000-000000000000\").unwrap())", true);
                 output.WriteLine("Ok(service_reference) =>", true);
                 output.WriteLine("Ok(Self::from_service(service_reference, implementation_factory))");
@@ -248,76 +271,104 @@ namespace IDLCompiler
                 output.CloseScope(); // if let
                 output.CloseScope(); // fn handle_connect
                 output.BlankLine();
+
+                // handle_message
+                output.WriteLine("fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64)", true);
+                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("let channel_handle = channel.handle;");
+                output.WriteLine("drop(channel);");
+                output.BlankLine();
+                output.WriteLine("let mut implementations = IMPLEMENTATIONS.lock().unwrap();");
+                output.WriteLine("if let Some(implementation) = implementations.get_mut(&channel_handle)", true);
+                output.WriteLine("match message", true);
+
+                if (inboundCalls != null)
+                {
+                    foreach (var call in inboundCalls)
+                    {
+                        var callName = CasedString.FromPascal(call.Name);
+                        output.WriteLine("crate::" + (side == Side.Client ? "server_to_client_calls" : "client_to_server_calls") + "::" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_" + (side == Side.Client ? "SERVER_TO_CLIENT" : "CLIENT_TO_SERVER") + "_MESSAGE =>", true);
+                        output.WriteLine("crate::" + (side == Side.Client ? "server_to_client_calls" : "client_to_server_calls") + "::" + callName.ToSnake() + "::handle(implementation, channel_reference);");
+                        output.CloseScope(",");
+                    }
+                }
+
+                output.WriteLine("_ =>", true);
+                output.WriteLine("panic!(\"Unknown client to server message {} received for protocol " + idl.Interface.Name + "\", message);");
+                output.CloseScope(); // _ =>
+
+                output.CloseScope(); // match message
+                output.CloseScope(); // if let
+                output.CloseScope(); // fn handle_message
             }
             else
             {
                 // client side
-                if (inboundCalls != null && inboundCalls.Count > 0)
-                {
-                    // from_channel
-                    output.WriteLine("pub fn from_channel(channel_reference: Arc<Mutex<Channel>>) -> Self");
 
-                }
-                else
-                {
-                    // from_channel
-                    output.WriteLine("pub fn from_channel(channel_reference: Arc<Mutex<Channel>>) -> Self", true);
-                    output.WriteLine(structName, true);
-                    output.WriteLine("channel_reference: channel_reference");
-                    output.CloseScope();
-                    output.CloseScope(); // fn from_channel
-                    output.BlankLine();
+                // from_channel
+                output.WriteLine("pub fn from_channel(channel_reference: Arc<Mutex<Channel>>, implementation: Box<dyn " + structName + "Implementation + Send>) -> Arc<Mutex<Self>>", true);
+                output.WriteLine("let instance = " + structName, true);
+                output.WriteLine("channel_reference: channel_reference.clone(),");
+                output.WriteLine("implementation: implementation");
+                output.CloseScope(";");
+                output.BlankLine();
+                output.WriteLine("let mut channel = channel_reference.lock().unwrap();");
+                output.WriteLine("channel.initialize(\"" + protocolName.ToPascal() + "\", " + idl.Interface.Version + ");");
+                output.BlankLine();
+                output.WriteLine("let instance_reference = Arc::new(Mutex::new(instance));");
+                output.WriteLine("let mut instances = INSTANCES.lock().unwrap();");
+                output.WriteLine("instances.insert(channel.handle, instance_reference.clone());");
+                output.BlankLine();
+                output.WriteLine("channel.on_message(Self::handle_message).unwrap();");
+                output.BlankLine();
+                output.WriteLine("instance_reference");
+                output.CloseScope(); // fn from_channel
+                output.BlankLine();
 
-                    // default
-                    output.WriteLine("pub fn default() -> Result<Self, Error>", true);
-                    output.WriteLine("match Service::connect(\"" + protocolName.ToPascal() + "\", None, None, None, 4096)", true);
-                    output.WriteLine("Ok(channel_reference) =>", true);
-                    output.WriteLine("let mut channel = channel_reference.lock().unwrap();");
-                    output.WriteLine("channel.initialize(\"" + protocolName.ToPascal() + "\", " + idl.Interface.Version + ");");
-                    output.WriteLine("drop(channel);");
-                    output.BlankLine();
-                    output.WriteLine("Ok(" + structName, true);
-                    output.WriteLine("channel_reference: channel_reference");
-                    output.CloseScope(")"); // Return
-                    output.CloseScope(","); // Ok
-                    output.WriteLine("Err(error) =>", true);
-                    output.WriteLine("Process::emit_error(&error, \"Failed to connect to " + protocolName.ToPascal() + " service\").unwrap();");
-                    output.WriteLine("Err(error)");
-                    output.CloseScope(); // Err
-                    output.CloseScope(); // match Service::connect
-                    output.CloseScope(); // fn default
-                    output.BlankLine();
+                // default
+                output.WriteLine("pub fn default(implementation: Box<dyn " + structName + "Implementation + Send>) -> Result<Arc<Mutex<Self>>, Error>", true);
+                output.WriteLine("match Service::connect(\"" + protocolName.ToPascal() + "\", None, None, None, 4096)", true);
+                output.WriteLine("Ok(channel_reference) =>", true);
+                output.WriteLine("Ok(Self::from_channel(channel_reference, implementation))");
+                output.CloseScope(","); // Ok
+                output.WriteLine("Err(error) =>", true);
+                output.WriteLine("Process::emit_error(&error, \"Failed to connect to " + protocolName.ToPascal() + " service\").unwrap();");
+                output.WriteLine("Err(error)");
+                output.CloseScope(); // Err
+                output.CloseScope(); // match Service::connect
+                output.CloseScope(); // fn default
+                output.BlankLine();
+
+                // handle_message
+                output.WriteLine("fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64)", true);
+                output.WriteLine("let channel = channel_reference.lock().unwrap();");
+                output.WriteLine("let channel_handle = channel.handle;");
+                output.WriteLine("drop(channel);");
+                output.BlankLine();
+                output.WriteLine("let instances = INSTANCES.lock().unwrap();");
+                output.WriteLine("if let Some(instance_reference) = instances.get(&channel_handle)", true);
+                output.WriteLine("let mut instance = instance_reference.lock().unwrap();");
+                output.WriteLine("match message", true);
+
+                if (inboundCalls != null)
+                {
+                    foreach (var call in inboundCalls)
+                    {
+                        var callName = CasedString.FromPascal(call.Name);
+                        output.WriteLine("crate::" + (side == Side.Client ? "server_to_client_calls" : "client_to_server_calls") + "::" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_" + (side == Side.Client ? "SERVER_TO_CLIENT" : "CLIENT_TO_SERVER") + "_MESSAGE =>", true);
+                        output.WriteLine("crate::" + (side == Side.Client ? "server_to_client_calls" : "client_to_server_calls") + "::" + callName.ToSnake() + "::handle(&mut instance.implementation, channel_reference);");
+                        output.CloseScope(",");
+                    }
                 }
+
+                output.WriteLine("_ =>", true);
+                output.WriteLine("panic!(\"Unknown server to client message {} received for protocol " + idl.Interface.Name + "\", message);");
+                output.CloseScope(); // _ =>
+
+                output.CloseScope(); // match message
+                output.CloseScope(); // if let
+                output.CloseScope(); // fn handle_message
             }
-
-            // handle_message
-            output.WriteLine("fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64)", true);
-            output.WriteLine("let channel = channel_reference.lock().unwrap();");
-            output.WriteLine("let channel_handle = channel.handle;");
-            output.WriteLine("drop(channel);");
-            output.BlankLine();
-            output.WriteLine("let mut implementations = IMPLEMENTATIONS.lock().unwrap();");
-            output.WriteLine("if let Some(implementation) = implementations.get_mut(&channel_handle)", true);
-            output.WriteLine("match message", true);
-
-            if (inboundCalls != null)
-            {
-                foreach (var call in inboundCalls)
-                {
-                    var callName = CasedString.FromPascal(call.Name);
-                    output.WriteLine("crate::" + (side == Side.Client ? "server_to_client_calls" : "client_to_server_calls") + "::" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_" + (side == Side.Client ? "SERVER_TO_CLIENT" : "CLIENT_TO_SERVER") + "_MESSAGE =>", true);
-                    output.WriteLine("crate::" + (side == Side.Client ? "server_to_client_calls" : "client_to_server_calls") + "::" + callName.ToSnake() + "::handle(implementation, channel_reference);");
-                    output.CloseScope();
-                }
-            }
-
-            output.WriteLine("_ =>", true);
-            output.WriteLine("panic!(\"Unknown message {} received for protocol " + idl.Interface.Name + "\", message);");
-            output.CloseScope(); // _ =>
-
-            output.CloseScope(); // match message
-            output.CloseScope(); // if let
-            output.CloseScope(); // fn handle_message
 
             if (outboundCalls != null)
             {

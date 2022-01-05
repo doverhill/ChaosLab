@@ -29,5 +29,8 @@ pub fn handle(handler: &mut Box<dyn crate::BogusAutoServerImplementation + Send>
     let mut channel = channel_reference.lock().unwrap();
 
     channel.start();
+    for object in result {
+        channel.add_object(crate::BOGUS_AUTO_BOTH_MIXED_RESULT_ENUM_OBJECT_ID, object);
+    }
     channel.send(Channel::to_reply(BOGUS_AUTO_BOTH_MIXED_CLIENT_TO_SERVER_MESSAGE, false));
 }

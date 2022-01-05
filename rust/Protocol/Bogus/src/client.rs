@@ -9,33 +9,68 @@ use library_chaos::{ Channel, Error, Process, Service };
 // render(components: mixed list) -> _
 // get_next() -> usize  // returns a counter local to each connection/client
 
+lazy_static! {
+    // Channel handle -> BogusClient
+    static ref INSTANCES: Mutex<HashMap<Handle, Arc<Mutex<BogusClient>>>> = {
+        Mutex::new(HashMap::new())
+    };
+}
+
+pub trait BogusClientImplementation {
+    fn test(x: u32) -> u32;
+}
+
 pub struct BogusClient {
-    channel_reference: Arc<Mutex<Channel>>
+    channel_reference: Arc<Mutex<Channel>>,
+    implementation: Box<dyn BogusClientImplementation + Send> 
 }
 
 impl BogusClient {
-    pub fn from_channel(channel_reference: Arc<Mutex<Channel>>) -> Self {
-        BogusClient {
-            channel_reference: channel_reference
-        }
+    pub fn from_channel(channel_reference: Arc<Mutex<Channel>>, implementation: Box<dyn BogusClientImplementation>) -> Arc<Mutex<Self>> {
+        let instance = BogusClient {
+            channel_reference: channel_reference,
+            implementation: implementation
+        };
+
+        let mut channel = channel_reference.lock().unwrap();
+        channel.initialize("bogus", 1);
+
+        let instance_reference = Arc::new(Mutex::new(instance));
+        let mut instances = INSTANCES.lock().unwrap();
+        instances.insert(channel.handle, instance_reference.clone());
+
+        channel.on_message(Self::handle_message).unwrap();
+
+        instance_reference
     }
 
-    pub fn default() -> Result<Self, Error> {
+    pub fn default(implementation: Box<dyn BogusClientImplementation>) -> Result<Arc<Mutex<Self>>, Error> {
         // attempt to connect to the test service
         match Service::connect("test", None, None, None, 4096) {
             Ok(channel_reference) => {
-                Process::emit_information("Connected to service").unwrap();
-                let mut channel = channel_reference.lock().unwrap();
-                channel.initialize("bogus", 1);
-                drop(channel);
-
-                Ok(BogusClient {
-                    channel_reference: channel_reference
-                })
+                Ok(Self::from_channel(channel_reference, implementation))
             },
             Err(error) => {
                 Process::emit_error(&error, "Failed to connect to VFS service").unwrap();
                 Err(error)
+            }
+        }
+    }
+
+    fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64) {
+        let channel = channel_reference.lock().unwrap();
+        let channel_handle = channel.handle;
+        drop(channel);
+
+        let mut instances = INSTANCES.lock().unwrap();
+        if let Some(instance) = instances.get_mut(&channel_handle) {
+            match message {
+                crate::server_to_client_calls::BOGUS_NOTIFY_CLIENT_MESSAGE => {
+                    crate::server_to_client_calls::notify::handle(instance.implementation, channel_reference);
+                },
+                _ => {
+                    panic!("Unknown message {} for protocol Bogus", message);
+                }
             }
         }
     }

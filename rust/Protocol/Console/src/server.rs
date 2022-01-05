@@ -31,22 +31,21 @@ pub struct ConsoleServer {
 }
 
 impl ConsoleServer {
-    pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn ConsoleServerImplementation + Send>) -> Arc<Mutex<ConsoleServer>> {
+    pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn ConsoleServerImplementation + Send>) -> Arc<Mutex<Self>> {
         let instance = ConsoleServer {
             implementation_factory: implementation_factory
         };
 
-        let mut service = service_reference.lock().unwrap();
-        service.on_connect(Self::handle_connect).unwrap();
-
         let instance_reference = Arc::new(Mutex::new(instance));
         let mut instances = INSTANCES.lock().unwrap();
+        let mut service = service_reference.lock().unwrap();
         instances.insert(service.handle, instance_reference.clone());
+        service.on_connect(Self::handle_connect).unwrap();
 
         instance_reference
     }
 
-    pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn ConsoleServerImplementation + Send>) -> Result<Arc<Mutex<ConsoleServer>>, Error> {
+    pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn ConsoleServerImplementation + Send>) -> Result<Arc<Mutex<Self>>, Error> {
         match Service::create("Console", vendor, description, Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()) {
             Ok(service_reference) => {
                 Ok(Self::from_service(service_reference, implementation_factory))
@@ -83,47 +82,47 @@ impl ConsoleServer {
             match message {
                 crate::client_to_server_calls::CONSOLE_GET_CAPABILITIES_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::get_capabilities::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::CONSOLE_SET_TEXT_COLOR_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::set_text_color::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::CONSOLE_SET_TEXT_CURSOR_POSITION_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::set_text_cursor_position::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::CONSOLE_WRITE_TEXT_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::write_text::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::CONSOLE_RENDER_BITMAP_PATCHES_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::render_bitmap_patches::handle(implementation, channel_reference);
-                }
+                },
                 _ => {
-                    panic!("Unknown message {} received for protocol Console", message);
+                    panic!("Unknown client to server message {} received for protocol Console", message);
                 }
             }
         }
     }
 
-    pub fn key_pressed(&self, key_code: usize) -> Result<(), Error> {
-        crate::server_to_client_calls::key_pressed::call(self.channel_reference.clone(), key_code)
+    pub fn key_pressed(&self, channel_reference: Arc<Mutex<Channel>>, key_code: usize) -> Result<(), Error> {
+        crate::server_to_client_calls::key_pressed::call(channel_reference.clone(), key_code)
     }
 
-    pub fn key_released(&self, key_code: usize) -> Result<(), Error> {
-        crate::server_to_client_calls::key_released::call(self.channel_reference.clone(), key_code)
+    pub fn key_released(&self, channel_reference: Arc<Mutex<Channel>>, key_code: usize) -> Result<(), Error> {
+        crate::server_to_client_calls::key_released::call(channel_reference.clone(), key_code)
     }
 
-    pub fn text_available(&self, text: &str) -> Result<(), Error> {
-        crate::server_to_client_calls::text_available::call(self.channel_reference.clone(), text)
+    pub fn text_available(&self, channel_reference: Arc<Mutex<Channel>>, text: &str) -> Result<(), Error> {
+        crate::server_to_client_calls::text_available::call(channel_reference.clone(), text)
     }
 
-    pub fn pointer_moved(&self, x: usize, y: usize) -> Result<(), Error> {
-        crate::server_to_client_calls::pointer_moved::call(self.channel_reference.clone(), x, y)
+    pub fn pointer_moved(&self, channel_reference: Arc<Mutex<Channel>>, x: usize, y: usize) -> Result<(), Error> {
+        crate::server_to_client_calls::pointer_moved::call(channel_reference.clone(), x, y)
     }
 
-    pub fn pointer_button_pressed(&self, x: usize, y: usize, button_number: usize) -> Result<(), Error> {
-        crate::server_to_client_calls::pointer_button_pressed::call(self.channel_reference.clone(), x, y, button_number)
+    pub fn pointer_button_pressed(&self, channel_reference: Arc<Mutex<Channel>>, x: usize, y: usize, button_number: usize) -> Result<(), Error> {
+        crate::server_to_client_calls::pointer_button_pressed::call(channel_reference.clone(), x, y, button_number)
     }
 
-    pub fn pointer_button_released(&self, x: usize, y: usize, button_number: usize) -> Result<(), Error> {
-        crate::server_to_client_calls::pointer_button_released::call(self.channel_reference.clone(), x, y, button_number)
+    pub fn pointer_button_released(&self, channel_reference: Arc<Mutex<Channel>>, x: usize, y: usize, button_number: usize) -> Result<(), Error> {
+        crate::server_to_client_calls::pointer_button_released::call(channel_reference.clone(), x, y, button_number)
     }
 }

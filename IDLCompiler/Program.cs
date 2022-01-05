@@ -44,6 +44,7 @@ if (idl.Interface == null)
 }
 
 Console.WriteLine("Building interface " + idl.Interface.Name + " (version " + idl.Interface.Version + ")");
+Console.WriteLine();
 
 // set up lib
 var libStream = new StreamWriter(File.Create("lib.rs"));
@@ -63,9 +64,11 @@ if (idl.Types != null)
 
     foreach (var type in idl.Types)
     {
-        Console.WriteLine("  Emitting type " + type.Name);
+        Console.WriteLine("    Emitting type " + type.Name);
         TypeEmitter.Emit(idl, type);
     }
+
+    Console.WriteLine();
 }
 
 // emit client to server calls
@@ -77,7 +80,7 @@ if (idl.ClientToServerCalls != null)
 
     foreach (var call in idl.ClientToServerCalls)
     {
-        Console.WriteLine("  Emitting client->server call " + call.Name);
+        Console.WriteLine("    Emitting client->server call " + call.Name);
         CallEmitter.Emit(CallEmitter.Direction.ClientToServer, idl, call);
         emittedClientToServerCall = true;
     }
@@ -87,6 +90,8 @@ if (idl.ClientToServerCalls != null)
         libStream.WriteLine("mod client_to_server_calls;");
         libStream.WriteLine();
     }
+
+    Console.WriteLine();
 }
 
 // emit server to client calls
@@ -97,7 +102,7 @@ if (idl.ServerToClientCalls != null)
 
     foreach (var call in idl.ServerToClientCalls)
     {
-        Console.WriteLine("  Emitting server->client call " + call.Name);
+        Console.WriteLine("    Emitting server->client call " + call.Name);
         CallEmitter.Emit(CallEmitter.Direction.ServerToClient, idl, call);
         emittedServerToClientCall = true;
     }
@@ -107,6 +112,8 @@ if (idl.ServerToClientCalls != null)
         libStream.WriteLine("mod server_to_client_calls;");
         libStream.WriteLine();
     }
+
+    Console.WriteLine();
 }
 
 // emit "server"

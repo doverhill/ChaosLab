@@ -4,12 +4,24 @@ extern crate protocol_bogus_auto;
 use library_chaos::Process;
 use protocol_bogus_auto::*;
 
+struct Client {
+}
+
+impl BogusAutoClientImplementation for Client {
+    fn notify(&mut self, message: &str) {
+        println!("notified with {}", message);
+    }
+}
+
 fn main() {
     // to be nice, set a name for our application
     Process::set_info("Application.TestAuto").unwrap();
 
     // create client (protocol handler) and call it
-    let client = BogusAutoClient::default().unwrap();
+    let implementation = Client {};
+    let client_reference = BogusAutoClient::default(Box::new(implementation)).unwrap();
+    let client = client_reference.lock().unwrap();
+
     let result = client.simple_sum(1, 2).unwrap();
     println!("got simple_sum result {}", result);
 

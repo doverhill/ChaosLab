@@ -43,44 +43,29 @@ pub struct BogusServer {
 }
 
 impl BogusServer {
-    pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn BogusServerImplementation + Send>) -> Arc<Mutex<BogusServer>> {
-        let server = BogusServer {
+    pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn BogusServerImplementation + Send>) -> Arc<Mutex<Self>> {
+        let instance = BogusServer {
             // service_reference: service_reference.clone(),
             // initialized: false,
             implementation_factory: implementation_factory
         };
 
-        let service = service_reference.lock().unwrap();
-
         // register this server as handler for this service
-        let server_reference = Arc::new(Mutex::new(server));
+        let instance_reference = Arc::new(Mutex::new(instance));
         let mut instances = INSTANCES.lock().unwrap();
-        instances.insert(service.handle, server_reference.clone());
+        instances.insert(service.handle, instance_reference.clone());
 
-        server_reference
+        let service = service_reference.lock().unwrap();
+        service.on_connect(Self::handle_connect).unwrap();
+
+        instance_reference
     }
 
-    pub fn default(implementation_factory: fn() -> Box<dyn BogusServerImplementation + Send>) -> Result<Arc<Mutex<BogusServer>>, Error> {
+    pub fn default(implementation_factory: fn() -> Box<dyn BogusServerImplementation + Send>) -> Result<Arc<Mutex<Self>>, Error> {
         // create default service
         match Service::create("test", "Chaos", "Test server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()) {
             Ok(service_reference) => {
-                let mut service = service_reference.lock().unwrap();
-                service.on_connect(Self::handle_connect).unwrap();
-                // let service_handle = service.handle;
-                // drop(service);
-
-                let server = BogusServer {
-                    // service_reference: service_reference.clone(),
-                    // initialized: false,
-                    implementation_factory: implementation_factory
-                };
-
-                // register this server as handler for this service
-                let server_reference = Arc::new(Mutex::new(server));
-                let mut instances = INSTANCES.lock().unwrap();
-                instances.insert(service.handle, server_reference.clone());
-
-                Ok(server_reference)
+                Ok(Self::from_service(service_reference, implementation_factory))
             },
             Err(error) => {
                 Process::emit_error(&error, "Failed to create service").unwrap();

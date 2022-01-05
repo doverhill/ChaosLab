@@ -10,12 +10,6 @@ lazy_static! {
     static ref INSTANCES: Mutex<HashMap<Handle, Arc<Mutex<ConsoleClient>>>> = {
         Mutex::new(HashMap::new())
     };
-    static ref CHANNELS: Mutex<HashMap<Handle, Handle>> = {
-        Mutex::new(HashMap::new())
-    };
-    static ref IMPLEMENTATIONS: Mutex<HashMap<Handle, Box<dyn ConsoleClientImplementation + Send>>> = {
-        Mutex::new(HashMap::new())
-    };
 }
 
 pub trait ConsoleClientImplementation {
@@ -29,39 +23,69 @@ pub trait ConsoleClientImplementation {
 
 pub struct ConsoleClient {
     channel_reference: Arc<Mutex<Channel>>,
-    pub implementation_factory: fn() -> Box<dyn ConsoleClientImplementation + Send>
+    pub implementation: Box<dyn ConsoleClientImplementation + Send>
 }
 
 impl ConsoleClient {
-    pub fn from_channel(channel_reference: Arc<Mutex<Channel>>) -> Self
+    pub fn from_channel(channel_reference: Arc<Mutex<Channel>>, implementation: Box<dyn ConsoleClientImplementation + Send>) -> Arc<Mutex<Self>> {
+        let instance = ConsoleClient {
+            channel_reference: channel_reference.clone(),
+            implementation: implementation
+        };
+
+        let mut channel = channel_reference.lock().unwrap();
+        channel.initialize("Console", 1);
+
+        let instance_reference = Arc::new(Mutex::new(instance));
+        let mut instances = INSTANCES.lock().unwrap();
+        instances.insert(channel.handle, instance_reference.clone());
+
+        channel.on_message(Self::handle_message).unwrap();
+
+        instance_reference
+    }
+
+    pub fn default(implementation: Box<dyn ConsoleClientImplementation + Send>) -> Result<Arc<Mutex<Self>>, Error> {
+        match Service::connect("Console", None, None, None, 4096) {
+            Ok(channel_reference) => {
+                Ok(Self::from_channel(channel_reference, implementation))
+            },
+            Err(error) => {
+                Process::emit_error(&error, "Failed to connect to Console service").unwrap();
+                Err(error)
+            }
+        }
+    }
+
     fn handle_message(channel_reference: Arc<Mutex<Channel>>, message: u64) {
         let channel = channel_reference.lock().unwrap();
         let channel_handle = channel.handle;
         drop(channel);
 
-        let mut implementations = IMPLEMENTATIONS.lock().unwrap();
-        if let Some(implementation) = implementations.get_mut(&channel_handle) {
+        let instances = INSTANCES.lock().unwrap();
+        if let Some(instance_reference) = instances.get(&channel_handle) {
+            let mut instance = instance_reference.lock().unwrap();
             match message {
                 crate::server_to_client_calls::CONSOLE_KEY_PRESSED_SERVER_TO_CLIENT_MESSAGE => {
-                    crate::server_to_client_calls::key_pressed::handle(implementation, channel_reference);
-                }
+                    crate::server_to_client_calls::key_pressed::handle(&mut instance.implementation, channel_reference);
+                },
                 crate::server_to_client_calls::CONSOLE_KEY_RELEASED_SERVER_TO_CLIENT_MESSAGE => {
-                    crate::server_to_client_calls::key_released::handle(implementation, channel_reference);
-                }
+                    crate::server_to_client_calls::key_released::handle(&mut instance.implementation, channel_reference);
+                },
                 crate::server_to_client_calls::CONSOLE_TEXT_AVAILABLE_SERVER_TO_CLIENT_MESSAGE => {
-                    crate::server_to_client_calls::text_available::handle(implementation, channel_reference);
-                }
+                    crate::server_to_client_calls::text_available::handle(&mut instance.implementation, channel_reference);
+                },
                 crate::server_to_client_calls::CONSOLE_POINTER_MOVED_SERVER_TO_CLIENT_MESSAGE => {
-                    crate::server_to_client_calls::pointer_moved::handle(implementation, channel_reference);
-                }
+                    crate::server_to_client_calls::pointer_moved::handle(&mut instance.implementation, channel_reference);
+                },
                 crate::server_to_client_calls::CONSOLE_POINTER_BUTTON_PRESSED_SERVER_TO_CLIENT_MESSAGE => {
-                    crate::server_to_client_calls::pointer_button_pressed::handle(implementation, channel_reference);
-                }
+                    crate::server_to_client_calls::pointer_button_pressed::handle(&mut instance.implementation, channel_reference);
+                },
                 crate::server_to_client_calls::CONSOLE_POINTER_BUTTON_RELEASED_SERVER_TO_CLIENT_MESSAGE => {
-                    crate::server_to_client_calls::pointer_button_released::handle(implementation, channel_reference);
-                }
+                    crate::server_to_client_calls::pointer_button_released::handle(&mut instance.implementation, channel_reference);
+                },
                 _ => {
-                    panic!("Unknown message {} received for protocol Console", message);
+                    panic!("Unknown server to client message {} received for protocol Console", message);
                 }
             }
         }

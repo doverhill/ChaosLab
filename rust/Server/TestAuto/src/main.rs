@@ -4,11 +4,11 @@ extern crate protocol_bogus_auto;
 use library_chaos::Process;
 use protocol_bogus_auto::*;
 
-struct ServerHandler {
+struct ServerImplementation {
     counter: usize
 }
 
-impl BogusAutoServerImplementation for ServerHandler {
+impl BogusAutoServerImplementation for ServerImplementation {
     fn simple_sum(&mut self, x: i32, y: i32) -> i32 {
         x + y + 3
     }
@@ -46,7 +46,7 @@ fn main() {
 
     // create server (protocol handler) and provide it with a way of calling our implementation
     // create a unique handler for each connection
-    let _ = BogusAutoServer::default("Henrik", "Henriks testserver", || Box::new(ServerHandler { counter: 0 })).unwrap();
+    let _ = BogusAutoServer::default("Henrik", "Henriks testserver", || Box::new(ServerImplementation { counter: 0 })).unwrap();
 
     // create server (protocol handler) and provide it with a way of calling our implementation
     // share the same handler for each connection

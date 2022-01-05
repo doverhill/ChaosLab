@@ -76,5 +76,8 @@ pub fn handle(handler: &mut Box<dyn crate::BogusAutoServerImplementation + Send>
     let result = handler.get_files(&arguments.path);
 
     channel.start();
+    for object in result {
+        channel.add_object(crate::BOGUS_AUTO_FILE_INFO_OBJECT_ID, object);
+    }
     channel.send(Channel::to_reply(BOGUS_AUTO_GET_FILES_CLIENT_TO_SERVER_MESSAGE, false));
 }

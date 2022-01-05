@@ -31,22 +31,21 @@ pub struct BogusAutoServer {
 }
 
 impl BogusAutoServer {
-    pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn BogusAutoServerImplementation + Send>) -> Arc<Mutex<BogusAutoServer>> {
+    pub fn from_service(service_reference: Arc<Mutex<Service>>, implementation_factory: fn() -> Box<dyn BogusAutoServerImplementation + Send>) -> Arc<Mutex<Self>> {
         let instance = BogusAutoServer {
             implementation_factory: implementation_factory
         };
 
-        let mut service = service_reference.lock().unwrap();
-        service.on_connect(Self::handle_connect).unwrap();
-
         let instance_reference = Arc::new(Mutex::new(instance));
         let mut instances = INSTANCES.lock().unwrap();
+        let mut service = service_reference.lock().unwrap();
         instances.insert(service.handle, instance_reference.clone());
+        service.on_connect(Self::handle_connect).unwrap();
 
         instance_reference
     }
 
-    pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn BogusAutoServerImplementation + Send>) -> Result<Arc<Mutex<BogusAutoServer>>, Error> {
+    pub fn default(vendor: &str, description: &str, implementation_factory: fn() -> Box<dyn BogusAutoServerImplementation + Send>) -> Result<Arc<Mutex<Self>>, Error> {
         match Service::create("BogusAuto", vendor, description, Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()) {
             Ok(service_reference) => {
                 Ok(Self::from_service(service_reference, implementation_factory))
@@ -83,23 +82,27 @@ impl BogusAutoServer {
             match message {
                 crate::client_to_server_calls::BOGUS_AUTO_SIMPLE_SUM_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::simple_sum::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::BOGUS_AUTO_GET_FILES_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::get_files::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::BOGUS_AUTO_RENDER_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::render::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::BOGUS_AUTO_GET_NEXT_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::get_next::handle(implementation, channel_reference);
-                }
+                },
                 crate::client_to_server_calls::BOGUS_AUTO_BOTH_MIXED_CLIENT_TO_SERVER_MESSAGE => {
                     crate::client_to_server_calls::both_mixed::handle(implementation, channel_reference);
-                }
+                },
                 _ => {
-                    panic!("Unknown message {} received for protocol BogusAuto", message);
+                    panic!("Unknown client to server message {} received for protocol BogusAuto", message);
                 }
             }
         }
+    }
+
+    pub fn notify(&self, channel_reference: Arc<Mutex<Channel>>, message: &str) -> Result<(), Error> {
+        crate::server_to_client_calls::notify::call(channel_reference.clone(), message)
     }
 }

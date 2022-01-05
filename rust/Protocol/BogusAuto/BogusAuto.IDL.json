@@ -9,7 +9,7 @@
             "Name": "FileInfo",
             "Fields": [
                 "string Path",
-                "usize Size"
+                "uint Size"
             ]
         },
         {
@@ -72,7 +72,7 @@
             "Parameters": [
             ],
             "Returns": [
-                "usize"
+                "uint"
             ]
         },
         {
@@ -86,6 +86,15 @@
             "Returns": [
                 "FileInfo",
                 "Component"
+            ]
+        }
+    ],
+
+    "ServerToClientCalls": [
+        {
+            "Name": "Notify",
+            "Parameters": [
+                "string Message"
             ]
         }
     ]

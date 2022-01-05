@@ -317,11 +317,16 @@
             }
             else if (call.ReturnsType == IDLDataSetType.List)
             {
-
+                var parsedReturns = returns.Select(p => new Field(p, idl.Types)).ToList();
+                output.WriteLine("for object in result", true);
+                output.WriteLine("channel.add_object(crate::" + protocolName.ToScreamingSnake() + "_" + parsedReturns[0].TypeName.ToScreamingSnake() + "_OBJECT_ID, object);");
+                output.CloseScope();
             }
             else if (call.ReturnsType == IDLDataSetType.MixedList)
             {
-
+                output.WriteLine("for object in result", true);
+                output.WriteLine("channel.add_object(crate::" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_RESULT_ENUM_OBJECT_ID, object);");
+                output.CloseScope();
             }
 
             output.WriteLine("channel.send(Channel::to_reply(" + protocolName.ToScreamingSnake() + "_" + callName.ToScreamingSnake() + "_" + (direction == Direction.ClientToServer ? "CLIENT_TO_SERVER" : "SERVER_TO_CLIENT") + "_MESSAGE, false));");
