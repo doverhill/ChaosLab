@@ -6,7 +6,8 @@ namespace Core
     {
         None = 0,
         ServiceConnected = 1,
-        ChannelMessaged = 2
+        ChannelMessaged = 2,
+        ChannelDestroyed = 3
     }
 
     public class Handle

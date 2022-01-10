@@ -1,0 +1,23 @@
+
+KERNEL API
+
+// IMPLEMENTED API
+ServiceCreate(string protocolName, string vendorName, string deviceName, Uuid deviceId) -> ErrorOr<Handle serviceHandle>
+ServiceDestroy(Handle serviceHandle) -> Error
+ServiceConnect(string protocolName, string? vendorName, string? deviceName, Uuid? deviceId) -> ErrorOr<Handle channelHandle>
+
+ChannelDestroy(Handle channelHandle) -> Error
+ChannelMessage(Handle channelHandle, u64 message) -> Error
+EventWait(Handle? specificHandle, Action? specificAction, u64? specificMessage, u64 timeoutMilliseconds) -> ErrorOr<Handle eventTargetHandle, Handle handleArgument, Action eventAction, u64? message>
+
+ProcessDestroy()
+ProcessSetInfo()
+
+Emit()
+
+
+// NOT IMPLEMENTED YET
+ProcessCreate()
+ChannelSend(Handle channelHandle, Handle handleToTransfer) -> Error
+ThreadCreate()
+ThreadDestroy()

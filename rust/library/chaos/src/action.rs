@@ -2,7 +2,8 @@
 pub enum Action {
     None = 0,
     ServiceConnected = 1,
-    ChannelMessaged = 2
+    ChannelMessaged = 2,
+    ChannelDestroyed = 3
 }
 
 impl Action {
@@ -10,7 +11,8 @@ impl Action {
         match self {
             Action::None => 0,
             Action::ServiceConnected => 1,
-            Action::ChannelMessaged => 2
+            Action::ChannelMessaged => 2,
+            Action::ChannelDestroyed => 3
         }
     }
 
@@ -19,6 +21,7 @@ impl Action {
             0 => Action::None,
             1 => Action::ServiceConnected,
             2 => Action::ChannelMessaged,
+            3 => Action::ChannelDestroyed,
             _ => Action::None
         }
     }

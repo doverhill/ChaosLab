@@ -1,0 +1,41 @@
+IPC flow:
+
+SERVER:
+* creates service with a specific protocol name, gets a service handle
+* waits for any event
+* when client connects to service handle server gets an event on the service handle with action ServiceConnected and a channel handle for the connection
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CHANNEL MEMORY LAYOUT
+
+channels are full duplex, there are two buffers (completely user land managed), one for sending and one for receiving. a buffer uses a memory layout that allows message queues
+
+HEADER:
+    u64 AtomicSpinlockFlag
+    u64 ChannelInitialized (0x1337_1337_1337_1337 = Yes)
+    u64 BufferSizeInBytes
+    u64 MessageCount
+    u64 ProtocolVersion
+    u8[64] ProtocolName
+
+BODY (circular message queue):
+
+
