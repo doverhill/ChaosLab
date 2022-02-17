@@ -13,8 +13,12 @@ SERVER:
 
 
 
-
-
+BUFFER SIZES???
+buffer sizes are given by the IDL file and are FIXED.
+how to calculate buffer sizes?
+if the channel buffer is meant to be used in a synchronous manner, ie. function calls with return values, estimate the bigggest message size and add some buffer (10%)
+    * functions that don't return anything are automatically assumed to be async, but this behaviour can be overridden
+if the channel is meant to be used for event queues (usually from server to client), estimate the biggest event message times the queue depth and add 10% buffer
 
 
 
@@ -29,13 +33,40 @@ CHANNEL MEMORY LAYOUT
 channels are full duplex, there are two buffers (completely user land managed), one for sending and one for receiving. a buffer uses a memory layout that allows message queues
 
 HEADER:
-    u64 AtomicSpinlockFlag
-    u64 ChannelInitialized (0x1337_1337_1337_1337 = Yes)
-    u64 BufferSizeInBytes
-    u64 MessageCount
-    u64 ProtocolVersion
-    u8[64] ProtocolName
+    u64 AtomicSpinlockFlag      // used for gaining exclusive right to the header to update the buffer safely
+    u64 ChannelInitialized      // 0x1337_1337_1337_1337 = Initialized, otherwise not initialized
+    u64 BufferSizeInBytes       // The total size of the buffer. Always a multiple of the native page size
+    u64 ProtocolVersion         // the version of the ipc protocol that this channel uses
+    u64 ProtocolNameLength      // The length of the ipc protocol name in BYTES (utf8)
+    u8[64] ProtocolName         // The name of the ipc protocol (Display, FileSystem, Tornado etc)
+    u64 MessageCount            // The number of messages currently in the buffer
+    u64 WriteOffset             // The offset into the BODY where to write a new message (initially 0)
+    u64 ReadOffset              // The offset to the first message to be read (initially 0)
 
 BODY (circular message queue):
 
 
+[START]
+[FREE SPACE?]
+[MESSAGE]
+[MESSAGE]
+[FREE SPACE?]
+[END]
+
+
+MESSAGE???
+    u64 MessageMagicHeader      // Indicates that there is actually a message here, might be removed when everything is debugged (0xc0ca_c01a_1115_b357)
+    u64 MessageId               // The message id (function to be invoked)
+    u64 MessageLength           // The message length in BYTES
+    u64 ObjectCount             // The number of objects in this message
+    [OBJECTS]
+
+
+OBJECT???
+    u64 ObjectId
+    u64 ObjectLength
+    u8[] ObjectData
+    u8[] Padding                // Added so that the next object starts 64 bit aligned
+
+Pseudo implementations:
+channel.add_message(message: )
