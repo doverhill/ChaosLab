@@ -18,6 +18,10 @@ use std::collections::HashMap;
 use std::mem;
 use std::slice;
 
+pub struct ChannelHeader {
+    
+}
+
 lazy_static! {
     static ref CHANNELS: Mutex<HashMap<Handle, Arc<Mutex<Channel>>>> = {
         Mutex::new(HashMap::new())

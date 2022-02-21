@@ -14,8 +14,10 @@ SERVER:
 
 
 BUFFER SIZES???
-buffer sizes are given by the IDL file and are FIXED.
-how to calculate buffer sizes?
+buffer sizes are dynamically mapped (initially one page / 4k) at the start of a "buffer area" which is a continous virtual memory range that is guaranteed to always end with an unmapped page
+buffer area size (max buffer size) is given by the IDL file, default 1 mb
+
+???
 if the channel buffer is meant to be used in a synchronous manner, ie. function calls with return values, estimate the bigggest message size and add some buffer (10%)
     * functions that don't return anything are automatically assumed to be async, but this behaviour can be overridden
 if the channel is meant to be used for event queues (usually from server to client), estimate the biggest event message times the queue depth and add 10% buffer
@@ -35,7 +37,7 @@ channels are full duplex, there are two buffers (completely user land managed), 
 HEADER:
     u64 AtomicSpinlockFlag      // used for gaining exclusive right to the header to update the buffer safely
     u64 ChannelInitialized      // 0x1337_1337_1337_1337 = Initialized, otherwise not initialized
-    u64 BufferSizeInBytes       // The total size of the buffer. Always a multiple of the native page size
+???    u64 BufferSizeInBytes       // The total size of the buffer. Always a multiple of the native page size
     u64 ProtocolVersion         // the version of the ipc protocol that this channel uses
     u64 ProtocolNameLength      // The length of the ipc protocol name in BYTES (utf8)
     u8[64] ProtocolName         // The name of the ipc protocol (Display, FileSystem, Tornado etc)
@@ -43,7 +45,7 @@ HEADER:
     u64 WriteOffset             // The offset into the BODY where to write a new message (initially 0)
     u64 ReadOffset              // The offset to the first message to be read (initially 0)
 
-BODY (circular message queue):
+BODY (message queue):
 
 
 [START]
@@ -57,6 +59,7 @@ BODY (circular message queue):
 MESSAGE???
     u64 MessageMagicHeader      // Indicates that there is actually a message here, might be removed when everything is debugged (0xc0ca_c01a_1115_b357)
     u64 MessageId               // The message id (function to be invoked)
+    u64 MessageFlags            // Allocated? Written? Consumed? NoQueue?
     u64 MessageLength           // The message length in BYTES
     u64 ObjectCount             // The number of objects in this message
     [OBJECTS]
@@ -68,5 +71,16 @@ OBJECT???
     u8[] ObjectData
     u8[] Padding                // Added so that the next object starts 64 bit aligned
 
-Pseudo implementations:
-channel.add_message(message: )
+
+
+
+Channel:
+    private outboundMessageBufferPointer
+    private inboundMessageBufferPointer
+
+    FOR sending
+    allocate_for_send(size, message_id, obj_count, noQueue?) -> ptr
+    send(ptr)
+
+    for receiving
+    receive() -> ptr / null
