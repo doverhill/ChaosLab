@@ -1,6 +1,5 @@
-fn main() {
-    println!("Hello, world!");
-}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -8,6 +7,7 @@ mod tests {
         alloc::{self, Layout},
         mem::{self, ManuallyDrop},
     };
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     struct Color {
         a: u8,
@@ -303,6 +303,184 @@ mod tests {
                     object.as_mut().unwrap(),
                 )
             }
+        }
+    }
+
+    struct ChannelHeader {
+        lock: AtomicBool,
+        channel_magic: u64,
+        protocol_name: [u8; 32],
+        protocol_version: u64,
+        read_offset: u64,
+        write_offset: u64,
+    }
+
+    impl ChannelHeader {
+        pub const MAGIC: u64 = u64::from_be_bytes(['C' as u8, 'C' as u8, 'H' as u8, 'A' as u8, 'N' as u8, 'N' as u8, 'E' as u8, 'L' as u8]);
+    }
+
+    struct ChannelMessageHeader {
+        message_magic: u64,
+        message_id: u64,
+    }
+
+    impl ChannelMessageHeader {
+        pub const MAGIC: u64 = u64::from_be_bytes(['C' as u8, 'M' as u8, 'E' as u8, 'S' as u8, 'S' as u8, 'A' as u8, 'G' as u8, 'E' as u8]);
+    }
+
+    struct ChannelWriter {
+        channel_address: *mut u8,
+    }
+
+    impl ChannelWriter {
+        pub fn new(channel_address: *mut u8) -> Self {
+            ChannelWriter {
+                channel_address: channel_address
+            }
+        }
+
+        pub unsafe fn start_message(&self, message_id: u64) -> *mut u8 {
+            let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+            #[cfg(debug)] assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+
+            let pointer: *mut u8 = self.channel_address.offset((*channel_header).write_offset as isize);
+            let message_header: *mut ChannelMessageHeader = mem::transmute(pointer);
+            (*message_header).message_magic = ChannelMessageHeader::MAGIC;
+            (*message_header).message_id = message_id;
+            pointer.offset(mem::size_of::<ChannelMessageHeader>() as isize)
+        }
+
+        pub unsafe fn end_message(&self, message_payload_size: usize) {
+            let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+            #[cfg(debug)] assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+
+            let new_offset = (*channel_header).write_offset + mem::size_of::<ChannelMessageHeader>() as u64 + message_payload_size as u64;
+            while (*channel_header).lock.swap(true, Ordering::Acquire) {};
+            if (*channel_header).read_offset == 0 {
+                (*channel_header).read_offset = (*channel_header).write_offset;
+            }
+            (*channel_header).write_offset = new_offset;
+            (*channel_header).lock.swap(false, Ordering::Release);
+        }
+    }
+
+    struct ChannelReader {
+        channel_address: *mut u8,
+    }
+
+    impl ChannelReader {
+        pub fn new(channel_address: *mut u8) -> Self {
+            ChannelReader {
+                channel_address: channel_address
+            }
+        }
+
+        pub unsafe fn initialize(channel_address: *mut u8, protocol_name: &str, protocol_version: u64) {
+            let channel_header: *mut ChannelHeader = mem::transmute(channel_address);
+            // (*channel_header).lock.set(false);
+            (*channel_header).channel_magic = ChannelHeader::MAGIC;
+            // (*channel_header).protocol_name[]
+            (*channel_header).protocol_version = protocol_version;
+            (*channel_header).read_offset = 0;
+            (*channel_header).write_offset = mem::size_of::<ChannelHeader>() as u64;
+        }
+
+        pub unsafe fn read_message(&self) -> (u64, *mut u8) {
+            let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+            #[cfg(debug)] assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+
+            if (*channel_header).read_offset == 0 {
+                (0, 0 as *mut u8)
+            }
+            else {
+                let pointer: *mut u8 = self.channel_address.offset((*channel_header).read_offset as isize);
+                let message_header: *mut ChannelMessageHeader = mem::transmute(pointer);
+                #[cfg(debug)] assert_eq!(ChannelMessageHeader::MAGIC, (*message_header).message_magic);
+
+                ((*message_header).message_id, pointer.offset(mem::size_of::<ChannelMessageHeader>() as isize))
+            }
+        }
+
+        pub unsafe fn end_read(&self, message_payload_size: usize) {
+            let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+            #[cfg(debug)] assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+
+            let new_offset = (*channel_header).read_offset + mem::size_of::<ChannelMessageHeader>() as u64 + message_payload_size as u64;
+            while (*channel_header).lock.swap(true, Ordering::Acquire) {};
+            if (*channel_header).read_offset == (*channel_header).write_offset {
+                (*channel_header).read_offset = 0;
+                (*channel_header).write_offset = mem::size_of::<ChannelHeader>() as u64;
+            }
+            else {
+                (*channel_header).read_offset = new_offset;
+            }
+            (*channel_header).lock.swap(false, Ordering::Release);
+        }
+    }
+
+    const MESSAGE_ID: u64 = 77;
+    const MESSAGE_ID2: u64 = 3483764;
+
+    #[test]
+    fn write_one_message_to_channel_and_read() {
+        unsafe {
+            let layout = Layout::from_size_align(512 * 1024, 4 * 1024).expect("Invalid layout");
+            let channel: *mut u8 = mem::transmute(alloc::alloc(layout));
+
+            ChannelReader::initialize(channel, "protocol", 1);
+
+            let writer = ChannelWriter::new(channel);
+            let pointer = writer.start_message(MESSAGE_ID);
+            let size = File::create_at_address(pointer, "test.txt", "path", 443);
+            writer.end_message(size);
+
+
+            let reader = ChannelReader::new(channel);
+            let (message_id, pointer) = reader.read_message();
+            assert_eq!(MESSAGE_ID, message_id);
+            let (size, file) = File::get_from_address(pointer);
+            reader.end_read(size);
+
+            // assert state of channel
+            let (message_id, pointer) = reader.read_message();
+            assert_eq!(0, message_id);
+        }
+    }
+
+    #[test]
+    fn write_two_messages_to_channel_and_read() {
+        unsafe {
+            let layout = Layout::from_size_align(512 * 1024, 4 * 1024).expect("Invalid layout");
+            let channel: *mut u8 = mem::transmute(alloc::alloc(layout));
+
+            ChannelReader::initialize(channel, "protocol", 1);
+
+            let writer = ChannelWriter::new(channel);
+
+            let pointer = writer.start_message(MESSAGE_ID);
+            let size = File::create_at_address(pointer, "test.txt", "path", 443);
+            writer.end_message(size);
+
+            let pointer = writer.start_message(MESSAGE_ID2);
+            let size = Directory::create_at_address(pointer, "test.txt", "path");
+            writer.end_message(size);
+
+
+            let reader = ChannelReader::new(channel);
+
+            let (message_id, pointer) = reader.read_message();
+            assert_eq!(MESSAGE_ID, message_id);
+            let (size, file) = File::get_from_address(pointer);
+            reader.end_read(size);
+
+            let (message_id, pointer) = reader.read_message();
+            assert_eq!(MESSAGE_ID2, message_id);
+            let (size, file) = Directory::get_from_address(pointer);
+            reader.end_read(size);
+
+            // assert state of channel
+            let (message_id, pointer) = reader.read_message();
+            assert_eq!(0, message_id);
         }
     }
 

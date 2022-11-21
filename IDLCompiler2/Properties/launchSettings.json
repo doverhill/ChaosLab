@@ -1,0 +1,29 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    },
+    "IDLCompiler - FileSystem": {
+      "commandName": "Project",
+      "commandLineArgs": "..\\FileSystem.IDL.json",
+      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\FileSystem\\src"
+    },
+    "IDLCompiler - Tornado": {
+      "commandName": "Project",
+      "commandLineArgs": "..\\Tornado.IDL.json",
+      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\Tornado\\src"
+    },
+    "IDLCompiler - BogusAuto": {
+      "commandName": "Project",
+      "commandLineArgs": "..\\BogusAuto.IDL.json",
+      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\BogusAuto\\src"
+    },
+    "IDLCompiler - Console": {
+      "commandName": "Project",
+      "commandLineArgs": "..\\Console.IDL.json",
+      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\Console\\src"
+    }
+  }
+}

@@ -1,112 +1,233 @@
 {
-    "Interface": {
-        "Name": "Console",
-        "Version": 1
+    "protocol": {
+        "name": "console",
+        "version": 1
     },
-
-    "Types": [
-        {
-            "Name": "Color",
-            "Fields": [
-                "byte Red",
-                "byte Green",
-                "byte Blue",
-                "byte Alpha"
-            ]
+    "enums": {
+        "KeyCode": [ "A", "B", "C", "D", "E" ],
+        "PointerButton": [ "Left", "Right", "Middle" ]
+    },
+    "types": {
+        "Color": {
+            "fields": {
+                "alpha": {
+                    "type": "u8"
+                },
+                "red": {
+                    "type": "u8"
+                },
+                "green": {
+                    "type": "u8"
+                },
+                "blue": {
+                    "type": "u8"
+                }
+            }
         },
-        {
-            "Name": "BitmapPatch",
-            "Fields": [
-                "uint X",
-                "uint Y",
-                "uint Width",
-                "uint Height",
-                "Color[] Data"
-            ]
+        "Point": {
+            "fields": {
+                "x": {
+                    "type": "i64"
+                },
+                "y": {
+                    "type": "i64"
+                }
+            }
+        },
+        "Size": {
+            "fields": {
+                "width": {
+                    "type": "u64"
+                },
+                "height": {
+                    "type": "u64"
+                }
+            }
+        },
+        "Image": {
+            "fields": {
+                "size": {
+                    "type": "Size"
+                },
+                "pixels": {
+                    "type": "Color",
+                    "array": true
+                }
+            }
+        },
+        "ImagePatch": {
+            "fields": {
+                "image": {
+                    "type": "Image"
+                },
+                "position": {
+                    "type": "Point"
+                }
+            }
+        },
+        "Object": {
+            "fields": {
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            }
+        },
+        "StructField": {
+            "fields": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "i64|bool|string|none"
+                }
+            }
+        },
+        "Struct": {
+            "inherits_from": "Object",
+            "fields": {
+                "fields": {
+                    "type": "StructField",
+                    "array": true
+                }
+            }
+        },
+        "Table": {
+            "inherits_from": "Object",
+            "fields": {
+                "columns": {
+                    "type": "string",
+                    "array": true
+                },
+                "rows": {
+                    "type": "Struct",
+                    "array": true
+                }
+            }
         }
-    ],
-
-    "ClientToServerCalls": [
-        {
-            "Name": "GetCapabilities",
-            "Returns": [
-                "bool IsFramebuffer",
-                "uint FramebufferWidth",
-                "uint FramebufferHeight",
-                "uint TextColumns",
-                "uint TextRows"
-            ]
+    },
+    "from_client": {
+        "get_capabilities": {
+            "type": "call",
+            "returns": {
+                "is_framebuffer": {
+                    "type": "bool"
+                },
+                "framebuffer_size": {
+                    "type": "Size"
+                },
+                "text_size": {
+                    "type": "Size"
+                }
+            }
         },
-        {
-            "Name": "SetTextColor",
-            "Parameters": [
-                "Color Color",
-                "Color BackgroundColor"
-            ]
+        "set_text_color": {
+            "type": "call",
+            "parameters": {
+                "foreground": {
+                    "type": "Color"
+                },
+                "background": {
+                    "type": "Color"
+                }
+            }
         },
-        {
-            "Name": "SetTextCursorPosition",
-            "Parameters": [
-                "uint Column",
-                "uint Row"
-            ]
+        "move_text_cursor": {
+            "type": "call",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                }
+            }
         },
-        {
-            "Name": "WriteText",
-            "Parameters": [
-                "string Text"
-            ]
+        "draw_image_patches": {
+            "type": "call",
+            "parameters": {
+                "image_patches": {
+                    "type": "ImagePatch",
+                    "array": true
+                }
+            }
         },
-        {
-            "Name": "RenderBitmapPatches",
-            "ParametersType": "List",
-            "Parameters": [
-                "BitmapPatch"
-            ]
+        "write_text": {
+            "type": "call",
+            "parameters": {
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "write_objects": {
+            "type": "call",
+            "parameters": {
+                "objects": {
+                    "type": "Table|Struct",
+                    "array": true
+                }
+            }
         }
-    ],
-
-    "ServerToClientCalls": [
-        {
-            "Name": "KeyPressed",
-            "Parameters": [
-                "uint KeyCode"
-            ]
+    },
+    "from_server": {
+        "key_pressed": {
+            "type": "event",
+            "parameters": {
+                "key_code": {
+                    "type": "KeyCode"
+                }
+            }
         },
-        {
-            "Name": "KeyReleased",
-            "Parameters": [
-                "uint KeyCode"
-            ]
+        "key_released": {
+            "type": "event",
+            "parameters": {
+                "key_code": {
+                    "type": "KeyCode"
+                }
+            }
         },
-        {
-            "Name": "TextAvailable",
-            "Parameters": [
-                "string Text"
-            ]
+        "pointer_moved": {
+            "type": "single_event",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                }
+            }
         },
-        {
-            "Name": "PointerMoved",
-            "Parameters": [
-                "uint X",
-                "uint Y"
-            ]
+        "pointer_pressed": {
+            "type": "event",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                },
+                "buttons": {
+                    "type": "PointerButton",
+                    "array": true
+                }
+            }
         },
-        {
-            "Name": "PointerButtonPressed",
-            "Parameters": [
-                "uint X",
-                "uint Y",
-                "uint ButtonNumber"
-            ]
+        "pointer_released": {
+            "type": "event",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                },
+                "buttons": {
+                    "type": "PointerButton",
+                    "array": true
+                }
+            }
         },
-        {
-            "Name": "PointerButtonReleased",
-            "Parameters": [
-                "uint X",
-                "uint Y",
-                "uint ButtonNumber"
-            ]
+        "size_changed": {
+            "type": "event",
+            "parameters": {
+                "framebuffer_size": {
+                    "type": "Size"
+                },
+                "text_size": {
+                    "type": "Size"
+                }
+            }
         }
-    ]
+    }
 }
