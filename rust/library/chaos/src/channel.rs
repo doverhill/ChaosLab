@@ -18,8 +18,29 @@ use std::collections::HashMap;
 use std::mem;
 use std::slice;
 
+use std::sync::atomic::AtomicU64;
+
 pub struct ChannelHeader {
-    
+    lock: AtomicU64,
+    channel_magic: u64,
+    protocol_name_low: u64,
+    protocol_name_high: u64,
+    message_count: u64,
+    write_offset: u64,
+    read_offset: u64
+}
+
+pub struct ChannelMessageHeader {
+    message_magic: u64,
+    message_id: u64,
+    message_flags: u64,
+    message_length: u64,
+    object_count: u64
+}
+
+pub struct ChannelMessageObjectHeader {
+    object_id: u64,
+    object_length: u64
 }
 
 lazy_static! {
