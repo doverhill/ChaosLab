@@ -418,6 +418,86 @@ mod tests {
         }
     }
 
+    struct Object {
+        name: String,
+        description: String,
+    }
+
+    enum StructFieldValueEnum {
+        TypeI64(i64),
+        TypeBool(bool),
+        TypeString(String),
+        TypeNone,
+    }
+
+    struct StructField {
+        name: String,
+        value: StructFieldValueEnum,
+    }
+
+    struct Struct {
+        name: String,
+        description: String,
+        fields: Vec<StructField>,
+    }
+
+    struct Table {
+        name: String,
+        description: String,
+        columns: Vec<String>,
+        rows: Vec<Struct>,
+    }
+
+    impl Table {
+        pub fn create_at_address(
+            pointer: *mut u8,
+            name: String,
+            description: String,
+            columns_count: usize,
+            rows_count: usize,
+        ) -> (usize, ManuallyDrop<Vec<String>>, ManuallyDrop<Vec<Struct>>) {
+            unsafe {
+                let object: *mut Table = mem::transmute(pointer);
+
+                let pointer: *mut u8 = pointer.offset(mem::size_of::<Table>() as isize);
+
+                sds
+                *(pointer as *mut usize) = pixels_count;
+                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                let pixels =
+                    Vec::<Color>::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
+
+                (
+                    mem::size_of::<ImagePatch>()
+                        + mem::size_of::<usize>()
+                        + pixels_count * mem::size_of::<Color>(),
+                    mem::ManuallyDrop::new(pixels),
+                )
+            }
+        }
+
+        pub fn get_from_address(pointer: *mut u8) -> (usize, &'static mut ImagePatch) {
+            unsafe {
+                let object: *mut ImagePatch = mem::transmute(pointer);
+
+                let pointer: *mut u8 = pointer.offset(mem::size_of::<ImagePatch>() as isize);
+
+                let pixels_count = *(pointer as *mut usize);
+                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                let pixels = Vec::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
+                (*object).image.pixels = ManuallyDrop::new(pixels);
+
+                (
+                    mem::size_of::<ImagePatch>()
+                        + mem::size_of::<usize>()
+                        + pixels_count * mem::size_of::<Color>(),
+                    object.as_mut().unwrap(),
+                )
+            }
+        }
+    }
+
+
     const MESSAGE_ID: u64 = 77;
     const MESSAGE_ID2: u64 = 3483764;
 

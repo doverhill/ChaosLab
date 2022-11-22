@@ -30,6 +30,8 @@ namespace IDLCompiler
         [JsonPropertyName("from_server")]
         public Dictionary<string, IDLCall> FromServer;
 
+        public Dictionary<string, EnumList> EnumLists;
+
         private void ValidateEnumList(string name, List<string> enumList)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("Enum name is missing");
@@ -52,6 +54,7 @@ namespace IDLCompiler
                 ValidateEnumList(enumList.Key, enumList.Value);
             }
             var enums = Enums.ToDictionary(e => e.Key, e => new EnumList(e.Key, e.Value));
+            EnumLists = enums;
 
             if (Types == null) Types = new();
             foreach (var type in Types)
@@ -181,6 +184,8 @@ namespace IDLCompiler
 
         private IDLType _inheritsFrom = null;
 
+        public IDLType GetInheritsFrom() => _inheritsFrom;
+
         public void Validate(string name, Dictionary<string, EnumList> customEnumLists, Dictionary<string, IDLType> customTypes)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException("Type name is missing");
@@ -208,6 +213,8 @@ namespace IDLCompiler
         public string NamedType;
         [JsonPropertyName("array")]
         public bool IsArray;
+
+        public string Name;
 
         public enum FieldType
         {
@@ -239,10 +246,31 @@ namespace IDLCompiler
         public EnumList CustomEnumList = null;
         public List<OneOfOption> CustomOneOfOptions = null;
 
+        public string GetRustType()
+        {
+            var typeName = Type switch
+            {
+                FieldType.None => throw new ArgumentException("Can not get rust type of type None"),
+                FieldType.U8 => "u8",
+                FieldType.U64 => "u64",
+                FieldType.I64 => "i64",
+                FieldType.Bool => "bool",
+                FieldType.String => "String",
+                FieldType.CustomType => CustomType.Name,
+                FieldType.OneOfType => throw new ArgumentException("Can not get rust type of type OneOfType"),
+                FieldType.Enum => CustomEnumList.Name
+            };
+
+            if (IsArray) return $"Vec<{typeName}>";
+            return typeName;
+        }
+
         public void Validate(string name, Dictionary<string, EnumList> customEnumLists, Dictionary<string, IDLType> customTypes)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException("Field name is missing");
             if (!CasedString.IsSnake(name)) throw new ArgumentException($"Field name '{name}' must be snake case");
+
+            Name = name;
 
             Type = NamedType switch
             {
@@ -321,12 +349,15 @@ namespace IDLCompiler
         [JsonPropertyName("returns")]
         public Dictionary<string, IDLField> ReturnValues;
 
+        public string Name;
         public CallType Type;
 
         public void Validate(string name, Dictionary<string, EnumList> customEnumLists, Dictionary<string, IDLType> customTypes)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException("Field name is missing");
             if (!CasedString.IsSnake(name)) throw new ArgumentException($"Field name '{name}' must be snake case");
+
+            Name = name;
 
             if (string.IsNullOrEmpty(NamedType)) throw new ArgumentException($"Type for call '{name}' is missing");
             Type = NamedType switch

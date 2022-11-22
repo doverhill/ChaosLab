@@ -58,19 +58,58 @@ namespace IDLCompiler
             idl.Validate();
             idl.Dump();
 
-            var message_id = 1;
-            foreach (var call in idl.FromClient)
+            if (idl.EnumLists.Count > 0)
             {
-                var callName = CasedString.FromSnake(call.Key);
-                using (var output = new FileStream($"from_client/{call.Key}.rs", FileMode.Create))
+                Console.WriteLine("Generating enums");
+                Directory.CreateDirectory("enums");
+                foreach (var enumList in idl.EnumLists)
                 {
-                    StructGenerator.WriteStruct(output, $"{callName.ToPascal()}Parameters", )
-                    CallGenerator.WriteCall(output, message_id);
-    
+                    var enumName = CasedString.FromPascal(enumList.Key);
+                    using (var output = new FileStream($"enums/{enumName.ToSnake()}.rs", FileMode.Create))
+                    {
+                        EnumGenerator.GenerateEnum(output, enumList.Value);
+                    }
                 }
-                    message_id++;
             }
 
+            if (idl.Types.Count > 0)
+            {
+                Console.WriteLine("Generating types");
+                Directory.CreateDirectory("types");
+                foreach (var type in idl.Types)
+                {
+                    var typeName = CasedString.FromPascal(type.Key);
+                    using (var output = new FileStream($"types/{typeName.ToSnake()}.rs", FileMode.Create))
+                    {
+                        TypeGenerator.GenerateType(output, type.Value);
+                    }
+                }
+            }
+
+            var message_id = 1;
+
+            if (idl.FromClient.Count > 0)
+            {
+                Console.WriteLine("Generating calls from client");
+                Directory.CreateDirectory("from_client");
+                foreach (var call in idl.FromClient)
+                {
+
+                    var callName = CasedString.FromSnake(call.Key);
+                    using (var output = new FileStream($"from_client/{call.Key}.rs", FileMode.Create))
+                    {
+                        //StructGenerator.WriteStruct(output, $"{callName.ToPascal()}Parameters", )
+                        //CallGenerator.WriteCall(output, message_id);
+
+                    }
+                    message_id++;
+                }
+            }
+
+            Console.WriteLine("Generating calls from server");
+
+
+            Console.WriteLine("Generating library");
         }
     }
 }
