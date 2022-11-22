@@ -448,27 +448,46 @@ mod tests {
         rows: Vec<Struct>,
     }
 
+    // array of FIXED SIZE structs are handled where you pass in size and get a ref Vec back
+    // array of DYNAMICALLY SIZED structs are handled so that you have to pass in the populated array
+
     impl Table {
         pub fn create_at_address(
             pointer: *mut u8,
             name: String,
             description: String,
-            columns_count: usize,
-            rows_count: usize,
-        ) -> (usize, ManuallyDrop<Vec<String>>, ManuallyDrop<Vec<Struct>>) {
+            columns: Vec<String>,
+            rows_count: Vec<Struct>,
+        ) -> usize {
             unsafe {
                 let object: *mut Table = mem::transmute(pointer);
 
                 let pointer: *mut u8 = pointer.offset(mem::size_of::<Table>() as isize);
 
-                sds
-                *(pointer as *mut usize) = pixels_count;
+                let name_length = name.len();
+                *(pointer as *mut usize) = name_length;
                 let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let pixels =
-                    Vec::<Color>::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
+                core::ptr::copy(name.as_ptr(), pointer, name_length);
+                let pointer = pointer.offset(name_length as isize);
 
+                let description_length = description.len();
+                *(pointer as *mut usize) = description_length;
+                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                core::ptr::copy(description.as_ptr(), pointer, description_length);
+                let pointer = pointer.offset(description_length as isize);
+
+                *(pointer as *mut usize) = columns_count;
+                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                let columns =
+                    Vec::<String>::from_raw_parts(pointer as *mut Color, columns_count, columns_count);
+
+                *(pointer as *mut usize) = rows_count;
+                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                let rows =
+                    Vec::<String>::from_raw_parts(pointer as *mut Color, rows_count, rows_count);
+    
                 (
-                    mem::size_of::<ImagePatch>()
+                    mem::size_of::<Table>()
                         + mem::size_of::<usize>()
                         + pixels_count * mem::size_of::<Color>(),
                     mem::ManuallyDrop::new(pixels),

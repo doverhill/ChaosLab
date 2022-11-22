@@ -14,9 +14,10 @@ namespace IDLCompiler
                 line.CommaAfter = true;
             }
 
-            using (var writer = new StreamWriter(output)) 
+            using (var writer = new StreamWriter(output, leaveOpen: true)) 
             {
-                writer.Write(source.GetSource());
+                writer.WriteLine(source.GetSource());
+                writer.WriteLine();
             }
         }
     }

@@ -246,9 +246,14 @@ namespace IDLCompiler
         public EnumList CustomEnumList = null;
         public List<OneOfOption> CustomOneOfOptions = null;
 
-        public string GetRustType()
+        public string GetRustType(string owningTypeName)
         {
-            var typeName = Type switch
+            return GetRustType(Type, CustomType, Name, CustomEnumList, IsArray, owningTypeName);
+        }
+
+        public static string GetRustType(FieldType type, IDLType customType, string fieldName, EnumList customEnumList, bool isArray, string owningTypeName)
+        {
+            var typeName = type switch
             {
                 FieldType.None => throw new ArgumentException("Can not get rust type of type None"),
                 FieldType.U8 => "u8",
@@ -256,12 +261,12 @@ namespace IDLCompiler
                 FieldType.I64 => "i64",
                 FieldType.Bool => "bool",
                 FieldType.String => "String",
-                FieldType.CustomType => CustomType.Name,
-                FieldType.OneOfType => throw new ArgumentException("Can not get rust type of type OneOfType"),
-                FieldType.Enum => CustomEnumList.Name
+                FieldType.CustomType => customType.Name,
+                FieldType.OneOfType => $"{owningTypeName}{CasedString.FromSnake(fieldName).ToPascal()}Enum",
+                FieldType.Enum => customEnumList.Name
             };
 
-            if (IsArray) return $"Vec<{typeName}>";
+            if (isArray) return $"Vec<{typeName}>";
             return typeName;
         }
 

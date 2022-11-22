@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace IDLCompiler
 {
-    internal class CasedString
+    public class CasedString
     {
         private List<string> _parts;
 

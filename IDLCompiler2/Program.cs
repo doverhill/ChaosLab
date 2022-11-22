@@ -94,20 +94,27 @@ namespace IDLCompiler
                 Directory.CreateDirectory("from_client");
                 foreach (var call in idl.FromClient)
                 {
-
-                    var callName = CasedString.FromSnake(call.Key);
                     using (var output = new FileStream($"from_client/{call.Key}.rs", FileMode.Create))
                     {
-                        //StructGenerator.WriteStruct(output, $"{callName.ToPascal()}Parameters", )
-                        //CallGenerator.WriteCall(output, message_id);
-
+                        CallGenerator.GenerateCall(output, call.Value, message_id);
                     }
                     message_id++;
                 }
             }
 
-            Console.WriteLine("Generating calls from server");
-
+            if (idl.FromClient.Count > 0)
+            {
+                Console.WriteLine("Generating calls from server");
+                Directory.CreateDirectory("from_server");
+                foreach (var call in idl.FromServer)
+                {
+                    using (var output = new FileStream($"from_server/{call.Key}.rs", FileMode.Create))
+                    {
+                        CallGenerator.GenerateCall(output, call.Value, message_id);
+                    }
+                    message_id++;
+                }
+            }
 
             Console.WriteLine("Generating library");
         }
