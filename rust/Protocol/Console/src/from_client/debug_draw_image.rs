@@ -1,8 +1,11 @@
+use std::mem;
+use std::mem::ManuallyDrop;
+use crate::types::*;
+use crate::enums::*;
+
 struct DebugDrawImageParameters {
     image: Image,
 }
-
-
 impl DebugDrawImageParameters {
     pub unsafe fn create_at_address(pointer: *mut u8, image_size_width: u64, image_size_height: u64, image_pixels_count: usize) -> (usize, ManuallyDrop<Vec<Color>>) {
         let object: *mut DebugDrawImageParameters = mem::transmute(pointer);
@@ -19,6 +22,5 @@ impl DebugDrawImageParameters {
         (mem::size_of::<DebugDrawImageParameters>() + mem::size_of::<usize>() + image_pixels_count * mem::size_of::<Color>(), ManuallyDrop::new(image_pixels))
     }
 }
-
 
 

@@ -61,12 +61,31 @@ namespace IDLCompiler
             {
                 Console.WriteLine("Generating enums");
                 Directory.CreateDirectory("enums");
-                foreach (var enumList in idl.EnumLists)
+                using (var modOutput = new FileStream("enums/mod.rs", FileMode.Create))
                 {
-                    var enumName = CasedString.FromPascal(enumList.Key);
-                    using (var output = new FileStream($"enums/{enumName.ToSnake()}.rs", FileMode.Create))
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var enumList in idl.EnumLists)
                     {
-                        EnumGenerator.GenerateEnum(output, enumList.Value);
+                        var enumName = CasedString.FromPascal(enumList.Key);
+
+                        var codeSource = new SourceGenerator(true);
+                        EnumGenerator.GenerateEnum(codeSource, enumList.Value);
+                        using (var output = new FileStream($"enums/{enumName.ToSnake()}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource());
+                            }
+                        }
+
+                        modSource.AddLine($"pub mod {enumName.ToSnake()};");
+                        modSource.AddLine($"pub use {enumName.ToSnake()}::*;");
+                    }
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource());
                     }
                 }
             }
@@ -75,12 +94,31 @@ namespace IDLCompiler
             {
                 Console.WriteLine("Generating types");
                 Directory.CreateDirectory("types");
-                foreach (var type in idl.Types)
+                using (var modOutput = new FileStream("types/mod.rs", FileMode.Create))
                 {
-                    var typeName = CasedString.FromPascal(type.Key);
-                    using (var output = new FileStream($"types/{typeName.ToSnake()}.rs", FileMode.Create))
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var type in idl.Types)
                     {
-                        TypeGenerator.GenerateType(output, type.Value);
+                        var typeName = CasedString.FromPascal(type.Key);
+
+                        var codeSource = new SourceGenerator(true);
+                        TypeGenerator.GenerateType(codeSource, type.Value);
+                        using (var output = new FileStream($"types/{typeName.ToSnake()}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource());
+                            }
+                        }
+
+                        modSource.AddLine($"pub mod {typeName.ToSnake()};");
+                        modSource.AddLine($"pub use {typeName.ToSnake()}::*;");
+                    }
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource());
                     }
                 }
             }
@@ -91,13 +129,31 @@ namespace IDLCompiler
             {
                 Console.WriteLine("Generating calls from client");
                 Directory.CreateDirectory("from_client");
-                foreach (var call in idl.FromClient)
+                using (var modOutput = new FileStream("from_client/mod.rs", FileMode.Create))
                 {
-                    using (var output = new FileStream($"from_client/{call.Key}.rs", FileMode.Create))
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var call in idl.FromClient)
                     {
-                        CallGenerator.GenerateCall(output, call.Value, message_id);
+                        var codeSource = new SourceGenerator(true);
+                        CallGenerator.GenerateCall(codeSource, call.Value, message_id);
+                        using (var output = new FileStream($"from_client/{call.Key}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource());
+                            }
+                        }
+                        message_id++;
+
+                        modSource.AddLine($"pub mod {call.Key};");
+                        modSource.AddLine($"pub use {call.Key}::*;");
                     }
-                    message_id++;
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource());
+                    }
                 }
             }
 
@@ -105,17 +161,65 @@ namespace IDLCompiler
             {
                 Console.WriteLine("Generating calls from server");
                 Directory.CreateDirectory("from_server");
-                foreach (var call in idl.FromServer)
+                using (var modOutput = new FileStream("from_server/mod.rs", FileMode.Create))
                 {
-                    using (var output = new FileStream($"from_server/{call.Key}.rs", FileMode.Create))
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var call in idl.FromServer)
                     {
-                        CallGenerator.GenerateCall(output, call.Value, message_id);
+                        var codeSource = new SourceGenerator(true);
+                        CallGenerator.GenerateCall(codeSource, call.Value, message_id);
+                        using (var output = new FileStream($"from_server/{call.Key}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource());
+                            }
+                        }
+                        message_id++;
+
+                        modSource.AddLine($"pub mod {call.Key};");
+                        modSource.AddLine($"pub use {call.Key}::*;");
                     }
-                    message_id++;
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource());
+                    }
                 }
             }
 
             Console.WriteLine("Generating library");
+            using (var output = new FileStream("lib.rs", FileMode.Create))
+            {
+                var source = new SourceGenerator(false);
+
+                if (idl.EnumLists.Count > 0)
+                {
+                    source.AddLine("mod enums;");
+                    source.AddLine("pub use enums::*;");
+                }
+                if (idl.Types.Count > 0)
+                {
+                    source.AddLine("mod types;");
+                    source.AddLine("pub use types::*;");
+                }
+                if (idl.FromClient.Count > 0)
+                {
+                    source.AddLine("mod from_client;");
+                    source.AddLine("pub use from_client::*;");
+                }
+                if (idl.FromServer.Count > 0)
+                {
+                    source.AddLine("mod from_server;");
+                    source.AddLine("pub use from_server::*;");
+                }
+
+                using (var writer = new StreamWriter(output, leaveOpen: true))
+                {
+                    writer.WriteLine(source.GetSource());
+                }
+            }
         }
     }
 }

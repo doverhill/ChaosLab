@@ -1,8 +1,11 @@
+use std::mem;
+use std::mem::ManuallyDrop;
+use crate::types::*;
+use crate::enums::*;
+
 struct PointerMovedParameters {
     position: Point,
 }
-
-
 impl PointerMovedParameters {
     pub unsafe fn create_at_address(pointer: *mut u8, position_x: i64, position_y: i64) -> usize {
         let object: *mut PointerMovedParameters = mem::transmute(pointer);
@@ -16,6 +19,5 @@ impl PointerMovedParameters {
         mem::size_of::<PointerMovedParameters>()
     }
 }
-
 
 

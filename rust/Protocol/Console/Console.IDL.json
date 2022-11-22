@@ -75,7 +75,7 @@
                 }
             }
         },
-        "StructField": {
+        "MapField": {
             "fields": {
                 "name": {
                     "type": "string"
@@ -85,11 +85,11 @@
                 }
             }
         },
-        "Struct": {
+        "Map": {
             "inherits_from": "Object",
             "fields": {
                 "fields": {
-                    "type": "StructField",
+                    "type": "MapField",
                     "array": true
                 }
             }
@@ -102,7 +102,7 @@
                     "array": true
                 },
                 "rows": {
-                    "type": "Struct",
+                    "type": "Map",
                     "array": true
                 }
             }
@@ -171,7 +171,7 @@
             "type": "call",
             "parameters": {
                 "objects": {
-                    "type": "Table|Struct",
+                    "type": "Table|Map",
                     "array": true
                 }
             }

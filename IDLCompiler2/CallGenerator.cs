@@ -138,7 +138,7 @@ namespace IDLCompiler
                 return $"{field.Name}: {field.GetRustType(owningTypeName, true)}";
         }
 
-        private static void AppendTypeWrite(SourceGenerator.SourceBlock block, IDLField field, List<string> sizeParts, List<string> returnVecs, string path)
+        public static void AppendTypeWrite(SourceGenerator.SourceBlock block, IDLField field, List<string> sizeParts, List<string> returnVecs, string path, string prefix = "")
         {
             var fieldPathUnderscore = path == "" ? field.Name : path + "_" + field.Name;
             var fieldPathAccessor = fieldPathUnderscore.Replace("_", ".");
@@ -156,7 +156,7 @@ namespace IDLCompiler
                 }
                 else
                 {
-                    block.AddLine($"*(pointer as *mut usize) = {fieldPathUnderscore}.len();");
+                    block.AddLine($"*(pointer as *mut usize) = {prefix}{fieldPathUnderscore}.len();");
                     block.AddLine($"let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                     block.AddLine($"let mut _{fieldPathUnderscore}_size: usize = 0;");
                     var forBlock = block.AddBlock($"for item in {fieldPathUnderscore}.iter()");
@@ -243,7 +243,7 @@ namespace IDLCompiler
 
         }
 
-        internal static void GenerateCall(FileStream output, IDLCall call, int message_id)
+        internal static void GenerateCall(SourceGenerator source, IDLCall call, int message_id)
         {
             var callName = CasedString.FromSnake(call.Name);
 
@@ -256,18 +256,11 @@ namespace IDLCompiler
                     Name = structName,
                     Fields = call.Parameters
                 };
-                TypeGenerator.GenerateType(output, type);
+                TypeGenerator.GenerateType(source, type);
 
-                var source = new SourceGenerator();
                 var block = source.AddBlock($"impl {structName}");
                 GenerateWrite(block, structName, call.Parameters.Values.ToList());
                 GenerateRead(block, call.Parameters.Values.ToList());
-
-                using (var writer = new StreamWriter(output, leaveOpen: true))
-                {
-                    writer.WriteLine(source.GetSource());
-                    writer.WriteLine();
-                }
             }
 
             if (call.ReturnValues.Count > 0)
@@ -279,18 +272,11 @@ namespace IDLCompiler
                     Name = structName,
                     Fields = call.ReturnValues
                 };
-                TypeGenerator.GenerateType(output, type);
+                TypeGenerator.GenerateType(source, type);
 
-                var source = new SourceGenerator();
                 var block = source.AddBlock($"impl {structName}");
                 GenerateWrite(block, structName, call.ReturnValues.Values.ToList());
                 GenerateRead(block, call.ReturnValues.Values.ToList());
-
-                using (var writer = new StreamWriter(output, leaveOpen: true))
-                {
-                    writer.WriteLine(source.GetSource());
-                    writer.WriteLine();
-                }
             }
         }
     }

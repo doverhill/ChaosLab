@@ -70,6 +70,13 @@ namespace IDLCompiler
 
         public List<SourceBlock> Blocks = new();
 
+        private bool _includeUsings;
+
+        public SourceGenerator(bool includeUsings)
+        {
+            _includeUsings = includeUsings;
+        }
+
         public void AddBlank()
         {
             var block = SourceBlock.Blank();
@@ -91,7 +98,19 @@ namespace IDLCompiler
 
         public string GetSource()
         {
-            return string.Join("", Blocks.Select(b => b.GetSource(0))) + "\n";
+            if (_includeUsings)
+            {
+                return
+                    "use std::mem;\n" +
+                    "use std::mem::ManuallyDrop;\n" +
+                    "use crate::types::*;\n" +
+                    "use crate::enums::*;\n\n" +
+                    string.Join("", Blocks.Select(b => b.GetSource(0))) + "\n";
+            }
+            else
+            {
+                return string.Join("", Blocks.Select(b => b.GetSource(0))) + "\n";
+            }
         }
     }
 }

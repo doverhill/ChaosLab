@@ -3,9 +3,10 @@ use std::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
-struct ImagePatch {
-    image: Image,
-    position: Point,
+struct Map {
+    name: String,
+    description: String,
+    fields: Vec<MapField>,
 }
 
 

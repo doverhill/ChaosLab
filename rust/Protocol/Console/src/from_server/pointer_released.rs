@@ -1,9 +1,12 @@
+use std::mem;
+use std::mem::ManuallyDrop;
+use crate::types::*;
+use crate::enums::*;
+
 struct PointerReleasedParameters {
     position: Point,
     buttons: Vec<PointerButton>,
 }
-
-
 impl PointerReleasedParameters {
     pub unsafe fn create_at_address(pointer: *mut u8, position_x: i64, position_y: i64, buttons_count: usize) -> (usize, ManuallyDrop<Vec<PointerButton>>) {
         let object: *mut PointerReleasedParameters = mem::transmute(pointer);
@@ -22,6 +25,5 @@ impl PointerReleasedParameters {
         (mem::size_of::<PointerReleasedParameters>() + mem::size_of::<usize>() + buttons_count * mem::size_of::<PointerButton>(), ManuallyDrop::new(buttons))
     }
 }
-
 
 

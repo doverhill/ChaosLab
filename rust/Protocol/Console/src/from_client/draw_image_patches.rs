@@ -1,8 +1,11 @@
+use std::mem;
+use std::mem::ManuallyDrop;
+use crate::types::*;
+use crate::enums::*;
+
 struct DrawImagePatchesParameters {
     image_patches: Vec<ImagePatch>,
 }
-
-
 impl DrawImagePatchesParameters {
     pub unsafe fn create_at_address(pointer: *mut u8, image_patches: Vec<ImagePatch>) -> usize {
         let object: *mut DrawImagePatchesParameters = mem::transmute(pointer);
@@ -22,6 +25,5 @@ impl DrawImagePatchesParameters {
         mem::size_of::<DrawImagePatchesParameters>() + _image_patches_size
     }
 }
-
 
 

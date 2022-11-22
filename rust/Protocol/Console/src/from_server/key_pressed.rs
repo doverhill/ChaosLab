@@ -1,8 +1,11 @@
+use std::mem;
+use std::mem::ManuallyDrop;
+use crate::types::*;
+use crate::enums::*;
+
 struct KeyPressedParameters {
     key_code: KeyCode,
 }
-
-
 impl KeyPressedParameters {
     pub unsafe fn create_at_address(pointer: *mut u8, key_code: KeyCode) -> usize {
         let object: *mut KeyPressedParameters = mem::transmute(pointer);
@@ -14,6 +17,5 @@ impl KeyPressedParameters {
         mem::size_of::<KeyPressedParameters>()
     }
 }
-
 
 
