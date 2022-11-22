@@ -3,3 +3,4 @@ struct Image {
     pixels: Vec<Color>,
 }
 
+

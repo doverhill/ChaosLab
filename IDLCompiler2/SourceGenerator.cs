@@ -11,7 +11,7 @@ namespace IDLCompiler
             private string _line;
 
             public bool CommaAfter;
-            public bool SemiColorAfter;
+            public bool SemiColonAfter;
 
             public void AddBlank()
             {
@@ -58,14 +58,12 @@ namespace IDLCompiler
                     foreach ( var block in _blocks)
                     {
                         result += block.GetSource(indent + 1);
-                        if (block.CommaAfter) result += ",";
-                        if (block.SemiColorAfter) result += ";";
-                        result += "\n";
                     }
                     result += new string(' ', 4 * indent) + "}";
-                    if (CommaAfter) result += ",";
-                    if (SemiColorAfter) result += ";";
                 }
+                if (CommaAfter) result += ",";
+                if (SemiColonAfter) result += ";";
+                result += "\n";
                 return result;
             }
         }
@@ -93,7 +91,7 @@ namespace IDLCompiler
 
         public string GetSource()
         {
-            return string.Join("\n\n", Blocks.Select(b => b.GetSource(0)));
+            return string.Join("", Blocks.Select(b => b.GetSource(0))) + "\n";
         }
     }
 }

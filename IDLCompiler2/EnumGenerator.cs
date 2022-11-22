@@ -17,7 +17,6 @@ namespace IDLCompiler
             using (var writer = new StreamWriter(output, leaveOpen: true)) 
             {
                 writer.WriteLine(source.GetSource());
-                writer.WriteLine();
             }
         }
     }

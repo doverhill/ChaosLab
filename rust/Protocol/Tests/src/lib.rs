@@ -273,8 +273,7 @@ mod tests {
 
                 *(pointer as *mut usize) = pixels_count;
                 let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let pixels =
-                    Vec::<Color>::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
+                let pixels = Vec::<Color>::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
 
                 (
                     mem::size_of::<ImagePatch>()
@@ -430,6 +429,28 @@ mod tests {
         TypeNone,
     }
 
+    impl StructFieldValueEnum {
+        pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
+            let mut size: usize = mem::size_of::<StructFieldValueEnum>();
+            core::ptr::copy(self as *const StructFieldValueEnum, pointer as *mut StructFieldValueEnum, 1);
+
+            match self {
+                StructFieldValueEnum::TypeI64(value) => {
+                    0
+                },
+                StructFieldValueEnum::TypeBool(value) => {
+                    0
+                },
+                StructFieldValueEnum::TypeString(value) => {
+                    0
+                },
+                StructFieldValueEnum::TypeNone => {
+                    0
+                }
+            }
+        }
+    }
+
     struct StructField {
         name: String,
         value: StructFieldValueEnum,
@@ -439,6 +460,12 @@ mod tests {
         name: String,
         description: String,
         fields: Vec<StructField>,
+    }
+
+    impl Struct {
+        pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
+            0
+        }
     }
 
     struct Table {
@@ -457,7 +484,7 @@ mod tests {
             name: String,
             description: String,
             columns: Vec<String>,
-            rows_count: Vec<Struct>,
+            rows: Vec<Struct>,
         ) -> usize {
             unsafe {
                 let object: *mut Table = mem::transmute(pointer);
@@ -476,22 +503,35 @@ mod tests {
                 core::ptr::copy(description.as_ptr(), pointer, description_length);
                 let pointer = pointer.offset(description_length as isize);
 
-                *(pointer as *mut usize) = columns_count;
+                *(pointer as *mut usize) = columns.len();
                 let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let columns =
-                    Vec::<String>::from_raw_parts(pointer as *mut Color, columns_count, columns_count);
+                let mut columns_size: usize = mem::size_of::<usize>();
+                
+                for item in columns.iter() {
+                    let item_len = item.len();
+                    *(pointer as *mut usize) = item_len;
+                    let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                    core::ptr::copy(item.as_ptr(), pointer, item_len);
+                    let pointer = pointer.offset(item_len as isize);
+                    columns_size += mem::size_of::<usize>() + item_len;
+                }
 
-                *(pointer as *mut usize) = rows_count;
+                *(pointer as *mut usize) = rows.len();
                 let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let rows =
-                    Vec::<String>::from_raw_parts(pointer as *mut Color, rows_count, rows_count);
-    
-                (
-                    mem::size_of::<Table>()
-                        + mem::size_of::<usize>()
-                        + pixels_count * mem::size_of::<Color>(),
-                    mem::ManuallyDrop::new(pixels),
-                )
+                let mut rows_size: usize = mem::size_of::<usize>();
+
+                for item in rows.iter() {
+                    let item_size = item.create_at_address(pointer);
+                    let pointer = pointer.offset(item_size as isize);
+                    columns_size += mem::size_of::<usize>() + item_size;
+                }
+
+
+                mem::size_of::<Table>()
+                        + mem::size_of::<usize>() + name_length
+                        + mem::size_of::<usize>() + description_length
+                        + columns_size 
+                        + rows_size
             }
         }
 

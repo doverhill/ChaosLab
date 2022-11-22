@@ -246,12 +246,17 @@ namespace IDLCompiler
         public EnumList CustomEnumList = null;
         public List<OneOfOption> CustomOneOfOptions = null;
 
-        public string GetRustType(string owningTypeName)
+        public string GetRustType(string owningTypeName, bool useStr)
         {
-            return GetRustType(Type, CustomType, Name, CustomEnumList, IsArray, owningTypeName);
+            return GetRustType(Type, CustomType, Name, CustomEnumList, IsArray, owningTypeName, useStr);
         }
 
-        public static string GetRustType(FieldType type, IDLType customType, string fieldName, EnumList customEnumList, bool isArray, string owningTypeName)
+        public string GetInnerRustType(string owningTypeName, bool useStr)
+        {
+            return GetInnerRustType(Type, CustomType, Name, CustomEnumList, IsArray, owningTypeName, useStr);
+        }
+
+        public static string GetRustType(FieldType type, IDLType customType, string fieldName, EnumList customEnumList, bool isArray, string owningTypeName, bool useStr)
         {
             var typeName = type switch
             {
@@ -260,13 +265,33 @@ namespace IDLCompiler
                 FieldType.U64 => "u64",
                 FieldType.I64 => "i64",
                 FieldType.Bool => "bool",
-                FieldType.String => "String",
+                FieldType.String => useStr ? "&str" : "String",
                 FieldType.CustomType => customType.Name,
                 FieldType.OneOfType => $"{owningTypeName}{CasedString.FromSnake(fieldName).ToPascal()}Enum",
                 FieldType.Enum => customEnumList.Name
             };
 
             if (isArray) return $"Vec<{typeName}>";
+            return typeName;
+        }
+
+        public static string GetInnerRustType(FieldType type, IDLType customType, string fieldName, EnumList customEnumList, bool isArray, string owningTypeName, bool useStr)
+        {
+            if (!isArray) throw new ArgumentException("GetInnerRustType called on non-array");
+
+            var typeName = type switch
+            {
+                FieldType.None => throw new ArgumentException("Can not get rust type of type None"),
+                FieldType.U8 => "u8",
+                FieldType.U64 => "u64",
+                FieldType.I64 => "i64",
+                FieldType.Bool => "bool",
+                FieldType.String => useStr ? "&str" : "String",
+                FieldType.CustomType => customType.Name,
+                FieldType.OneOfType => $"{owningTypeName}{CasedString.FromSnake(fieldName).ToPascal()}Enum",
+                FieldType.Enum => customEnumList.Name
+            };
+
             return typeName;
         }
 
@@ -335,6 +360,20 @@ namespace IDLCompiler
                     else throw new ArgumentException($"Type '{NamedType}' for '{name}' not recognized as a builtin or custom type");
                 }
             }
+        }
+
+        internal IDLField Clone()
+        {
+            return new IDLField
+            {
+                CustomEnumList = CustomEnumList,
+                CustomOneOfOptions = CustomOneOfOptions,
+                CustomType = CustomType,
+                IsArray = IsArray,
+                Name = Name,
+                NamedType = NamedType,
+                Type = Type
+            };
         }
     }
 
