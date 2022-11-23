@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.Tracing;
 using System.IO;
 using System.Linq;
@@ -138,7 +139,7 @@ namespace IDLCompiler
                 return $"{field.Name}: {field.GetRustType(owningTypeName, true, false)}";
         }
 
-        public static void AppendTypeWrite(SourceGenerator.SourceBlock block, IDLField field, List<string> sizeParts, List<string> returnVecs, string underscorePath, string accessorPath, string prefix = "")
+        public static void AppendTypeWrite(SourceGenerator.SourceBlock block, IDLField field, List<string> sizeParts, List<string> returnVecs, string underscorePath, string accessorPath, WriteMode mode, bool allowMutPointer, string prefix = "")
         {
             var fieldPathUnderscore = underscorePath == "" ? field.Name : underscorePath + "_" + field.Name;
             var fieldPathAccessor = accessorPath == "" ? field.Name : accessorPath + "." + field.Name;
@@ -148,6 +149,8 @@ namespace IDLCompiler
                 var typeName = field.GetInnerRustType("", false);
                 if (IsArrayWithFixedSizeItems(field))
                 {
+                    if (mode == WriteMode.Write)
+                        block.AddLine($"let {fieldPathUnderscore}_count = self.{fieldPathAccessor}.len();");
                     block.AddLine($"*(pointer as *mut usize) = {fieldPathUnderscore}_count;");
                     block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                     block.AddLine($"let {fieldPathUnderscore} = Vec::<{typeName}>::from_raw_parts(pointer as *mut {typeName}, {fieldPathUnderscore}_count, {fieldPathUnderscore}_count);");
@@ -170,9 +173,15 @@ namespace IDLCompiler
                         forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
                         forBlock.AddLine($"_{fieldPathUnderscore}_size += mem::size_of::<usize>() + item_size;");
                     }
-                    else if (field.Type == IDLField.FieldType.CustomType || field.Type == IDLField.FieldType.OneOfType)
+                    else if (field.Type == IDLField.FieldType.CustomType)
                     {
-                        forBlock.AddLine("let item_size = item.write_at_address(pointer);");
+                        forBlock.AddLine($"let item_size = {(allowMutPointer ? "(item.as_ref().unwrap())" : "item")}.write_at_address(pointer);");
+                        forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
+                        forBlock.AddLine($"_{fieldPathUnderscore}_size += item_size;");
+                    }
+                    else if (field.Type == IDLField.FieldType.OneOfType)
+                    {
+                        forBlock.AddLine($"let item_size = item.write_at_address(pointer);");
                         forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
                         forBlock.AddLine($"_{fieldPathUnderscore}_size += item_size;");
                     }
@@ -191,14 +200,15 @@ namespace IDLCompiler
                     case IDLField.FieldType.U64:
                     case IDLField.FieldType.I64:
                     case IDLField.FieldType.Bool:
-                        block.AddLine($"(*object).{fieldPathAccessor} = {fieldPathUnderscore};");
+                        if (mode == WriteMode.Create)
+                            block.AddLine($"(*object).{fieldPathAccessor} = {fieldPathUnderscore};");
                         break;
 
                     case IDLField.FieldType.String:
-                        block.AddLine($"let _{fieldPathUnderscore}_length = {fieldPathUnderscore}.len();");
+                        block.AddLine($"let _{fieldPathUnderscore}_length = {prefix}{(mode == WriteMode.Write ? fieldPathAccessor : fieldPathUnderscore)}.len();");
                         block.AddLine($"*(pointer as *mut usize) = _{fieldPathUnderscore}_length;");
                         block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
-                        block.AddLine($"core::ptr::copy({fieldPathUnderscore}.as_ptr(), pointer, _{fieldPathUnderscore}_length);");
+                        block.AddLine($"core::ptr::copy({prefix}{(mode == WriteMode.Write ? fieldPathAccessor : fieldPathUnderscore)}.as_ptr(), pointer, _{fieldPathUnderscore}_length);");
                         block.AddLine($"let pointer = pointer.offset(_{fieldPathUnderscore}_length as isize);");
 
                         sizeParts.Add($"mem::size_of::<usize>() + _{fieldPathUnderscore}_length");
@@ -209,7 +219,7 @@ namespace IDLCompiler
                         {
                             AppendTypeWrite(block, typeField, sizeParts, returnVecs,
                                 underscorePath == "" ? field.Name : underscorePath + "_" + field.Name,
-                                accessorPath == "" ? field.Name : accessorPath + "." + field.Name);
+                                accessorPath == "" ? field.Name : accessorPath + "." + field.Name, mode, allowMutPointer, prefix);
                         }
                         break;
                 }
@@ -302,7 +312,13 @@ namespace IDLCompiler
             }
         }
 
-        public static void GenerateWrite(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields)
+        public enum WriteMode
+        {
+            Create,
+            Write,
+        }
+
+        public static void GenerateWrite(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields, WriteMode mode)
         {
             var flattenedFields = FlattenFields(fields);
             var functionArguments = flattenedFields.Select(f => ToArgument(f, implName));
@@ -311,12 +327,21 @@ namespace IDLCompiler
             var returns = new List<string>() { "usize" };
             foreach (var field in flattenedFields.Where(f => IsArrayWithFixedSizeItems(f)))
             {
-                returns.Add($"ManuallyDrop<{field.GetRustType("", false, false)}>");
+                returns.Add($"ManuallyDrop<{field.GetRustType(implName, false, false)}>");
             }
             var returnTuple = returns.Count == 1 ? returns[0] : $"({string.Join(", ", returns)})";
 
-            var body = block.AddBlock($"pub unsafe fn create_at_address(pointer: *mut u8, {arguments}) -> {returnTuple}");
-            body.AddLine($"let object: *mut {implName} = mem::transmute(pointer);");
+            SourceGenerator.SourceBlock body;
+            if (mode == WriteMode.Create)
+            {
+                body = block.AddBlock($"pub unsafe fn create_at_address(pointer: *mut u8, {arguments}) -> {returnTuple}");
+                body.AddLine($"let object: *mut {implName} = mem::transmute(pointer);");
+            }
+            else
+            {
+                body = block.AddBlock($"pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize");
+                body.AddLine($"core::ptr::copy(self, pointer as *mut {implName}, 1);");
+            }
             body.AddLine($"let pointer = pointer.offset(mem::size_of::<{implName}>() as isize);");
 
             var sizeParts = new List<string>();
@@ -327,14 +352,15 @@ namespace IDLCompiler
             {
                 body.AddBlank();
                 body.AddLine($"// {field.Name}");
-                AppendTypeWrite(body, field, sizeParts, returnVecs, "", "");
+                var allowMutPointer = mode == WriteMode.Write && !IsFixedSize(field, false);
+                AppendTypeWrite(body, field, sizeParts, returnVecs, "", "", mode, allowMutPointer, mode == WriteMode.Write ? "self." : "");
             }
 
             // return
             var sizeString = string.Join(" + ", sizeParts);
             body.AddBlank();
             body.AddLine("// return");
-            if (returns.Count == 1)
+            if (returns.Count == 1 || mode == WriteMode.Write)
                 body.AddLine(sizeString);
             else
                 body.AddLine($"({sizeString}, {string.Join(", ", returnVecs)})");

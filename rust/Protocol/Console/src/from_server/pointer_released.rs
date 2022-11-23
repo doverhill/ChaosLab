@@ -10,10 +10,8 @@ pub struct PointerReleasedParameters {
     pub position: Point,
     pub buttons: Vec<PointerButton>,
 }
+
 impl PointerReleasedParameters {
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
-        0
-    }
     pub unsafe fn create_at_address(pointer: *mut u8, position_x: i64, position_y: i64, buttons_count: usize) -> (usize, ManuallyDrop<Vec<PointerButton>>) {
         let object: *mut PointerReleasedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<PointerReleasedParameters>() as isize);
@@ -31,6 +29,24 @@ impl PointerReleasedParameters {
         // return
         (mem::size_of::<PointerReleasedParameters>() + mem::size_of::<usize>() + buttons_count * mem::size_of::<PointerButton>(), ManuallyDrop::new(buttons))
     }
+
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        core::ptr::copy(self, pointer as *mut PointerReleasedParameters, 1);
+        let pointer = pointer.offset(mem::size_of::<PointerReleasedParameters>() as isize);
+
+        // position
+
+        // buttons
+        let buttons_count = self.buttons.len();
+        *(pointer as *mut usize) = buttons_count;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let buttons = Vec::<PointerButton>::from_raw_parts(pointer as *mut PointerButton, buttons_count, buttons_count);
+        let pointer = pointer.offset(buttons_count as isize * mem::size_of::<PointerButton>() as isize);
+
+        // return
+        mem::size_of::<PointerReleasedParameters>() + mem::size_of::<usize>() + buttons_count * mem::size_of::<PointerButton>()
+    }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut PointerReleasedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<PointerReleasedParameters>() as isize);

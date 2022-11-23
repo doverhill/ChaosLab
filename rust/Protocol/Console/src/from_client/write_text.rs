@@ -9,10 +9,8 @@ use crate::enums::*;
 pub struct WriteTextParameters {
     pub text: String,
 }
+
 impl WriteTextParameters {
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
-        0
-    }
     pub unsafe fn create_at_address(pointer: *mut u8, text: &str) -> usize {
         let object: *mut WriteTextParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<WriteTextParameters>() as isize);
@@ -27,6 +25,22 @@ impl WriteTextParameters {
         // return
         mem::size_of::<WriteTextParameters>() + mem::size_of::<usize>() + _text_length
     }
+
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        core::ptr::copy(self, pointer as *mut WriteTextParameters, 1);
+        let pointer = pointer.offset(mem::size_of::<WriteTextParameters>() as isize);
+
+        // text
+        let _text_length = self.text.len();
+        *(pointer as *mut usize) = _text_length;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        core::ptr::copy(self.text.as_ptr(), pointer, _text_length);
+        let pointer = pointer.offset(_text_length as isize);
+
+        // return
+        mem::size_of::<WriteTextParameters>() + mem::size_of::<usize>() + _text_length
+    }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut WriteTextParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<WriteTextParameters>() as isize);

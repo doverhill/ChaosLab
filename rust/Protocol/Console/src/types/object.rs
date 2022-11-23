@@ -10,10 +10,8 @@ pub struct Object {
     pub name: String,
     pub description: String,
 }
+
 impl Object {
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
-        0
-    }
     pub unsafe fn create_at_address(pointer: *mut u8, name: &str, description: &str) -> usize {
         let object: *mut Object = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<Object>() as isize);
@@ -35,6 +33,29 @@ impl Object {
         // return
         mem::size_of::<Object>() + mem::size_of::<usize>() + _name_length + mem::size_of::<usize>() + _description_length
     }
+
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        core::ptr::copy(self, pointer as *mut Object, 1);
+        let pointer = pointer.offset(mem::size_of::<Object>() as isize);
+
+        // name
+        let _name_length = self.name.len();
+        *(pointer as *mut usize) = _name_length;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        core::ptr::copy(self.name.as_ptr(), pointer, _name_length);
+        let pointer = pointer.offset(_name_length as isize);
+
+        // description
+        let _description_length = self.description.len();
+        *(pointer as *mut usize) = _description_length;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        core::ptr::copy(self.description.as_ptr(), pointer, _description_length);
+        let pointer = pointer.offset(_description_length as isize);
+
+        // return
+        mem::size_of::<Object>() + mem::size_of::<usize>() + _name_length + mem::size_of::<usize>() + _description_length
+    }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut Object = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<Object>() as isize);

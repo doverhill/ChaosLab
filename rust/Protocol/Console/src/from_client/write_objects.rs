@@ -33,6 +33,7 @@ impl WriteObjectsParametersObjectsEnum {
 
         mem::size_of::<usize>() + size
     }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, Self) {
         let enum_type = *(pointer as *mut usize);
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
@@ -54,13 +55,12 @@ impl WriteObjectsParametersObjectsEnum {
         (mem::size_of::<usize>() + size, object)
     }
 }
+
 pub struct WriteObjectsParameters {
     pub objects: Vec<WriteObjectsParametersObjectsEnum>,
 }
+
 impl WriteObjectsParameters {
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
-        0
-    }
     pub unsafe fn create_at_address(pointer: *mut u8, objects: Vec<WriteObjectsParametersObjectsEnum>) -> usize {
         let object: *mut WriteObjectsParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<WriteObjectsParameters>() as isize);
@@ -78,6 +78,25 @@ impl WriteObjectsParameters {
         // return
         mem::size_of::<WriteObjectsParameters>() + _objects_size
     }
+
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        core::ptr::copy(self, pointer as *mut WriteObjectsParameters, 1);
+        let pointer = pointer.offset(mem::size_of::<WriteObjectsParameters>() as isize);
+
+        // objects
+        *(pointer as *mut usize) = self.objects.len();
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut _objects_size: usize = mem::size_of::<usize>();
+        for item in self.objects.iter() {
+            let item_size = item.write_at_address(pointer);
+            let pointer = pointer.offset(item_size as isize);
+            _objects_size += item_size;
+        }
+
+        // return
+        mem::size_of::<WriteObjectsParameters>() + _objects_size
+    }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut WriteObjectsParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<WriteObjectsParameters>() as isize);

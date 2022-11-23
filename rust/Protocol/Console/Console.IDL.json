@@ -3,10 +3,12 @@
         "name": "console",
         "version": 1
     },
+
     "enums": {
         "KeyCode": [ "A", "B", "C", "D", "E" ],
         "PointerButton": [ "Left", "Right", "Middle" ]
     },
+
     "types": {
         "Color": {
             "fields": {
@@ -108,6 +110,7 @@
             }
         }
     },
+
     "from_client": {
         "get_capabilities": {
             "type": "call",
@@ -142,26 +145,6 @@
                 }
             }
         },
-        "debug_call": {
-            "type": "call",
-            "parameters": {
-                "image": {
-                    "type": "Image"
-                },
-                "x": {
-                    "type": "bool",
-                    "array": true,
-                },
-                "y": {
-                    "type": "u64",
-                    "array": true,
-                },
-                "z": {
-                    "type": "string",
-                    "array": true,
-                }
-            }
-        },
         "draw_image_patches": {
             "type": "call",
             "parameters": {
@@ -189,6 +172,7 @@
             }
         }
     },
+    
     "from_server": {
         "key_pressed": {
             "type": "event",

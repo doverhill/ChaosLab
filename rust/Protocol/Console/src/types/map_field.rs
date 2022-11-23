@@ -51,6 +51,7 @@ impl MapFieldValueEnum {
 
         mem::size_of::<usize>() + size
     }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, Self) {
         let enum_type = *(pointer as *mut usize);
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
@@ -81,14 +82,13 @@ impl MapFieldValueEnum {
         (mem::size_of::<usize>() + size, object)
     }
 }
+
 pub struct MapField {
     pub name: String,
     pub value: MapFieldValueEnum,
 }
+
 impl MapField {
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
-        0
-    }
     pub unsafe fn create_at_address(pointer: *mut u8, name: &str, value: MapFieldValueEnum) -> usize {
         let object: *mut MapField = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<MapField>() as isize);
@@ -105,6 +105,24 @@ impl MapField {
         // return
         mem::size_of::<MapField>() + mem::size_of::<usize>() + _name_length
     }
+
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        core::ptr::copy(self, pointer as *mut MapField, 1);
+        let pointer = pointer.offset(mem::size_of::<MapField>() as isize);
+
+        // name
+        let _name_length = self.name.len();
+        *(pointer as *mut usize) = _name_length;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        core::ptr::copy(self.name.as_ptr(), pointer, _name_length);
+        let pointer = pointer.offset(_name_length as isize);
+
+        // value
+
+        // return
+        mem::size_of::<MapField>() + mem::size_of::<usize>() + _name_length
+    }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut MapField = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<MapField>() as isize);

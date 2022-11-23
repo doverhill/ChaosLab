@@ -57,11 +57,15 @@ namespace IDLCompiler
             idl.Validate();
             idl.Dump();
 
+            Directory.CreateDirectory("src");
+
+            bool hasEnums = false;
             if (idl.EnumLists.Count > 0)
             {
+                hasEnums = true;
                 Console.WriteLine("Generating enums");
-                Directory.CreateDirectory("enums");
-                using (var modOutput = new FileStream("enums/mod.rs", FileMode.Create))
+                Directory.CreateDirectory("src/enums");
+                using (var modOutput = new FileStream("src/enums/mod.rs", FileMode.Create))
                 {
                     var modSource = new SourceGenerator(false);
 
@@ -71,11 +75,11 @@ namespace IDLCompiler
 
                         var codeSource = new SourceGenerator(true);
                         EnumGenerator.GenerateEnum(codeSource, enumList.Value);
-                        using (var output = new FileStream($"enums/{enumName.ToSnake()}.rs", FileMode.Create))
+                        using (var output = new FileStream($"src/enums/{enumName.ToSnake()}.rs", FileMode.Create))
                         {
                             using (var writer = new StreamWriter(output, leaveOpen: true))
                             {
-                                writer.WriteLine(codeSource.GetSource());
+                                writer.WriteLine(codeSource.GetSource(true));
                             }
                         }
 
@@ -85,7 +89,7 @@ namespace IDLCompiler
 
                     using (var writer = new StreamWriter(modOutput, leaveOpen: true))
                     {
-                        writer.WriteLine(modSource.GetSource());
+                        writer.WriteLine(modSource.GetSource(true));
                     }
                 }
             }
@@ -93,8 +97,8 @@ namespace IDLCompiler
             if (idl.Types.Count > 0)
             {
                 Console.WriteLine("Generating types");
-                Directory.CreateDirectory("types");
-                using (var modOutput = new FileStream("types/mod.rs", FileMode.Create))
+                Directory.CreateDirectory("src/types");
+                using (var modOutput = new FileStream("src/types/mod.rs", FileMode.Create))
                 {
                     var modSource = new SourceGenerator(false);
 
@@ -104,11 +108,11 @@ namespace IDLCompiler
 
                         var codeSource = new SourceGenerator(true);
                         TypeGenerator.GenerateType(codeSource, type.Value);
-                        using (var output = new FileStream($"types/{typeName.ToSnake()}.rs", FileMode.Create))
+                        using (var output = new FileStream($"src/types/{typeName.ToSnake()}.rs", FileMode.Create))
                         {
                             using (var writer = new StreamWriter(output, leaveOpen: true))
                             {
-                                writer.WriteLine(codeSource.GetSource());
+                                writer.WriteLine(codeSource.GetSource(hasEnums));
                             }
                         }
 
@@ -118,7 +122,7 @@ namespace IDLCompiler
 
                     using (var writer = new StreamWriter(modOutput, leaveOpen: true))
                     {
-                        writer.WriteLine(modSource.GetSource());
+                        writer.WriteLine(modSource.GetSource(hasEnums));
                     }
                 }
             }
@@ -128,8 +132,8 @@ namespace IDLCompiler
             if (idl.FromClient.Count > 0)
             {
                 Console.WriteLine("Generating calls from client");
-                Directory.CreateDirectory("from_client");
-                using (var modOutput = new FileStream("from_client/mod.rs", FileMode.Create))
+                Directory.CreateDirectory("src/from_client");
+                using (var modOutput = new FileStream("src/from_client/mod.rs", FileMode.Create))
                 {
                     var modSource = new SourceGenerator(false);
 
@@ -137,11 +141,11 @@ namespace IDLCompiler
                     {
                         var codeSource = new SourceGenerator(true);
                         CallGenerator.GenerateCall(codeSource, call.Value, message_id);
-                        using (var output = new FileStream($"from_client/{call.Key}.rs", FileMode.Create))
+                        using (var output = new FileStream($"src/from_client/{call.Key}.rs", FileMode.Create))
                         {
                             using (var writer = new StreamWriter(output, leaveOpen: true))
                             {
-                                writer.WriteLine(codeSource.GetSource());
+                                writer.WriteLine(codeSource.GetSource(hasEnums));
                             }
                         }
                         message_id++;
@@ -152,7 +156,7 @@ namespace IDLCompiler
 
                     using (var writer = new StreamWriter(modOutput, leaveOpen: true))
                     {
-                        writer.WriteLine(modSource.GetSource());
+                        writer.WriteLine(modSource.GetSource(hasEnums));
                     }
                 }
             }
@@ -160,8 +164,8 @@ namespace IDLCompiler
             if (idl.FromClient.Count > 0)
             {
                 Console.WriteLine("Generating calls from server");
-                Directory.CreateDirectory("from_server");
-                using (var modOutput = new FileStream("from_server/mod.rs", FileMode.Create))
+                Directory.CreateDirectory("src/from_server");
+                using (var modOutput = new FileStream("src/from_server/mod.rs", FileMode.Create))
                 {
                     var modSource = new SourceGenerator(false);
 
@@ -169,11 +173,11 @@ namespace IDLCompiler
                     {
                         var codeSource = new SourceGenerator(true);
                         CallGenerator.GenerateCall(codeSource, call.Value, message_id);
-                        using (var output = new FileStream($"from_server/{call.Key}.rs", FileMode.Create))
+                        using (var output = new FileStream($"src/from_server/{call.Key}.rs", FileMode.Create))
                         {
                             using (var writer = new StreamWriter(output, leaveOpen: true))
                             {
-                                writer.WriteLine(codeSource.GetSource());
+                                writer.WriteLine(codeSource.GetSource(hasEnums));
                             }
                         }
                         message_id++;
@@ -184,13 +188,13 @@ namespace IDLCompiler
 
                     using (var writer = new StreamWriter(modOutput, leaveOpen: true))
                     {
-                        writer.WriteLine(modSource.GetSource());
+                        writer.WriteLine(modSource.GetSource(hasEnums));
                     }
                 }
             }
 
             Console.WriteLine("Generating library");
-            using (var output = new FileStream("lib.rs", FileMode.Create))
+            using (var output = new FileStream("src/lib.rs", FileMode.Create))
             {
                 var source = new SourceGenerator(false);
 
@@ -217,7 +221,7 @@ namespace IDLCompiler
 
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
-                    writer.WriteLine(source.GetSource());
+                    writer.WriteLine(source.GetSource(hasEnums));
                 }
             }
         }

@@ -9,10 +9,8 @@ use crate::enums::*;
 pub struct DrawImagePatchesParameters {
     pub image_patches: Vec<*mut ImagePatch>,
 }
+
 impl DrawImagePatchesParameters {
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
-        0
-    }
     pub unsafe fn create_at_address(pointer: *mut u8, image_patches: Vec<ImagePatch>) -> usize {
         let object: *mut DrawImagePatchesParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<DrawImagePatchesParameters>() as isize);
@@ -30,6 +28,25 @@ impl DrawImagePatchesParameters {
         // return
         mem::size_of::<DrawImagePatchesParameters>() + _image_patches_size
     }
+
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        core::ptr::copy(self, pointer as *mut DrawImagePatchesParameters, 1);
+        let pointer = pointer.offset(mem::size_of::<DrawImagePatchesParameters>() as isize);
+
+        // image_patches
+        *(pointer as *mut usize) = self.image_patches.len();
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut _image_patches_size: usize = mem::size_of::<usize>();
+        for item in self.image_patches.iter() {
+            let item_size = (item.as_ref().unwrap()).write_at_address(pointer);
+            let pointer = pointer.offset(item_size as isize);
+            _image_patches_size += item_size;
+        }
+
+        // return
+        mem::size_of::<DrawImagePatchesParameters>() + _image_patches_size
+    }
+
     pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut DrawImagePatchesParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<DrawImagePatchesParameters>() as isize);

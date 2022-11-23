@@ -1,120 +1,98 @@
 {
-    "Interface": {
-        "Name": "Tornado",
-        "Version": 1
+    "protocol": {
+        "name": "tornado",
+        "version": 1
     },
 
-    "Enumerations": [
-        {
-            "Name": "ActionType",
-            "Values": [
-                "Optional",
-                "PrimarySafe",
-                "Dangerous"
-            ]
-        },
-        {
-            "Name": "Severity",
-            "Values": [
-                "Normal",
-                "Information",
-                "Warning",
-                "Error"
-            ]
-        },
-        {
-            "Name": "SizeMode",
-            "Values": [
-                "ContentMinimum",
-                "ContentMaximum",
-                "Fraction"
-            ]
-        }
-    ],
+    "enums": {
+        "ActionType": [ "Optional", "PrimarySafe", "Dangerous" ],
+        "Severity": [ "Normal", "Information", "Warning", "Error" ],
+        "SizeMode": [ "ContentMinimum", "ContentMaximum", "Fraction" ]
+    },
 
-    "Types": [
-        {
-            "Name": "Component",
-            "Fields": [
-                "u64 ComponentId",
-                "u64 ParentComponentId"
-            ]
+    "types": {
+        "Component": {
+            "fields": {
+                "component_id": {
+                    "type": "u64"
+                },
+                "parent_component_id": {
+                    "type": "u64"
+                }
+            }
         },
-        {
-            "Inherits": "Component",
-            "Name": "Window",
-            "Fields": [
-                "string Title"
-            ]
+        "Window": {
+            "inherits_from": "Component",
+            "fields": {
+                "title": {
+                    "type": "string"
+                }
+            }
         },
-        {
-            "Inherits": "Component",
-            "Name": "VerticalLayout"
+        "VerticalLayout": {
+            "inherits_from": "Component"
         },
-        {
-            "Inherits": "Component",
-            "Name": "HorizontalLayout"
+        "HorizontalLayout": {
+            "inherits_from": "Component"
         },
-        {
-            "Inherits": "Component",
-            "Name": "GridLayout"
+        "GridLayout": {
+            "inherits_from": "Component"
         },
-        {
-            "Inherits": "Component",
-            "Name": "GridLayoutColumn",
-            "Fields": [
-                "SizeMode SizeMode",
-                "usize Fraction"
-            ]
+        "GridLayoutColumn": {
+            "inherits_from": "Component",
+            "fields": {
+                "size_mode": {
+                    "type": "SizeMode"
+                },
+                "fraction": {
+                    "type": "u64"
+                }
+            }
         },
-        {
-            "Inherits": "Component",
-            "Name": "GridLayoutRow",
-            "Fields": [
-                "SizeMode SizeMode",
-                "usize Fraction"
-            ]
+        "GridLayoutRow": {
+            "inherits_from": "Component",
+            "fields": {
+                "size_mode": {
+                    "type": "SizeMode"
+                },
+                "fraction": {
+                    "type": "u64"
+                }
+            }
         },
-        {
-            "Inherits": "Component",
-            "Name": "Label",
-            "Fields": [
-                "string Text"
-            ]
-        },
-        {
-            "Inherits": "Component",
-            "Name": "Button",
-            "Fields": [
-                "string IconName",
-                "string Text"
-            ]
+        "Button": {
+            "inherits_from": "Component",
+            "fields": {
+                "icon_name": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
         }
-    ],
+    },
 
-    "ClientToServerCalls": [
-        {
-            "Name": "SetRenderTree",
-            "ParametersType": "MixedList",
-            "Parameters": [
-                "Window",
-                "VerticalLayout",
-                "HorizontalLayout",
-                "GridLayout",
-                "GridLayoutColumn",
-                "GridLayoutRow",
-                "Label",
-                "Button"
-            ]
+    "from_client": {
+        "set_render_tree": {
+            "type": "call",
+            "parameters": {
+                "components": {
+                    "type": "Window|VerticalLayout|HorizontalLayout|GridLayout|GridLayoutColumn|GridLayoutRow|Button",
+                    "array": true
+                }
+            }
         }
-    ],
+    },
 
-    "ServerToClientCalls": [
-        {
-            "Name": "ComponentClicked",
-            "Parameters": [
-                "u64 ComponentId"
-            ]
+    "from_server": {
+        "component_clicked": {
+            "type": "event",
+            "parameters": {
+                "component_id": {
+                    "type": "u64"
+                }
+            }
         }
-    ]
+    }
 }

@@ -18,13 +18,14 @@ namespace IDLCompiler
             }
 
             var block = source.AddBlock($"pub struct {type.Name}");
+            source.AddBlank();
 
             var fields = type.Fields.Values.ToList();
-            var inheritFrom = type.GetInheritsFrom();
-            if (inheritFrom != null)
-            {
-                fields = inheritFrom.Fields.Values.ToList().Concat(fields).ToList();
-            }
+            //var inheritFrom = type.GetInheritsFrom();
+            //if (inheritFrom != null)
+            //{
+            //    fields = inheritFrom.Fields.Values.ToList().Concat(fields).ToList();
+            //}
 
             foreach (var field in fields)
             {
@@ -34,11 +35,11 @@ namespace IDLCompiler
             }
 
             var impl = source.AddBlock($"impl {type.Name}");
-            var body = impl.AddBlock("pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize");
-            body.AddLine("0");
-
-            CallGenerator.GenerateWrite(impl, type.Name, type.Fields.Values.ToList());
-            CallGenerator.GenerateRead(impl, type.Name, type.Fields.Values.ToList());
+            CallGenerator.GenerateWrite(impl, type.Name, fields, CallGenerator.WriteMode.Create);
+            impl.AddBlank();
+            CallGenerator.GenerateWrite(impl, type.Name, fields, CallGenerator.WriteMode.Write);
+            impl.AddBlank();
+            CallGenerator.GenerateRead(impl, type.Name, fields);
         }
 
         private static string GetOneOfLine(IDLField.OneOfOption option)
@@ -183,6 +184,7 @@ namespace IDLCompiler
 
             source.AddBlank();
             block = source.AddBlock($"impl {enumName}");
+            source.AddBlank();
 
             var number = 1;
             foreach (var option in oneOfOptions)
@@ -192,6 +194,7 @@ namespace IDLCompiler
             block.AddBlank();
 
             var body = block.AddBlock("pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize");
+            block.AddBlank();
             body.AddLine("let base_pointer = pointer;");
             body.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
             //body.AddLine($"core::ptr::copy(self as *const {enumName}, pointer as *mut {enumName}, 1);");

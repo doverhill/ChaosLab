@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Xml.Linq;
 
 namespace IDLCompiler
 {
@@ -73,6 +74,19 @@ namespace IDLCompiler
             foreach (var call in FromServer)
             {
                 call.Value.Validate(call.Key, enums, Types);
+            }
+
+            // apply inheritance
+            foreach (var type in Types.Values)
+            {
+                if (!string.IsNullOrEmpty(type.InheritsFrom))
+                {
+                    if (Types.TryGetValue(type.InheritsFrom, out var customType))
+                    {
+                        type.Fields = customType.Fields.Values.ToList().Concat(type.Fields.Values).ToDictionary(f => f.Name);
+                    }
+                    else throw new ArgumentException($"Inherit from type '{type.InheritsFrom}' for '{type.Name}' not recognized as a custom type");
+                }
             }
         }
 
@@ -182,24 +196,16 @@ namespace IDLCompiler
         [JsonPropertyName("fields")]
         public Dictionary<string, IDLField> Fields;
 
-        private IDLType _inheritsFrom = null;
+        //private IDLType _inheritsFrom = null;
 
-        public IDLType GetInheritsFrom() => _inheritsFrom;
+        //public IDLType GetInheritsFrom() => _inheritsFrom;
 
         public void Validate(string name, Dictionary<string, EnumList> customEnumLists, Dictionary<string, IDLType> customTypes)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException("Type name is missing");
             if (!CasedString.IsPascal(name)) throw new ArgumentException($"Type name '{name}' must be pascal case");
 
-            if (!string.IsNullOrEmpty(InheritsFrom))
-            {
-                if (customTypes.TryGetValue(InheritsFrom, out var customType))
-                {
-                    _inheritsFrom = customType;
-                }
-                else throw new ArgumentException($"Inherit from type '{InheritsFrom}' for '{name}' not recognized as a custom type");
-            }
-
+            if (Fields == null) Fields = new();
             foreach (var field in Fields)
             {
                 field.Value.Validate(field.Key, customEnumLists, customTypes);
