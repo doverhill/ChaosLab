@@ -10,6 +10,9 @@ pub struct SetTextColorParameters {
     pub background: Color,
 }
 impl SetTextColorParameters {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
     pub unsafe fn create_at_address(pointer: *mut u8, foreground_alpha: u8, foreground_red: u8, foreground_green: u8, foreground_blue: u8, background_alpha: u8, background_red: u8, background_green: u8, background_blue: u8) -> usize {
         let object: *mut SetTextColorParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<SetTextColorParameters>() as isize);

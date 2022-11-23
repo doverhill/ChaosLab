@@ -171,7 +171,7 @@ namespace IDLCompiler
                     }
                     else if (field.Type == IDLField.FieldType.CustomType || field.Type == IDLField.FieldType.OneOfType)
                     {
-                        forBlock.AddLine("let item_size = item.create_at_address(pointer);");
+                        forBlock.AddLine("let item_size = item.write_at_address(pointer);");
                     }
                     else throw new ArgumentException("Array with variable sized items must be either of type string, custom type or oneOf");
                     forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
@@ -298,7 +298,7 @@ namespace IDLCompiler
             }
         }
 
-        private static void GenerateWrite(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields)
+        public static void GenerateWrite(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields)
         {
             var flattenedFields = FlattenFields(fields);
             var functionArguments = flattenedFields.Select(f => ToArgument(f, implName));
@@ -336,7 +336,7 @@ namespace IDLCompiler
                 body.AddLine($"({sizeString}, {string.Join(", ", returnVecs)})");
         }
 
-        private static void GenerateRead(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields)
+        public static void GenerateRead(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields)
         {
             var body = block.AddBlock($"pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self)");
             body.AddLine($"let object: *mut {implName} = mem::transmute(pointer);");
@@ -374,9 +374,9 @@ namespace IDLCompiler
                 };
                 TypeGenerator.GenerateType(source, type);
 
-                var block = source.AddBlock($"impl {structName}");
-                GenerateWrite(block, structName, call.Parameters.Values.ToList());
-                GenerateRead(block, structName, call.Parameters.Values.ToList());
+                //var block = source.AddBlock($"impl {structName}");
+                //GenerateWrite(block, structName, call.Parameters.Values.ToList());
+                //GenerateRead(block, structName, call.Parameters.Values.ToList());
             }
 
             if (call.ReturnValues.Count > 0)
@@ -390,9 +390,9 @@ namespace IDLCompiler
                 };
                 TypeGenerator.GenerateType(source, type);
 
-                var block = source.AddBlock($"impl {structName}");
-                GenerateWrite(block, structName, call.ReturnValues.Values.ToList());
-                GenerateRead(block, structName, call.ReturnValues.Values.ToList());
+                //var block = source.AddBlock($"impl {structName}");
+                //GenerateWrite(block, structName, call.ReturnValues.Values.ToList());
+                //GenerateRead(block, structName, call.ReturnValues.Values.ToList());
             }
         }
     }

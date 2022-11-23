@@ -18,7 +18,7 @@ impl MapFieldValueEnum {
     pub const OPTION_STRING: usize = 3;
     pub const OPTION_NONE: usize = 4;
 
-    pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
         let base_pointer = pointer;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         let mut size: usize = mem::size_of::<usize>();
@@ -83,6 +83,42 @@ impl MapFieldValueEnum {
 pub struct MapField {
     pub name: String,
     pub value: MapFieldValueEnum,
+}
+impl MapField {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
+    pub unsafe fn create_at_address(pointer: *mut u8, name: &str, value: MapFieldValueEnum) -> usize {
+        let object: *mut MapField = mem::transmute(pointer);
+        let pointer = pointer.offset(mem::size_of::<MapField>() as isize);
+
+        // name
+        let _name_length = name.len();
+        *(pointer as *mut usize) = _name_length;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        core::ptr::copy(name.as_ptr(), pointer, _name_length);
+        let pointer = pointer.offset(_name_length as isize);
+
+        // value
+
+        // return
+        mem::size_of::<MapField>() + mem::size_of::<usize>() + _name_length
+    }
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+        let object: *mut MapField = mem::transmute(pointer);
+        let pointer = pointer.offset(mem::size_of::<MapField>() as isize);
+
+        // name
+        let _name_length = *(pointer as *mut usize);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        (*object).name = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, _name_length)).to_owned();
+        let pointer = pointer.offset(_name_length as isize);
+
+        // value
+
+        // return
+        (mem::size_of::<MapField>() + mem::size_of::<usize>() + _name_length, object.as_mut().unwrap())
+    }
 }
 
 

@@ -31,6 +31,14 @@ namespace IDLCompiler
                 var line = block.AddLine($"pub {field.Name}: {field.GetRustType(type.Name, false)}");
                 line.CommaAfter = true;
             }
+
+            var impl = source.AddBlock($"impl {type.Name}");
+            var body = impl.AddBlock("pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize");
+            body.AddLine("0");
+
+            CallGenerator.GenerateWrite(impl, type.Name, type.Fields.Values.ToList());
+            CallGenerator.GenerateRead(impl, type.Name, type.Fields.Values.ToList());
+            //body = impl.AddBlock("pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self)");
         }
 
         private static string GetOneOfLine(IDLField.OneOfOption option)
@@ -128,7 +136,7 @@ namespace IDLCompiler
                     //{
                     //    CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "", "value.");
                     //}
-                    block.AddLine($"value.create_at_address(pointer)"); // + string.Join(" + ", sizeParts) + ";");
+                    block.AddLine($"value.write_at_address(pointer)"); // + string.Join(" + ", sizeParts) + ";");
                     break;
 
                 case IDLField.FieldType.OneOfType:
@@ -183,7 +191,7 @@ namespace IDLCompiler
             }
             block.AddBlank();
 
-            var body = block.AddBlock("pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize");
+            var body = block.AddBlock("pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize");
             body.AddLine("let base_pointer = pointer;");
             body.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
             //body.AddLine($"core::ptr::copy(self as *const {enumName}, pointer as *mut {enumName}, 1);");

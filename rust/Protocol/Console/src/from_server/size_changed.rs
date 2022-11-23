@@ -10,6 +10,9 @@ pub struct SizeChangedParameters {
     pub text_size: Size,
 }
 impl SizeChangedParameters {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
     pub unsafe fn create_at_address(pointer: *mut u8, framebuffer_size_width: u64, framebuffer_size_height: u64, text_size_width: u64, text_size_height: u64) -> usize {
         let object: *mut SizeChangedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<SizeChangedParameters>() as isize);

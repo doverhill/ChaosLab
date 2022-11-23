@@ -14,7 +14,7 @@ impl WriteObjectsParametersObjectsEnum {
     pub const OPTION_TABLE: usize = 1;
     pub const OPTION_MAP: usize = 2;
 
-    pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
         let base_pointer = pointer;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         let mut size: usize = mem::size_of::<usize>();
@@ -22,11 +22,11 @@ impl WriteObjectsParametersObjectsEnum {
         let size = match self {
             WriteObjectsParametersObjectsEnum::TypeTable(value) => {
                 *(base_pointer as *mut usize) = Self::OPTION_TABLE;
-                value.create_at_address(pointer)
+                value.write_at_address(pointer)
             },
             WriteObjectsParametersObjectsEnum::TypeMap(value) => {
                 *(base_pointer as *mut usize) = Self::OPTION_MAP;
-                value.create_at_address(pointer)
+                value.write_at_address(pointer)
             },
         };
 
@@ -57,6 +57,9 @@ pub struct WriteObjectsParameters {
     pub objects: Vec<WriteObjectsParametersObjectsEnum>,
 }
 impl WriteObjectsParameters {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
     pub unsafe fn create_at_address(pointer: *mut u8, objects: Vec<WriteObjectsParametersObjectsEnum>) -> usize {
         let object: *mut WriteObjectsParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<WriteObjectsParameters>() as isize);
@@ -66,7 +69,7 @@ impl WriteObjectsParameters {
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         let mut _objects_size: usize = mem::size_of::<usize>();
         for item in objects.iter() {
-            let item_size = item.create_at_address(pointer);
+            let item_size = item.write_at_address(pointer);
             let pointer = pointer.offset(item_size as isize);
             _objects_size += item_size;
         }

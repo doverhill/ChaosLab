@@ -10,6 +10,9 @@ pub struct PointerReleasedParameters {
     pub buttons: Vec<PointerButton>,
 }
 impl PointerReleasedParameters {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
     pub unsafe fn create_at_address(pointer: *mut u8, position_x: i64, position_y: i64, buttons_count: usize) -> (usize, ManuallyDrop<Vec<PointerButton>>) {
         let object: *mut PointerReleasedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<PointerReleasedParameters>() as isize);

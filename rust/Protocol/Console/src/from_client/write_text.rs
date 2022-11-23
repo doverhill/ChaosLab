@@ -9,6 +9,9 @@ pub struct WriteTextParameters {
     pub text: String,
 }
 impl WriteTextParameters {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
     pub unsafe fn create_at_address(pointer: *mut u8, text: &str) -> usize {
         let object: *mut WriteTextParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<WriteTextParameters>() as isize);

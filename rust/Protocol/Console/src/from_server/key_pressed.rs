@@ -9,6 +9,9 @@ pub struct KeyPressedParameters {
     pub key_code: KeyCode,
 }
 impl KeyPressedParameters {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
     pub unsafe fn create_at_address(pointer: *mut u8, key_code: KeyCode) -> usize {
         let object: *mut KeyPressedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<KeyPressedParameters>() as isize);

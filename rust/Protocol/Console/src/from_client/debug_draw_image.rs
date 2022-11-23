@@ -9,6 +9,9 @@ pub struct DebugDrawImageParameters {
     pub image: Image,
 }
 impl DebugDrawImageParameters {
+    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+        0
+    }
     pub unsafe fn create_at_address(pointer: *mut u8, image_size_width: u64, image_size_height: u64, image_pixels_count: usize) -> (usize, ManuallyDrop<Vec<Color>>) {
         let object: *mut DebugDrawImageParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<DebugDrawImageParameters>() as isize);
