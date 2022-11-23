@@ -246,9 +246,9 @@ namespace IDLCompiler
         public EnumList CustomEnumList = null;
         public List<OneOfOption> CustomOneOfOptions = null;
 
-        public string GetRustType(string owningTypeName, bool useStr)
+        public string GetRustType(string owningTypeName, bool useStr, bool allowMutPointer)
         {
-            return GetRustType(Type, CustomType, Name, CustomEnumList, IsArray, owningTypeName, useStr);
+            return GetRustType(Type, CustomType, Name, CustomEnumList, IsArray, owningTypeName, useStr, allowMutPointer);
         }
 
         public string GetInnerRustType(string owningTypeName, bool useStr)
@@ -256,7 +256,7 @@ namespace IDLCompiler
             return GetInnerRustType(Type, CustomType, Name, CustomEnumList, IsArray, owningTypeName, useStr);
         }
 
-        public static string GetRustType(FieldType type, IDLType customType, string fieldName, EnumList customEnumList, bool isArray, string owningTypeName, bool useStr)
+        public static string GetRustType(FieldType type, IDLType customType, string fieldName, EnumList customEnumList, bool isArray, string owningTypeName, bool useStr, bool allowMutPointer)
         {
             var typeName = type switch
             {
@@ -271,7 +271,8 @@ namespace IDLCompiler
                 FieldType.Enum => customEnumList.Name
             };
 
-            if (isArray) return $"Vec<{typeName}>";
+            var mutPointer = type == FieldType.CustomType && allowMutPointer ? "*mut " : "";
+            if (isArray) return $"Vec<{mutPointer}{typeName}>";
             return typeName;
         }
 

@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
-enum MapFieldValueEnum {
+pub enum MapFieldValueEnum {
     TypeI64(i64),
     TypeBool(bool),
     TypeString(String),
@@ -21,7 +22,7 @@ impl MapFieldValueEnum {
     pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
         let base_pointer = pointer;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut size: usize = mem::size_of::<usize>();
+        let size: usize = mem::size_of::<usize>();
 
         let size = match self {
             MapFieldValueEnum::TypeI64(value) => {
@@ -38,7 +39,7 @@ impl MapFieldValueEnum {
                 *(base_pointer as *mut usize) = Self::OPTION_STRING;
                 let value_len = value.len();
                 *(pointer as *mut usize) = value_len;
-                pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
                 core::ptr::copy(value.as_ptr(), pointer as *mut u8, value_len);
                 mem::size_of::<usize>() + value_len
             },
@@ -65,7 +66,7 @@ impl MapFieldValueEnum {
             }
             Self::OPTION_STRING => {
                 let value_len = *(pointer as *mut usize);
-                pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
                 let value = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, value_len)).to_owned();
                 (mem::size_of::<usize>() + value_len, Self::TypeString(value))
             }
@@ -104,7 +105,7 @@ impl MapField {
         // return
         mem::size_of::<MapField>() + mem::size_of::<usize>() + _name_length
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut MapField = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<MapField>() as isize);
 
@@ -117,7 +118,7 @@ impl MapField {
         // value
 
         // return
-        (mem::size_of::<MapField>() + mem::size_of::<usize>() + _name_length, object.as_mut().unwrap())
+        (mem::size_of::<MapField>() + mem::size_of::<usize>() + _name_length, object)
     }
 }
 

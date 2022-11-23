@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
@@ -30,7 +31,7 @@ impl PointerReleasedParameters {
         // return
         (mem::size_of::<PointerReleasedParameters>() + mem::size_of::<usize>() + buttons_count * mem::size_of::<PointerButton>(), ManuallyDrop::new(buttons))
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut PointerReleasedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<PointerReleasedParameters>() as isize);
 
@@ -44,7 +45,7 @@ impl PointerReleasedParameters {
         (*object).buttons = buttons;
 
         // return
-        (mem::size_of::<PointerReleasedParameters>() + mem::size_of::<usize>() + buttons_count * mem::size_of::<PointerButton>(), object.as_mut().unwrap())
+        (mem::size_of::<PointerReleasedParameters>() + mem::size_of::<usize>() + buttons_count * mem::size_of::<PointerButton>(), object)
     }
 }
 

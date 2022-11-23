@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
@@ -23,14 +24,14 @@ impl PointerMovedParameters {
         // return
         mem::size_of::<PointerMovedParameters>()
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut PointerMovedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<PointerMovedParameters>() as isize);
 
         // position
 
         // return
-        (mem::size_of::<PointerMovedParameters>(), object.as_mut().unwrap())
+        (mem::size_of::<PointerMovedParameters>(), object)
     }
 }
 

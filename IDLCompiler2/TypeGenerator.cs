@@ -28,7 +28,8 @@ namespace IDLCompiler
 
             foreach (var field in fields)
             {
-                var line = block.AddLine($"pub {field.Name}: {field.GetRustType(type.Name, false)}");
+                var allowMutPointer = !CallGenerator.IsFixedSize(field, false);
+                var line = block.AddLine($"pub {field.Name}: {field.GetRustType(type.Name, false, allowMutPointer)}");
                 line.CommaAfter = true;
             }
 
@@ -38,16 +39,15 @@ namespace IDLCompiler
 
             CallGenerator.GenerateWrite(impl, type.Name, type.Fields.Values.ToList());
             CallGenerator.GenerateRead(impl, type.Name, type.Fields.Values.ToList());
-            //body = impl.AddBlock("pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self)");
         }
 
         private static string GetOneOfLine(IDLField.OneOfOption option)
         {
             if (option.Type == IDLField.FieldType.None) return "TypeNone";
-            if (option.Type == IDLField.FieldType.CustomType) return $"Type{option.CustomType.Name}({option.CustomType.Name})";
+            if (option.Type == IDLField.FieldType.CustomType) return $"Type{option.CustomType.Name}(*mut {option.CustomType.Name})";
             if (option.Type == IDLField.FieldType.OneOfType) throw new ArgumentException("OneOf type is not allowed as a one-of option");
 
-            return $"Type{option.Type}({IDLField.GetRustType(option.Type, null, null, null, false, null, false)})";
+            return $"Type{option.Type}({IDLField.GetRustType(option.Type, null, null, null, false, null, false, false)})";
         }
 
         private static string GetOneOfOption(IDLField.OneOfOption option)
@@ -75,7 +75,7 @@ namespace IDLCompiler
             {
                 case IDLField.FieldType.String:
                     block.AddLine("let value_len = *(pointer as *mut usize);");
-                    block.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                    block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                     block.AddLine("let value = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, value_len)).to_owned();");
                     block.AddLine($"(mem::size_of::<usize>() + value_len, Self::{GetOneOfOption(option)})");
                     break;
@@ -126,7 +126,7 @@ namespace IDLCompiler
                 case IDLField.FieldType.String:
                     block.AddLine("let value_len = value.len();");
                     block.AddLine("*(pointer as *mut usize) = value_len;");
-                    block.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                    block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                     block.AddLine("core::ptr::copy(value.as_ptr(), pointer as *mut u8, value_len);");
                     block.AddLine("mem::size_of::<usize>() + value_len");
                     break;
@@ -136,7 +136,7 @@ namespace IDLCompiler
                     //{
                     //    CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "", "value.");
                     //}
-                    block.AddLine($"value.write_at_address(pointer)"); // + string.Join(" + ", sizeParts) + ";");
+                    block.AddLine($"(value.as_ref().unwrap()).write_at_address(pointer)"); // + string.Join(" + ", sizeParts) + ";");
                     break;
 
                 case IDLField.FieldType.OneOfType:
@@ -173,7 +173,7 @@ namespace IDLCompiler
 
         public static void GenerateOneOfType(SourceGenerator source, string enumName, List<IDLField.OneOfOption> oneOfOptions)
         {
-            var block = source.AddBlock($"enum {enumName}");
+            var block = source.AddBlock($"pub enum {enumName}");
 
             foreach (var option in oneOfOptions)
             {
@@ -197,7 +197,7 @@ namespace IDLCompiler
             //body.AddLine($"core::ptr::copy(self as *const {enumName}, pointer as *mut {enumName}, 1);");
             //body.AddLine($"let pointer = pointer.offset(mem::size_of::<{enumName}>() as isize);");
             //body.AddLine($"let mut size: usize = mem::size_of::<usize>() + mem::size_of::<{enumName}>();");
-            body.AddLine($"let mut size: usize = mem::size_of::<usize>();");
+            body.AddLine($"let size: usize = mem::size_of::<usize>();");
             body.AddBlank();
 
             var match = body.AddBlock("let size = match self");

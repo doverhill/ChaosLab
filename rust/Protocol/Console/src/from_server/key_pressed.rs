@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
@@ -21,14 +22,14 @@ impl KeyPressedParameters {
         // return
         mem::size_of::<KeyPressedParameters>()
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut KeyPressedParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<KeyPressedParameters>() as isize);
 
         // key_code
 
         // return
-        (mem::size_of::<KeyPressedParameters>(), object.as_mut().unwrap())
+        (mem::size_of::<KeyPressedParameters>(), object)
     }
 }
 

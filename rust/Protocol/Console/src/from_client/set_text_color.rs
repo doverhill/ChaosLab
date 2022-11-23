@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
@@ -32,7 +33,7 @@ impl SetTextColorParameters {
         // return
         mem::size_of::<SetTextColorParameters>()
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut SetTextColorParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<SetTextColorParameters>() as isize);
 
@@ -41,7 +42,7 @@ impl SetTextColorParameters {
         // background
 
         // return
-        (mem::size_of::<SetTextColorParameters>(), object.as_mut().unwrap())
+        (mem::size_of::<SetTextColorParameters>(), object)
     }
 }
 

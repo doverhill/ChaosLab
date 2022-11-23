@@ -1,13 +1,14 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
-enum WriteObjectsParametersObjectsEnum {
-    TypeTable(Table),
-    TypeMap(Map),
+pub enum WriteObjectsParametersObjectsEnum {
+    TypeTable(*mut Table),
+    TypeMap(*mut Map),
 }
 
 impl WriteObjectsParametersObjectsEnum {
@@ -17,16 +18,16 @@ impl WriteObjectsParametersObjectsEnum {
     pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
         let base_pointer = pointer;
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut size: usize = mem::size_of::<usize>();
+        let size: usize = mem::size_of::<usize>();
 
         let size = match self {
             WriteObjectsParametersObjectsEnum::TypeTable(value) => {
                 *(base_pointer as *mut usize) = Self::OPTION_TABLE;
-                value.write_at_address(pointer)
+                (value.as_ref().unwrap()).write_at_address(pointer)
             },
             WriteObjectsParametersObjectsEnum::TypeMap(value) => {
                 *(base_pointer as *mut usize) = Self::OPTION_MAP;
-                value.write_at_address(pointer)
+                (value.as_ref().unwrap()).write_at_address(pointer)
             },
         };
 
@@ -77,7 +78,7 @@ impl WriteObjectsParameters {
         // return
         mem::size_of::<WriteObjectsParameters>() + _objects_size
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut WriteObjectsParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<WriteObjectsParameters>() as isize);
 
@@ -95,7 +96,7 @@ impl WriteObjectsParameters {
         (*object).objects = _objects_vec;
 
         // return
-        (mem::size_of::<WriteObjectsParameters>() + _objects_size, object.as_mut().unwrap())
+        (mem::size_of::<WriteObjectsParameters>() + _objects_size, object)
     }
 }
 

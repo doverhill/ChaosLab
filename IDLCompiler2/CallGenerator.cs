@@ -61,7 +61,7 @@ namespace IDLCompiler
             return IsFixedSize(false, option.Type, null, option.CustomType, false);
         }
 
-        private static bool IsFixedSize(IDLField field, bool checkArray)
+        public static bool IsFixedSize(IDLField field, bool checkArray)
         {
             return IsFixedSize(field.IsArray, field.Type, field.CustomOneOfOptions, field.CustomType, checkArray);
         }
@@ -135,7 +135,7 @@ namespace IDLCompiler
             if (IsArrayWithFixedSizeItems(field))
                 return $"{field.Name}_count: usize";
             else
-                return $"{field.Name}: {field.GetRustType(owningTypeName, true)}";
+                return $"{field.Name}: {field.GetRustType(owningTypeName, true, false)}";
         }
 
         public static void AppendTypeWrite(SourceGenerator.SourceBlock block, IDLField field, List<string> sizeParts, List<string> returnVecs, string underscorePath, string accessorPath, string prefix = "")
@@ -167,15 +167,16 @@ namespace IDLCompiler
                         forBlock.AddLine("*(pointer as *mut usize) = item_size;");
                         forBlock.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                         forBlock.AddLine("core::ptr::copy(item.as_ptr(), pointer, item_size);");
-                        forBlock.AddLine("let item_size = mem::size_of::<usize>() + item_size;");
+                        forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
+                        forBlock.AddLine($"_{fieldPathUnderscore}_size += mem::size_of::<usize>() + item_size;");
                     }
                     else if (field.Type == IDLField.FieldType.CustomType || field.Type == IDLField.FieldType.OneOfType)
                     {
                         forBlock.AddLine("let item_size = item.write_at_address(pointer);");
+                        forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
+                        forBlock.AddLine($"_{fieldPathUnderscore}_size += item_size;");
                     }
                     else throw new ArgumentException("Array with variable sized items must be either of type string, custom type or oneOf");
-                    forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
-                    forBlock.AddLine($"_{fieldPathUnderscore}_size += item_size;");
                     sizeParts.Add($"_{fieldPathUnderscore}_size");
                 }
             }
@@ -235,8 +236,11 @@ namespace IDLCompiler
                 else
                 {
                     block.AddLine($"let mut _{fieldPathUnderscore}_size: usize = mem::size_of::<usize>();");
-                    //::
-                    block.AddLine($"let mut _{fieldPathUnderscore}_vec: Vec<{(field.Type == IDLField.FieldType.OneOfType ? implName : "")}{typeName}> = Vec::with_capacity(_{fieldPathUnderscore}_size);");
+                    if (field.Type == IDLField.FieldType.String || field.Type == IDLField.FieldType.OneOfType)
+                        block.AddLine($"let mut _{fieldPathUnderscore}_vec: Vec<{(field.Type == IDLField.FieldType.OneOfType ? implName : "")}{typeName}> = Vec::with_capacity(_{fieldPathUnderscore}_size);");
+                    else
+                        block.AddLine($"let mut _{fieldPathUnderscore}_vec: Vec<*mut {(field.Type == IDLField.FieldType.OneOfType ? implName : "")}{typeName}> = Vec::with_capacity(_{fieldPathUnderscore}_size);");
+
                     var forBlock = block.AddBlock($"for _ in 0..{fieldPathUnderscore}_count");
                     if (field.Type == IDLField.FieldType.String)
                     {
@@ -307,7 +311,7 @@ namespace IDLCompiler
             var returns = new List<string>() { "usize" };
             foreach (var field in flattenedFields.Where(f => IsArrayWithFixedSizeItems(f)))
             {
-                returns.Add($"ManuallyDrop<{field.GetRustType("", false)}>");
+                returns.Add($"ManuallyDrop<{field.GetRustType("", false, false)}>");
             }
             var returnTuple = returns.Count == 1 ? returns[0] : $"({string.Join(", ", returns)})";
 
@@ -338,7 +342,7 @@ namespace IDLCompiler
 
         public static void GenerateRead(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields)
         {
-            var body = block.AddBlock($"pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self)");
+            var body = block.AddBlock($"pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self)");
             body.AddLine($"let object: *mut {implName} = mem::transmute(pointer);");
             body.AddLine($"let pointer = pointer.offset(mem::size_of::<{implName}>() as isize);");
 
@@ -356,7 +360,7 @@ namespace IDLCompiler
             var sizeString = string.Join(" + ", sizeParts);
             body.AddBlank();
             body.AddLine("// return");
-            body.AddLine($"({sizeString}, object.as_mut().unwrap())");
+            body.AddLine($"({sizeString}, object)");
         }
 
         internal static void GenerateCall(SourceGenerator source, IDLCall call, int message_id)

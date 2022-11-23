@@ -142,11 +142,23 @@
                 }
             }
         },
-        "debug_draw_image": {
+        "debug_call": {
             "type": "call",
             "parameters": {
                 "image": {
                     "type": "Image"
+                },
+                "x": {
+                    "type": "bool",
+                    "array": true,
+                },
+                "y": {
+                    "type": "u64",
+                    "array": true,
+                },
+                "z": {
+                    "type": "string",
+                    "array": true,
                 }
             }
         },

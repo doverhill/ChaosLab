@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
@@ -32,7 +33,7 @@ impl GetCapabilitiesReturns {
         // return
         mem::size_of::<GetCapabilitiesReturns>()
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut GetCapabilitiesReturns = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<GetCapabilitiesReturns>() as isize);
 
@@ -43,7 +44,7 @@ impl GetCapabilitiesReturns {
         // text_size
 
         // return
-        (mem::size_of::<GetCapabilitiesReturns>(), object.as_mut().unwrap())
+        (mem::size_of::<GetCapabilitiesReturns>(), object)
     }
 }
 

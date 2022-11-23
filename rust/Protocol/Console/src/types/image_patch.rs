@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
@@ -32,7 +33,7 @@ impl ImagePatch {
         // return
         (mem::size_of::<ImagePatch>() + mem::size_of::<usize>() + image_pixels_count * mem::size_of::<Color>(), ManuallyDrop::new(image_pixels))
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut ImagePatch = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<ImagePatch>() as isize);
 
@@ -46,7 +47,7 @@ impl ImagePatch {
         // position
 
         // return
-        (mem::size_of::<ImagePatch>() + mem::size_of::<usize>() + image_pixels_count * mem::size_of::<Color>(), object.as_mut().unwrap())
+        (mem::size_of::<ImagePatch>() + mem::size_of::<usize>() + image_pixels_count * mem::size_of::<Color>(), object)
     }
 }
 

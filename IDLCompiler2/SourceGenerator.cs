@@ -103,8 +103,9 @@ namespace IDLCompiler
                 return
                     "#![allow(dead_code)]\r\n" +
                     "#![allow(unused_imports)]\r\n" +
-                    "use std::mem;\r\n" +
-                    "use std::mem::ManuallyDrop;\r\n" +
+                    "#![allow(unused_variables)]\r\n" +
+                    "use core::mem;\r\n" +
+                    "use core::mem::ManuallyDrop;\r\n" +
                     "use crate::types::*;\r\n" +
                     "use crate::enums::*;\r\n\r\n" +
                     string.Join("", Blocks.Select(b => b.GetSource(0))) + "\r\n";

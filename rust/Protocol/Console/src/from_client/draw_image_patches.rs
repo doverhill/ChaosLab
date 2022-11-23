@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
 pub struct DrawImagePatchesParameters {
-    pub image_patches: Vec<ImagePatch>,
+    pub image_patches: Vec<*mut ImagePatch>,
 }
 impl DrawImagePatchesParameters {
     pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
@@ -29,7 +30,7 @@ impl DrawImagePatchesParameters {
         // return
         mem::size_of::<DrawImagePatchesParameters>() + _image_patches_size
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut DrawImagePatchesParameters = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<DrawImagePatchesParameters>() as isize);
 
@@ -37,7 +38,7 @@ impl DrawImagePatchesParameters {
         let image_patches_count = *(pointer as *mut usize);
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         let mut _image_patches_size: usize = mem::size_of::<usize>();
-        let mut _image_patches_vec: Vec<ImagePatch> = Vec::with_capacity(_image_patches_size);
+        let mut _image_patches_vec: Vec<*mut ImagePatch> = Vec::with_capacity(_image_patches_size);
         for _ in 0..image_patches_count {
             let (item_size, item) = ImagePatch::get_from_address(pointer);
             _image_patches_vec.push(item);
@@ -47,7 +48,7 @@ impl DrawImagePatchesParameters {
         (*object).image_patches = _image_patches_vec;
 
         // return
-        (mem::size_of::<DrawImagePatchesParameters>() + _image_patches_size, object.as_mut().unwrap())
+        (mem::size_of::<DrawImagePatchesParameters>() + _image_patches_size, object)
     }
 }
 

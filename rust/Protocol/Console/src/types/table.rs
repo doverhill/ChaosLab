@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use std::mem;
-use std::mem::ManuallyDrop;
+#![allow(unused_variables)]
+use core::mem;
+use core::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
@@ -9,7 +10,7 @@ pub struct Table {
     pub name: String,
     pub description: String,
     pub columns: Vec<String>,
-    pub rows: Vec<Map>,
+    pub rows: Vec<*mut Map>,
 }
 impl Table {
     pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
@@ -28,9 +29,8 @@ impl Table {
             *(pointer as *mut usize) = item_size;
             let pointer = pointer.offset(mem::size_of::<usize>() as isize);
             core::ptr::copy(item.as_ptr(), pointer, item_size);
-            let item_size = mem::size_of::<usize>() + item_size;
             let pointer = pointer.offset(item_size as isize);
-            _columns_size += item_size;
+            _columns_size += mem::size_of::<usize>() + item_size;
         }
 
         // rows
@@ -46,7 +46,7 @@ impl Table {
         // return
         mem::size_of::<Table>() + _columns_size + _rows_size
     }
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
         let object: *mut Table = mem::transmute(pointer);
         let pointer = pointer.offset(mem::size_of::<Table>() as isize);
 
@@ -70,7 +70,7 @@ impl Table {
         let rows_count = *(pointer as *mut usize);
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
         let mut _rows_size: usize = mem::size_of::<usize>();
-        let mut _rows_vec: Vec<Map> = Vec::with_capacity(_rows_size);
+        let mut _rows_vec: Vec<*mut Map> = Vec::with_capacity(_rows_size);
         for _ in 0..rows_count {
             let (item_size, item) = Map::get_from_address(pointer);
             _rows_vec.push(item);
@@ -80,7 +80,7 @@ impl Table {
         (*object).rows = _rows_vec;
 
         // return
-        (mem::size_of::<Table>() + _columns_size + _rows_size, object.as_mut().unwrap())
+        (mem::size_of::<Table>() + _columns_size + _rows_size, object)
     }
 }
 
