@@ -6,7 +6,7 @@ namespace IDLCompiler
     {
         public static void GenerateEnum(SourceGenerator source, EnumList enumList)
         {
-            var block = source.AddBlock($"enum {enumList.Name}");
+            var block = source.AddBlock($"pub enum {enumList.Name}");
             foreach (var item in enumList.Options )
             {
                 var line = block.AddLine(item);

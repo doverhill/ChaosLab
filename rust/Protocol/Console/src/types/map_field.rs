@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
 use std::mem;
 use std::mem::ManuallyDrop;
 use crate::types::*;
@@ -37,9 +39,9 @@ impl MapFieldValueEnum {
         }
     }
 }
-struct MapField {
-    name: String,
-    value: MapFieldValueEnum,
+pub struct MapField {
+    pub name: String,
+    pub value: MapFieldValueEnum,
 }
 
 

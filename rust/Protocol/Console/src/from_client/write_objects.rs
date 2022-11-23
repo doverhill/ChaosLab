@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
 use std::mem;
 use std::mem::ManuallyDrop;
 use crate::types::*;
@@ -17,16 +19,20 @@ impl WriteObjectsParametersObjectsEnum {
             WriteObjectsParametersObjectsEnum::TypeTable(value) => {
                 *(pointer as *mut usize) = value.columns.len();
                 let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let mut _columns_size: usize = 0;
-                for item in columns.iter() {
-                    let item_size = item.create_at_address(pointer);
+                let mut _columns_size: usize = mem::size_of::<usize>();
+                for item in value.columns.iter() {
+                    let item_size = item.len();
+                    *(pointer as *mut usize) = item_size;
+                    let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                    core::ptr::copy(item.as_ptr(), pointer, item_size);
+                    let item_size = mem::size_of::<usize>() + item_size;
                     let pointer = pointer.offset(item_size as isize);
                     _columns_size += item_size;
                 }
                 *(pointer as *mut usize) = value.rows.len();
                 let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let mut _rows_size: usize = 0;
-                for item in rows.iter() {
+                let mut _rows_size: usize = mem::size_of::<usize>();
+                for item in value.rows.iter() {
                     let item_size = item.create_at_address(pointer);
                     let pointer = pointer.offset(item_size as isize);
                     _rows_size += item_size;
@@ -37,8 +43,8 @@ impl WriteObjectsParametersObjectsEnum {
             WriteObjectsParametersObjectsEnum::TypeMap(value) => {
                 *(pointer as *mut usize) = value.fields.len();
                 let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let mut _fields_size: usize = 0;
-                for item in fields.iter() {
+                let mut _fields_size: usize = mem::size_of::<usize>();
+                for item in value.fields.iter() {
                     let item_size = item.create_at_address(pointer);
                     let pointer = pointer.offset(item_size as isize);
                     _fields_size += item_size;
@@ -49,8 +55,8 @@ impl WriteObjectsParametersObjectsEnum {
         }
     }
 }
-struct WriteObjectsParameters {
-    objects: Vec<WriteObjectsParametersObjectsEnum>,
+pub struct WriteObjectsParameters {
+    pub objects: Vec<WriteObjectsParametersObjectsEnum>,
 }
 impl WriteObjectsParameters {
     pub unsafe fn create_at_address(pointer: *mut u8, objects: Vec<WriteObjectsParametersObjectsEnum>) -> usize {
@@ -60,7 +66,7 @@ impl WriteObjectsParameters {
         // objects
         *(pointer as *mut usize) = objects.len();
         let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut _objects_size: usize = 0;
+        let mut _objects_size: usize = mem::size_of::<usize>();
         for item in objects.iter() {
             let item_size = item.create_at_address(pointer);
             let pointer = pointer.offset(item_size as isize);
@@ -69,6 +75,26 @@ impl WriteObjectsParameters {
 
         // return
         mem::size_of::<WriteObjectsParameters>() + _objects_size
+    }
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+        let object: *mut WriteObjectsParameters = mem::transmute(pointer);
+        let pointer = pointer.offset(mem::size_of::<WriteObjectsParameters>() as isize);
+
+        // objects
+        let objects_count = *(pointer as *mut usize);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut _objects_size: usize = mem::size_of::<usize>();
+        let mut _objects_vec: Vec<WriteObjectsParametersObjectsEnum> = Vec::with_capacity(_objects_size);
+        for _ in 0..objects_count {
+            let (item_size, item) = WriteObjectsParametersObjectsEnum::get_from_address(pointer);
+            _objects_vec.push(item);
+            let pointer = pointer.offset(item_size as isize);
+            _objects_size += item_size;
+        }
+        (*object).objects = _objects_vec;
+
+        // return
+        (mem::size_of::<WriteObjectsParameters>() + _objects_size, object.as_mut().unwrap())
     }
 }
 

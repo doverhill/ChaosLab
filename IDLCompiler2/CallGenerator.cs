@@ -138,10 +138,10 @@ namespace IDLCompiler
                 return $"{field.Name}: {field.GetRustType(owningTypeName, true)}";
         }
 
-        public static void AppendTypeWrite(SourceGenerator.SourceBlock block, IDLField field, List<string> sizeParts, List<string> returnVecs, string path, string prefix = "")
+        public static void AppendTypeWrite(SourceGenerator.SourceBlock block, IDLField field, List<string> sizeParts, List<string> returnVecs, string underscorePath, string accessorPath, string prefix = "")
         {
-            var fieldPathUnderscore = path == "" ? field.Name : path + "_" + field.Name;
-            var fieldPathAccessor = fieldPathUnderscore.Replace("_", ".");
+            var fieldPathUnderscore = underscorePath == "" ? field.Name : underscorePath + "_" + field.Name;
+            var fieldPathAccessor = accessorPath == "" ? field.Name : accessorPath + "." + field.Name;
 
             if (field.IsArray)
             {
@@ -151,16 +151,29 @@ namespace IDLCompiler
                     block.AddLine($"*(pointer as *mut usize) = {fieldPathUnderscore}_count;");
                     block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                     block.AddLine($"let {fieldPathUnderscore} = Vec::<{typeName}>::from_raw_parts(pointer as *mut {typeName}, {fieldPathUnderscore}_count, {fieldPathUnderscore}_count);");
+                    block.AddLine($"let pointer = pointer.offset({fieldPathUnderscore}_count as isize * mem::size_of::<{typeName}>() as isize);");
                     sizeParts.Add($"mem::size_of::<usize>() + {fieldPathUnderscore}_count * mem::size_of::<{typeName}>()");
                     returnVecs.Add($"ManuallyDrop::new({fieldPathUnderscore})");
                 }
                 else
                 {
                     block.AddLine($"*(pointer as *mut usize) = {prefix}{fieldPathUnderscore}.len();");
-                    block.AddLine($"let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
-                    block.AddLine($"let mut _{fieldPathUnderscore}_size: usize = 0;");
-                    var forBlock = block.AddBlock($"for item in {fieldPathUnderscore}.iter()");
-                    forBlock.AddLine("let item_size = item.create_at_address(pointer);");
+                    block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                    block.AddLine($"let mut _{fieldPathUnderscore}_size: usize = mem::size_of::<usize>();");
+                    var forBlock = block.AddBlock($"for item in {prefix}{fieldPathUnderscore}.iter()");
+                    if (field.Type == IDLField.FieldType.String)
+                    {
+                        forBlock.AddLine("let item_size = item.len();");
+                        forBlock.AddLine("*(pointer as *mut usize) = item_size;");
+                        forBlock.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                        forBlock.AddLine("core::ptr::copy(item.as_ptr(), pointer, item_size);");
+                        forBlock.AddLine("let item_size = mem::size_of::<usize>() + item_size;");
+                    }
+                    else if (field.Type == IDLField.FieldType.CustomType || field.Type == IDLField.FieldType.OneOfType)
+                    {
+                        forBlock.AddLine("let item_size = item.create_at_address(pointer);");
+                    }
+                    else throw new ArgumentException("Array with variable sized items must be either of type string, custom type or oneOf");
                     forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
                     forBlock.AddLine($"_{fieldPathUnderscore}_size += item_size;");
                     sizeParts.Add($"_{fieldPathUnderscore}_size");
@@ -181,19 +194,104 @@ namespace IDLCompiler
                         break;
 
                     case IDLField.FieldType.String:
-                        block.AddLine($"let _{field.Name}_length = {field.Name}.len();");
-                        block.AddLine($"*(pointer as *mut usize) = _{field.Name}_length;");
+                        block.AddLine($"let _{fieldPathUnderscore}_length = {fieldPathUnderscore}.len();");
+                        block.AddLine($"*(pointer as *mut usize) = _{fieldPathUnderscore}_length;");
                         block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
-                        block.AddLine($"core::ptr::copy({field.Name}.as_ptr(), pointer, _{field.Name}_length);");
-                        block.AddLine($"let pointer = pointer.offset(_{field.Name}_length as isize);");
+                        block.AddLine($"core::ptr::copy({fieldPathUnderscore}.as_ptr(), pointer, _{fieldPathUnderscore}_length);");
+                        block.AddLine($"let pointer = pointer.offset(_{fieldPathUnderscore}_length as isize);");
 
-                        sizeParts.Add($"mem::size_of::<usize>() + _{field.Name}_length");
+                        sizeParts.Add($"mem::size_of::<usize>() + _{fieldPathUnderscore}_length");
                         break;
 
                     case IDLField.FieldType.CustomType:
                         foreach (var typeField in field.CustomType.Fields.Values)
                         {
-                            AppendTypeWrite(block, typeField, sizeParts, returnVecs, path == "" ? field.Name : path + "_" + field.Name);
+                            AppendTypeWrite(block, typeField, sizeParts, returnVecs,
+                                underscorePath == "" ? field.Name : underscorePath + "_" + field.Name,
+                                accessorPath == "" ? field.Name : accessorPath + "." + field.Name);
+                        }
+                        break;
+                }
+            }
+        }
+
+        public static void AppendTypeRead(SourceGenerator.SourceBlock block, string implName, IDLField field, List<string> sizeParts, string underscorePath, string accessorPath, string prefix = "")
+        {
+            var fieldPathUnderscore = underscorePath == "" ? field.Name : underscorePath + "_" + field.Name;
+            var fieldPathAccessor = accessorPath == "" ? field.Name : accessorPath + "." + field.Name;
+
+            if (field.IsArray)
+            {
+                var typeName = field.GetInnerRustType("", false);
+                block.AddLine($"let {fieldPathUnderscore}_count = *(pointer as *mut usize);");
+                block.AddLine($"let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                if (IsArrayWithFixedSizeItems(field))
+                {
+                    block.AddLine($"let {fieldPathUnderscore} = Vec::<{typeName}>::from_raw_parts(pointer as *mut {typeName}, {fieldPathUnderscore}_count, {fieldPathUnderscore}_count);");
+                    block.AddLine($"let pointer = pointer.offset({fieldPathUnderscore}_count as isize * mem::size_of::<{typeName}>() as isize);");
+                    block.AddLine($"(*object).{fieldPathAccessor} = {fieldPathUnderscore};");
+                    sizeParts.Add($"mem::size_of::<usize>() + {fieldPathUnderscore}_count * mem::size_of::<{typeName}>()");
+                }
+                else
+                {
+                    block.AddLine($"let mut _{fieldPathUnderscore}_size: usize = mem::size_of::<usize>();");
+                    //::
+                    block.AddLine($"let mut _{fieldPathUnderscore}_vec: Vec<{(field.Type == IDLField.FieldType.OneOfType ? implName : "")}{typeName}> = Vec::with_capacity(_{fieldPathUnderscore}_size);");
+                    var forBlock = block.AddBlock($"for _ in 0..{fieldPathUnderscore}_count");
+                    if (field.Type == IDLField.FieldType.String)
+                    {
+                        forBlock.AddLine("let item_size = *(pointer as *mut usize);");
+                        forBlock.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                        forBlock.AddLine("let item = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, item_size)).to_owned();");
+                        forBlock.AddLine($"_{fieldPathUnderscore}_vec.push(item);");
+                        forBlock.AddLine("let item_size = mem::size_of::<usize>() + item_size;");
+                    }
+                    else if (field.Type == IDLField.FieldType.CustomType)
+                    {
+                        forBlock.AddLine($"let (item_size, item) = {typeName}::get_from_address(pointer);");
+                        forBlock.AddLine($"_{fieldPathUnderscore}_vec.push(item);");
+                    }
+                    else if (field.Type == IDLField.FieldType.OneOfType)
+                    {
+                        forBlock.AddLine($"let (item_size, item) = {implName}{typeName}::get_from_address(pointer);");
+                        forBlock.AddLine($"_{fieldPathUnderscore}_vec.push(item);");
+                    }
+                    else throw new ArgumentException("Array with variable sized items must be either of type string, custom type or oneOf");
+                    forBlock.AddLine("let pointer = pointer.offset(item_size as isize);");
+                    forBlock.AddLine($"_{fieldPathUnderscore}_size += item_size;");
+                    block.AddLine($"(*object).{fieldPathAccessor} = _{fieldPathUnderscore}_vec;");
+                    sizeParts.Add($"_{fieldPathUnderscore}_size");
+                }
+            }
+            else
+            {
+                switch (field.Type)
+                {
+                    case IDLField.FieldType.None:
+                        throw new ArgumentException("Unallowed field type None");
+
+                    case IDLField.FieldType.U8:
+                    case IDLField.FieldType.U64:
+                    case IDLField.FieldType.I64:
+                    case IDLField.FieldType.Bool:
+                        //block.AddLine($"(*object).{fieldPathAccessor} = {fieldPathUnderscore};");
+                        break;
+
+                    case IDLField.FieldType.String:
+                        block.AddLine($"let _{fieldPathUnderscore}_length = *(pointer as *mut usize);");
+                        block.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                        block.AddLine($"(*object).{fieldPathAccessor} = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, _{fieldPathUnderscore}_length)).to_owned();");
+                        block.AddLine($"let pointer = pointer.offset(_{fieldPathUnderscore}_length as isize);");
+
+                        sizeParts.Add($"mem::size_of::<usize>() + _{fieldPathUnderscore}_length");
+                        break;
+
+                    case IDLField.FieldType.CustomType:
+                        foreach (var typeField in field.CustomType.Fields.Values)
+                        {
+                            AppendTypeRead(block, implName, typeField, sizeParts,
+                                underscorePath == "" ? field.Name : underscorePath + "_" + field.Name,
+                                accessorPath == "" ? field.Name : accessorPath + "." + field.Name);
                         }
                         break;
                 }
@@ -225,7 +323,7 @@ namespace IDLCompiler
             {
                 body.AddBlank();
                 body.AddLine($"// {field.Name}");
-                AppendTypeWrite(body, field, sizeParts, returnVecs, "");
+                AppendTypeWrite(body, field, sizeParts, returnVecs, "", "");
             }
 
             // return
@@ -238,9 +336,27 @@ namespace IDLCompiler
                 body.AddLine($"({sizeString}, {string.Join(", ", returnVecs)})");
         }
 
-        private static void GenerateRead(SourceGenerator.SourceBlock block, List<IDLField> fields)
+        private static void GenerateRead(SourceGenerator.SourceBlock block, string implName, List<IDLField> fields)
         {
+            var body = block.AddBlock($"pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self)");
+            body.AddLine($"let object: *mut {implName} = mem::transmute(pointer);");
+            body.AddLine($"let pointer = pointer.offset(mem::size_of::<{implName}>() as isize);");
 
+            var sizeParts = new List<string>();
+            sizeParts.Add($"mem::size_of::<{implName}>()");
+
+            foreach (var field in fields)
+            {
+                body.AddBlank();
+                body.AddLine($"// {field.Name}");
+                AppendTypeRead(body, implName, field, sizeParts, "", "");
+            }
+
+            // return
+            var sizeString = string.Join(" + ", sizeParts);
+            body.AddBlank();
+            body.AddLine("// return");
+            body.AddLine($"({sizeString}, object.as_mut().unwrap())");
         }
 
         internal static void GenerateCall(SourceGenerator source, IDLCall call, int message_id)
@@ -260,7 +376,7 @@ namespace IDLCompiler
 
                 var block = source.AddBlock($"impl {structName}");
                 GenerateWrite(block, structName, call.Parameters.Values.ToList());
-                GenerateRead(block, call.Parameters.Values.ToList());
+                GenerateRead(block, structName, call.Parameters.Values.ToList());
             }
 
             if (call.ReturnValues.Count > 0)
@@ -276,7 +392,7 @@ namespace IDLCompiler
 
                 var block = source.AddBlock($"impl {structName}");
                 GenerateWrite(block, structName, call.ReturnValues.Values.ToList());
-                GenerateRead(block, call.ReturnValues.Values.ToList());
+                GenerateRead(block, structName, call.ReturnValues.Values.ToList());
             }
         }
     }

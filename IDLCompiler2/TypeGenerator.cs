@@ -17,7 +17,7 @@ namespace IDLCompiler
                 }
             }
 
-            var block = source.AddBlock($"struct {type.Name}");
+            var block = source.AddBlock($"pub struct {type.Name}");
 
             var fields = type.Fields.Values.ToList();
             var inheritFrom = type.GetInheritsFrom();
@@ -28,7 +28,7 @@ namespace IDLCompiler
 
             foreach (var field in fields)
             {
-                var line = block.AddLine($"{field.Name}: {field.GetRustType(type.Name, false)}");
+                var line = block.AddLine($"pub {field.Name}: {field.GetRustType(type.Name, false)}");
                 line.CommaAfter = true;
             }
         }
@@ -72,7 +72,7 @@ namespace IDLCompiler
                             Name = "value",
                             Type = IDLField.FieldType.String
                         };
-                        CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "");
+                        CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "");
                         block.AddLine("size += " + string.Join(" + ", sizeParts) + ";");
                     }
                     break;
@@ -80,7 +80,7 @@ namespace IDLCompiler
                 case IDLField.FieldType.CustomType:
                     foreach (var field in option.CustomType.Fields.Values)
                     {
-                        CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "value.");
+                        CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "", "value.");
                     }
                     block.AddLine("size += " + string.Join(" + ", sizeParts) + ";");
                     break;

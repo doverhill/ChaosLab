@@ -101,6 +101,8 @@ namespace IDLCompiler
             if (_includeUsings)
             {
                 return
+                    "#![allow(dead_code)]\n" +
+                    "#![allow(unused_imports)]\n" +
                     "use std::mem;\n" +
                     "use std::mem::ManuallyDrop;\n" +
                     "use crate::types::*;\n" +

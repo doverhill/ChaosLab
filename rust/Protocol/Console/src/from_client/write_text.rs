@@ -1,10 +1,12 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
 use std::mem;
 use std::mem::ManuallyDrop;
 use crate::types::*;
 use crate::enums::*;
 
-struct WriteTextParameters {
-    text: String,
+pub struct WriteTextParameters {
+    pub text: String,
 }
 impl WriteTextParameters {
     pub unsafe fn create_at_address(pointer: *mut u8, text: &str) -> usize {
@@ -20,6 +22,19 @@ impl WriteTextParameters {
 
         // return
         mem::size_of::<WriteTextParameters>() + mem::size_of::<usize>() + _text_length
+    }
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, &'static mut Self) {
+        let object: *mut WriteTextParameters = mem::transmute(pointer);
+        let pointer = pointer.offset(mem::size_of::<WriteTextParameters>() as isize);
+
+        // text
+        let _text_length = *(pointer as *mut usize);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        (*object).text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, _text_length)).to_owned();
+        let pointer = pointer.offset(_text_length as isize);
+
+        // return
+        (mem::size_of::<WriteTextParameters>() + mem::size_of::<usize>() + _text_length, object.as_mut().unwrap())
     }
 }
 
