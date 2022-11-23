@@ -13,30 +13,71 @@ enum MapFieldValueEnum {
 }
 
 impl MapFieldValueEnum {
-    pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
-        let mut size: usize = mem::size_of::<MapFieldValueEnum>();
-        core::ptr::copy(self as *const MapFieldValueEnum, pointer as *mut MapFieldValueEnum, 1);
+    pub const OPTION_I64: usize = 1;
+    pub const OPTION_BOOL: usize = 2;
+    pub const OPTION_STRING: usize = 3;
+    pub const OPTION_NONE: usize = 4;
 
-        match self {
+    pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
+        let base_pointer = pointer;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut size: usize = mem::size_of::<usize>();
+
+        let size = match self {
             MapFieldValueEnum::TypeI64(value) => {
-                size
+                *(base_pointer as *mut usize) = Self::OPTION_I64;
+                *(pointer as *mut i64) = *value;
+                mem::size_of::<usize>()
             },
             MapFieldValueEnum::TypeBool(value) => {
-                size
+                *(base_pointer as *mut usize) = Self::OPTION_BOOL;
+                *(pointer as *mut usize) = if *value { 1 } else { 0 };
+                mem::size_of::<usize>()
             },
             MapFieldValueEnum::TypeString(value) => {
-                let _value_length = value.len();
-                *(pointer as *mut usize) = _value_length;
-                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                core::ptr::copy(value.as_ptr(), pointer, _value_length);
-                let pointer = pointer.offset(_value_length as isize);
-                size += mem::size_of::<usize>() + _value_length;
-                size
+                *(base_pointer as *mut usize) = Self::OPTION_STRING;
+                let value_len = value.len();
+                *(pointer as *mut usize) = value_len;
+                pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                core::ptr::copy(value.as_ptr(), pointer as *mut u8, value_len);
+                mem::size_of::<usize>() + value_len
             },
             MapFieldValueEnum::TypeNone => {
-                size
+                *(base_pointer as *mut usize) = Self::OPTION_NONE;
+                0
             },
-        }
+        };
+
+        mem::size_of::<usize>() + size
+    }
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, Self) {
+        let enum_type = *(pointer as *mut usize);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+
+        let (size, object) = match enum_type {
+            Self::OPTION_I64 => {
+                let value = *(pointer as *mut i64);
+                (mem::size_of::<usize>(), Self::TypeI64(value))
+            }
+            Self::OPTION_BOOL => {
+                let value = *(pointer as *mut usize) == 1;
+                (mem::size_of::<usize>(), Self::TypeBool(value))
+            }
+            Self::OPTION_STRING => {
+                let value_len = *(pointer as *mut usize);
+                pointer = pointer.offset(mem::size_of::<usize>() as isize);
+                let value = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, value_len)).to_owned();
+                (mem::size_of::<usize>() + value_len, Self::TypeString(value))
+            }
+            Self::OPTION_NONE => {
+                (0, Self::TypeNone)
+            }
+            _ => {
+                panic!("Unknown enum type");
+            }
+        };
+
+        (mem::size_of::<usize>() + size, object)
     }
 }
 pub struct MapField {

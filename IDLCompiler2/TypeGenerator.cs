@@ -51,45 +51,116 @@ namespace IDLCompiler
             return $"Type{option.Type}(value)";
         }
 
-        //private static string GetOneOfConstantName(IDLField.OneOfOption option)
-        //{
-        //    if (option.Type == IDLField.FieldType.None) return "OPTION_NONE";
-        //    if (option.Type == IDLField.FieldType.CustomType) return $"OPTION_{option.CustomType.Name.ToUpper()}";
-        //    if (option.Type == IDLField.FieldType.OneOfType) throw new ArgumentException("OneOf type is not allowed as a one-of option");
+        private static string GetOneOfConstantName(IDLField.OneOfOption option)
+        {
+            if (option.Type == IDLField.FieldType.None) return "OPTION_NONE";
+            if (option.Type == IDLField.FieldType.CustomType) return $"OPTION_{option.CustomType.Name.ToUpper()}";
+            if (option.Type == IDLField.FieldType.OneOfType) throw new ArgumentException("OneOf type is not allowed as a one-of option");
 
-        //    return $"OPTION_{option.Type.ToString().ToUpper()}";
-        //}
+            return $"OPTION_{option.Type.ToString().ToUpper()}";
+        }
 
-        private static void AddCase(SourceGenerator.SourceBlock block, string enumName, IDLField.OneOfOption option)
+        private static void AddReadCase(SourceGenerator.SourceBlock block, string enumName, IDLField.OneOfOption option)
         {
             var sizeParts = new List<string>();
             switch (option.Type)
             {
                 case IDLField.FieldType.String:
-                    {
-                        var field = new IDLField
-                        {
-                            Name = "value",
-                            Type = IDLField.FieldType.String
-                        };
-                        CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "");
-                        block.AddLine("size += " + string.Join(" + ", sizeParts) + ";");
-                    }
+                    block.AddLine("let value_len = *(pointer as *mut usize);");
+                    block.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                    block.AddLine("let value = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, value_len)).to_owned();");
+                    block.AddLine($"(mem::size_of::<usize>() + value_len, Self::{GetOneOfOption(option)})");
                     break;
 
                 case IDLField.FieldType.CustomType:
-                    foreach (var field in option.CustomType.Fields.Values)
-                    {
-                        CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "", "value.");
-                    }
-                    block.AddLine("size += " + string.Join(" + ", sizeParts) + ";");
+                    block.AddLine($"let (size, value) = {option.CustomType.Name}::get_from_address(pointer);");
+                    block.AddLine($"(size, Self::{GetOneOfOption(option)})");
                     break;
 
                 case IDLField.FieldType.OneOfType:
                     throw new ArgumentException("OneOf inside OneOf not allowed");
-            }
 
-            block.AddLine("size");
+                case IDLField.FieldType.U8:
+                    block.AddLine("let value = *(pointer as *mut u8);");
+                    block.AddLine($"(mem::size_of::<usize>(), Self::{GetOneOfOption(option)})");
+                    break;
+
+                case IDLField.FieldType.U64:
+                    block.AddLine("let value = *(pointer as *mut u64);");
+                    block.AddLine($"(mem::size_of::<usize>(), Self::{GetOneOfOption(option)})");
+                    break;
+
+                case IDLField.FieldType.I64:
+                    block.AddLine("let value = *(pointer as *mut i64);");
+                    block.AddLine($"(mem::size_of::<usize>(), Self::{GetOneOfOption(option)})");
+                    break;
+
+                case IDLField.FieldType.Bool:
+                    block.AddLine("let value = *(pointer as *mut usize) == 1;");
+                    block.AddLine($"(mem::size_of::<usize>(), Self::{GetOneOfOption(option)})");
+                    break;
+
+                case IDLField.FieldType.None:
+                    block.AddLine($"(0, Self::{GetOneOfOption(option)})");
+                    break;
+
+                default:
+                    throw new ArgumentException($"Unsupported type {option.Type} inside OneOf");
+            }
+        }
+
+        private static void AddWriteCase(SourceGenerator.SourceBlock block, string enumName, IDLField.OneOfOption option)
+        {
+            block.AddLine($"*(base_pointer as *mut usize) = Self::{GetOneOfConstantName(option)};");
+
+            switch (option.Type)
+            {
+                case IDLField.FieldType.String:
+                    block.AddLine("let value_len = value.len();");
+                    block.AddLine("*(pointer as *mut usize) = value_len;");
+                    block.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                    block.AddLine("core::ptr::copy(value.as_ptr(), pointer as *mut u8, value_len);");
+                    block.AddLine("mem::size_of::<usize>() + value_len");
+                    break;
+
+                case IDLField.FieldType.CustomType:
+                    //foreach (var field in option.CustomType.Fields.Values)
+                    //{
+                    //    CallGenerator.AppendTypeWrite(block, field, sizeParts, null, "", "", "value.");
+                    //}
+                    block.AddLine($"value.create_at_address(pointer)"); // + string.Join(" + ", sizeParts) + ";");
+                    break;
+
+                case IDLField.FieldType.OneOfType:
+                    throw new ArgumentException("OneOf inside OneOf not allowed");
+
+                case IDLField.FieldType.U8:
+                    block.AddLine("*(pointer as *mut u8) = *value;");
+                    block.AddLine("mem::size_of::<usize>()");
+                    break;
+
+                case IDLField.FieldType.U64:
+                    block.AddLine("*(pointer as *mut u64) = *value;");
+                    block.AddLine("mem::size_of::<usize>()");
+                    break;
+
+                case IDLField.FieldType.I64:
+                    block.AddLine("*(pointer as *mut i64) = *value;");
+                    block.AddLine("mem::size_of::<usize>()");
+                    break;
+
+                case IDLField.FieldType.Bool:
+                    block.AddLine("*(pointer as *mut usize) = if *value { 1 } else { 0 };");
+                    block.AddLine("mem::size_of::<usize>()");
+                    break;
+
+                case IDLField.FieldType.None:
+                    block.AddLine("0");
+                    break;
+
+                default:
+                    throw new ArgumentException($"Unsupported type {option.Type} inside OneOf");
+            }
         }
 
         public static void GenerateOneOfType(SourceGenerator source, string enumName, List<IDLField.OneOfOption> oneOfOptions)
@@ -105,25 +176,51 @@ namespace IDLCompiler
             source.AddBlank();
             block = source.AddBlock($"impl {enumName}");
 
-            //var number = 1;
-            //foreach (var option in oneOfOptions)
-            //{
-            //    block.AddLine($"pub const {GetOneOfConstantName(option)}: usize = {number++};");
-            //}
-            //block.AddBlank();
+            var number = 1;
+            foreach (var option in oneOfOptions)
+            {
+                block.AddLine($"pub const {GetOneOfConstantName(option)}: usize = {number++};");
+            }
+            block.AddBlank();
 
             var body = block.AddBlock("pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize");
-            body.AddLine($"let mut size: usize = mem::size_of::<{enumName}>();");
-            body.AddLine($"core::ptr::copy(self as *const {enumName}, pointer as *mut {enumName}, 1);");
+            body.AddLine("let base_pointer = pointer;");
+            body.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+            //body.AddLine($"core::ptr::copy(self as *const {enumName}, pointer as *mut {enumName}, 1);");
+            //body.AddLine($"let pointer = pointer.offset(mem::size_of::<{enumName}>() as isize);");
+            //body.AddLine($"let mut size: usize = mem::size_of::<usize>() + mem::size_of::<{enumName}>();");
+            body.AddLine($"let mut size: usize = mem::size_of::<usize>();");
             body.AddBlank();
 
-            var match = body.AddBlock("match self");
+            var match = body.AddBlock("let size = match self");
+            match.SemiColonAfter = true;
             foreach (var option in oneOfOptions)
             {
                 var caseBlock = match.AddBlock($"{enumName}::{GetOneOfOption(option)} =>");
                 caseBlock.CommaAfter = true;
-                AddCase(caseBlock, enumName, option);
+                AddWriteCase(caseBlock, enumName, option);
             }
+
+            body.AddBlank();
+            body.AddLine("mem::size_of::<usize>() + size");
+
+            body = block.AddBlock("pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, Self)");
+            body.AddLine("let enum_type = *(pointer as *mut usize);");
+            body.AddLine("let pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+            body.AddBlank();
+
+            match = body.AddBlock("let (size, object) = match enum_type");
+            match.SemiColonAfter = true;
+            foreach (var option in oneOfOptions)
+            {
+                var caseBlock = match.AddBlock($"Self::{GetOneOfConstantName(option)} =>");
+                AddReadCase(caseBlock, enumName, option);
+            }
+            var panicBlock = match.AddBlock("_ =>");
+            panicBlock.AddLine("panic!(\"Unknown enum type\");");
+
+            body.AddBlank();
+            body.AddLine("(mem::size_of::<usize>() + size, object)");
         }
     }
 }

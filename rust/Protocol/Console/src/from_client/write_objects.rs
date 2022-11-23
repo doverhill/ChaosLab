@@ -11,48 +11,46 @@ enum WriteObjectsParametersObjectsEnum {
 }
 
 impl WriteObjectsParametersObjectsEnum {
-    pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
-        let mut size: usize = mem::size_of::<WriteObjectsParametersObjectsEnum>();
-        core::ptr::copy(self as *const WriteObjectsParametersObjectsEnum, pointer as *mut WriteObjectsParametersObjectsEnum, 1);
+    pub const OPTION_TABLE: usize = 1;
+    pub const OPTION_MAP: usize = 2;
 
-        match self {
+    pub unsafe fn create_at_address(&self, pointer: *mut u8) -> usize {
+        let base_pointer = pointer;
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut size: usize = mem::size_of::<usize>();
+
+        let size = match self {
             WriteObjectsParametersObjectsEnum::TypeTable(value) => {
-                *(pointer as *mut usize) = value.columns.len();
-                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let mut _columns_size: usize = mem::size_of::<usize>();
-                for item in value.columns.iter() {
-                    let item_size = item.len();
-                    *(pointer as *mut usize) = item_size;
-                    let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                    core::ptr::copy(item.as_ptr(), pointer, item_size);
-                    let item_size = mem::size_of::<usize>() + item_size;
-                    let pointer = pointer.offset(item_size as isize);
-                    _columns_size += item_size;
-                }
-                *(pointer as *mut usize) = value.rows.len();
-                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let mut _rows_size: usize = mem::size_of::<usize>();
-                for item in value.rows.iter() {
-                    let item_size = item.create_at_address(pointer);
-                    let pointer = pointer.offset(item_size as isize);
-                    _rows_size += item_size;
-                }
-                size += _columns_size + _rows_size;
-                size
+                *(base_pointer as *mut usize) = Self::OPTION_TABLE;
+                value.create_at_address(pointer)
             },
             WriteObjectsParametersObjectsEnum::TypeMap(value) => {
-                *(pointer as *mut usize) = value.fields.len();
-                let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                let mut _fields_size: usize = mem::size_of::<usize>();
-                for item in value.fields.iter() {
-                    let item_size = item.create_at_address(pointer);
-                    let pointer = pointer.offset(item_size as isize);
-                    _fields_size += item_size;
-                }
-                size += _fields_size;
-                size
+                *(base_pointer as *mut usize) = Self::OPTION_MAP;
+                value.create_at_address(pointer)
             },
-        }
+        };
+
+        mem::size_of::<usize>() + size
+    }
+    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, Self) {
+        let enum_type = *(pointer as *mut usize);
+        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
+
+        let (size, object) = match enum_type {
+            Self::OPTION_TABLE => {
+                let (size, value) = Table::get_from_address(pointer);
+                (size, Self::TypeTable(value))
+            }
+            Self::OPTION_MAP => {
+                let (size, value) = Map::get_from_address(pointer);
+                (size, Self::TypeMap(value))
+            }
+            _ => {
+                panic!("Unknown enum type");
+            }
+        };
+
+        (mem::size_of::<usize>() + size, object)
     }
 }
 pub struct WriteObjectsParameters {

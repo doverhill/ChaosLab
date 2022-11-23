@@ -49,12 +49,12 @@ namespace IDLCompiler
 
             public string GetSource(int indent)
             {
-                if (_blocks == null && _line == null) return "\n";
+                if (_blocks == null && _line == null) return "\r\n";
 
                 var result = new string(' ', 4 * indent) + _line;
                 if (_blocks != null)
                 {
-                    result += " {\n";
+                    result += " {\r\n";
                     foreach ( var block in _blocks)
                     {
                         result += block.GetSource(indent + 1);
@@ -63,7 +63,7 @@ namespace IDLCompiler
                 }
                 if (CommaAfter) result += ",";
                 if (SemiColonAfter) result += ";";
-                result += "\n";
+                result += "\r\n";
                 return result;
             }
         }
@@ -101,17 +101,17 @@ namespace IDLCompiler
             if (_includeUsings)
             {
                 return
-                    "#![allow(dead_code)]\n" +
-                    "#![allow(unused_imports)]\n" +
-                    "use std::mem;\n" +
-                    "use std::mem::ManuallyDrop;\n" +
-                    "use crate::types::*;\n" +
-                    "use crate::enums::*;\n\n" +
-                    string.Join("", Blocks.Select(b => b.GetSource(0))) + "\n";
+                    "#![allow(dead_code)]\r\n" +
+                    "#![allow(unused_imports)]\r\n" +
+                    "use std::mem;\r\n" +
+                    "use std::mem::ManuallyDrop;\r\n" +
+                    "use crate::types::*;\r\n" +
+                    "use crate::enums::*;\r\n\r\n" +
+                    string.Join("", Blocks.Select(b => b.GetSource(0))) + "\r\n";
             }
             else
             {
-                return string.Join("", Blocks.Select(b => b.GetSource(0))) + "\n";
+                return string.Join("", Blocks.Select(b => b.GetSource(0))) + "\r\n";
             }
         }
     }
