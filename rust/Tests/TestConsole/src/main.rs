@@ -41,6 +41,9 @@ fn test_write_objects_parameters_empty() {
     }
 }
 
+// FIXME: create a version of create_at_address that don't take vecs of pointers
+// FIXME: fix get_from_address to use ManuallyDrop where necessary to prevent crash
+
 #[test]
 fn test_write_objects_parameters_nonempty() {
     unsafe {
@@ -70,7 +73,10 @@ fn test_write_objects_parameters_nonempty() {
         assert!(size_write > 0);
 
         let (size_read, result) = WriteObjectsParameters::get_from_address(raw);
-        assert_eq!(size_write, size_read);
-        assert_eq!(2, (*result).objects.len());
+
+panic!("do we get here");
+
+        // assert_eq!(size_write, size_read);
+        // assert_eq!(2, (*result).objects.len());
     }
 }
