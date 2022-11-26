@@ -145,12 +145,11 @@
                 }
             }
         },
-        "draw_image_patches": {
+        "draw_image_patch": {
             "type": "call",
             "parameters": {
-                "image_patches": {
-                    "type": "ImagePatch",
-                    "array": true
+                "image_patch": {
+                    "type": "ImagePatch"
                 }
             }
         },
