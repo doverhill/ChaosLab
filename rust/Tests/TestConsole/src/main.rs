@@ -36,6 +36,46 @@ fn test_type() {
 
         assert_eq!(size_read, size_write);
         assert_eq!(test.name, (*test_read).name);
+        assert_eq!(test.name, "apa");
+        assert_eq!((*test_read).name, "apa");
+        assert_eq!(test.size, (*test_read).size);
+        assert_eq!(test.size, 77);
+        assert_eq!((*test_read).size, 77);
+        assert_eq!(test.objects.len(), (*test_read).objects.len());
+        assert_eq!(test.objects.len(), 2);
+        assert_eq!((*test_read).objects.len(), 2);
+
+        assert_eq!(test.objects[0].include, (*test_read).objects[0].include);
+        assert_eq!(test.objects[0].include, true);
+        assert_eq!((*test_read).objects[0].include, true);
+        assert_eq!(test.objects[1].include, (*test_read).objects[1].include);
+        assert_eq!(test.objects[1].include, false);
+        assert_eq!((*test_read).objects[1].include, false);
+
+        let other3 = OtherType { include: true, offset: -334 };
+
+        let test = TestType {
+            name: "xyz".to_string(),
+            size: 3,
+            objects: vec![ other3 ],
+        };
+
+        let size_write = test.write_at(raw1);
+        core::ptr::copy(raw1, raw2, 1024);
+        let size_read = TestType::reconstruct_at(raw2);
+        let test_read = raw2 as *const TestType;
+
+        assert_eq!(size_read, size_write);
+        assert_eq!(test.name, (*test_read).name);
+        assert_eq!(test.name, "xyz");
+        assert_eq!((*test_read).name, "xyz");
+        assert_eq!(test.size, (*test_read).size);
+        assert_eq!(test.size, 3);
+        assert_eq!((*test_read).size, 3);
+        assert_eq!(test.objects.len(), (*test_read).objects.len());
+        assert_eq!(test.objects.len(), 1);
+        assert_eq!((*test_read).objects.len(), 1);
+
     }
 }
 
