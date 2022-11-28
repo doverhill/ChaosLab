@@ -9,6 +9,10 @@ use test_type::*;
 
 use protocol_console::*;
 
+// fn main() {
+//     test_type();
+// }
+
 #[test]
 fn test_type() {
     unsafe {
@@ -16,12 +20,19 @@ fn test_type() {
         let raw1: *mut u8 = mem::transmute(alloc::alloc(layout));
         let raw2: *mut u8 = mem::transmute(alloc::alloc(layout));
 
+        let q = TestType {
+            name: "q".to_string(),
+            size: 9,
+            objects: vec![]
+        };
+
         let other1 = OtherType {
             include: true,
             offset: -5,
+            paths: vec![ OtherTypePathsEnum::TypeTestType(q), OtherTypePathsEnum::TypeI64(99), OtherTypePathsEnum::TypeString("hejsan".to_string()) ]
         };
 
-        let other2 = OtherType { include: false, offset: 767 };
+        let other2 = OtherType { include: false, offset: 767, paths: vec![] };
 
         let test = TestType {
             name: "apa".to_string(),
@@ -59,9 +70,17 @@ fn test_type() {
         assert_eq!(test.objects[1].offset, 767);
         assert_eq!((*test_read).objects[1].offset, 767);
 
-        let other3 = OtherType { include: true, offset: -334 };
-        let other4 = OtherType { include: false, offset: -33 };
-        let other5 = OtherType { include: false, offset: -3 };
+        assert_eq!(test.objects[0].paths.len(), (*test_read).objects[0].paths.len());
+        assert_eq!(test.objects[0].paths.len(), 3);
+        assert_eq!((*test_read).objects[0].paths.len(), 3);
+
+        assert!(if let OtherTypePathsEnum::TypeTestType(a) = &test.objects[0].paths[0] { assert_eq!(a.name, "q"); assert_eq!(a.size, 9); assert_eq!(a.objects.len(), 0); true } else { false });
+        assert!(if let OtherTypePathsEnum::TypeI64(a) = &test.objects[0].paths[1] { assert_eq!(*a, 99); true } else { false });
+        assert!(if let OtherTypePathsEnum::TypeString(a) = &test.objects[0].paths[2] { assert_eq!(a, "hejsan"); true } else { false });
+
+        let other3 = OtherType { include: true, offset: -334, paths: vec![] };
+        let other4 = OtherType { include: false, offset: -33, paths: vec![] };
+        let other5 = OtherType { include: false, offset: -3, paths: vec![] };
 
         let test = TestType {
             name: "xyz".to_string(),
