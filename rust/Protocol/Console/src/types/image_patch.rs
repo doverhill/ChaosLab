@@ -3,6 +3,7 @@
 #![allow(unused_variables)]
 use core::mem;
 use core::mem::ManuallyDrop;
+use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
@@ -12,58 +13,42 @@ pub struct ImagePatch {
 }
 
 impl ImagePatch {
-    pub unsafe fn create_at_address(pointer: *mut u8, image_size_width: u64, image_size_height: u64, image_pixels_count: usize, position_x: i64, position_y: i64) -> (usize, ManuallyDrop<Vec<Color>>) {
-        let object: *mut ImagePatch = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<ImagePatch>() as isize);
-
-        // image
-        (*object).image.size.width = image_size_width;
-        (*object).image.size.height = image_size_height;
-        *(pointer as *mut usize) = image_pixels_count;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let image_pixels = Vec::<Color>::from_raw_parts(pointer as *mut Color, image_pixels_count, image_pixels_count);
-        let pointer = pointer.offset(image_pixels_count as isize * mem::size_of::<Color>() as isize);
-
-        // position
-        (*object).position.x = position_x;
-        (*object).position.y = position_y;
-
-        // return
-        (mem::size_of::<ImagePatch>() + mem::size_of::<usize>() + image_pixels_count * mem::size_of::<Color>(), ManuallyDrop::new(image_pixels))
-    }
-
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+    pub unsafe fn write_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
         core::ptr::copy(self, pointer as *mut ImagePatch, 1);
-        let pointer = pointer.offset(mem::size_of::<ImagePatch>() as isize);
+        pointer = pointer.offset(mem::size_of::<ImagePatch>() as isize);
 
-        // image
-        let image_pixels_count = self.image.pixels.len();
-        *(pointer as *mut usize) = image_pixels_count;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let image_pixels = Vec::<Color>::from_raw_parts(pointer as *mut Color, image_pixels_count, image_pixels_count);
-        let pointer = pointer.offset(image_pixels_count as isize * mem::size_of::<Color>() as isize);
-
-        // position
-
-        // return
-        mem::size_of::<ImagePatch>() + mem::size_of::<usize>() + image_pixels_count * mem::size_of::<Color>()
+        mem::size_of::<ImagePatch>() + self.write_references_at(pointer)
     }
 
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
-        let object: *mut ImagePatch = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<ImagePatch>() as isize);
+    pub unsafe fn write_references_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
+        let mut size: usize = 0;
 
-        // image
-        let image_pixels_count = *(pointer as *mut usize);
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let image_pixels = Vec::<Color>::from_raw_parts(pointer as *mut Color, image_pixels_count, image_pixels_count);
-        let pointer = pointer.offset(image_pixels_count as isize * mem::size_of::<Color>() as isize);
-        (*object).image.pixels = image_pixels;
+        // type Image image
+        // TODO
 
-        // position
+        // type Point position
+        // TODO
 
-        // return
-        (mem::size_of::<ImagePatch>() + mem::size_of::<usize>() + image_pixels_count * mem::size_of::<Color>(), object)
+        size
+    }
+
+    pub unsafe fn reconstruct_at_inline(object_pointer: *mut u8) -> usize {
+        mem::size_of::<ImagePatch>() + Self::reconstruct_at(object_pointer as *mut ImagePatch, object_pointer.offset(mem::size_of::<ImagePatch>() as isize))
+    }
+
+    pub unsafe fn reconstruct_at(object_pointer: *mut ImagePatch, references_pointer: *mut u8) -> usize {
+        let mut pointer = references_pointer;
+        let mut size: usize = 0;
+
+        // type Image image
+        // TODO
+
+        // type Point position
+        // TODO
+
+        size
     }
 }
 

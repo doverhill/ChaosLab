@@ -3,6 +3,7 @@
 #![allow(unused_variables)]
 use core::mem;
 use core::mem::ManuallyDrop;
+use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
@@ -12,68 +13,64 @@ pub struct Object {
 }
 
 impl Object {
-    pub unsafe fn create_at_address(pointer: *mut u8, name: &str, description: &str) -> usize {
-        let object: *mut Object = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<Object>() as isize);
-
-        // name
-        let _name_length = name.len();
-        *(pointer as *mut usize) = _name_length;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        core::ptr::copy(name.as_ptr(), pointer, _name_length);
-        let pointer = pointer.offset(_name_length as isize);
-
-        // description
-        let _description_length = description.len();
-        *(pointer as *mut usize) = _description_length;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        core::ptr::copy(description.as_ptr(), pointer, _description_length);
-        let pointer = pointer.offset(_description_length as isize);
-
-        // return
-        mem::size_of::<Object>() + mem::size_of::<usize>() + _name_length + mem::size_of::<usize>() + _description_length
-    }
-
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+    pub unsafe fn write_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
         core::ptr::copy(self, pointer as *mut Object, 1);
-        let pointer = pointer.offset(mem::size_of::<Object>() as isize);
+        pointer = pointer.offset(mem::size_of::<Object>() as isize);
 
-        // name
-        let _name_length = self.name.len();
-        *(pointer as *mut usize) = _name_length;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        core::ptr::copy(self.name.as_ptr(), pointer, _name_length);
-        let pointer = pointer.offset(_name_length as isize);
-
-        // description
-        let _description_length = self.description.len();
-        *(pointer as *mut usize) = _description_length;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        core::ptr::copy(self.description.as_ptr(), pointer, _description_length);
-        let pointer = pointer.offset(_description_length as isize);
-
-        // return
-        mem::size_of::<Object>() + mem::size_of::<usize>() + _name_length + mem::size_of::<usize>() + _description_length
+        mem::size_of::<Object>() + self.write_references_at(pointer)
     }
 
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
-        let object: *mut Object = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<Object>() as isize);
+    pub unsafe fn write_references_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
+        let mut size: usize = 0;
 
-        // name
-        let _name_length = *(pointer as *mut usize);
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        (*object).name = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, _name_length)).to_owned();
-        let pointer = pointer.offset(_name_length as isize);
+        // string name
+        let mut len = self.name.len();
+        *(pointer as *mut usize) = len;
+        core::ptr::copy(self.name.as_ptr(), pointer, len);
+        len = ((len + 7) / 8) * 8;
+        pointer = pointer.offset(len as isize);
+        size += mem::size_of::<usize>() + len;
 
-        // description
-        let _description_length = *(pointer as *mut usize);
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        (*object).description = core::str::from_utf8_unchecked(core::slice::from_raw_parts(pointer as *const u8, _description_length)).to_owned();
-        let pointer = pointer.offset(_description_length as isize);
+        // string description
+        let mut len = self.description.len();
+        *(pointer as *mut usize) = len;
+        core::ptr::copy(self.description.as_ptr(), pointer, len);
+        len = ((len + 7) / 8) * 8;
+        pointer = pointer.offset(len as isize);
+        size += mem::size_of::<usize>() + len;
 
-        // return
-        (mem::size_of::<Object>() + mem::size_of::<usize>() + _name_length + mem::size_of::<usize>() + _description_length, object)
+        size
+    }
+
+    pub unsafe fn reconstruct_at_inline(object_pointer: *mut u8) -> usize {
+        mem::size_of::<Object>() + Self::reconstruct_at(object_pointer as *mut Object, object_pointer.offset(mem::size_of::<Object>() as isize))
+    }
+
+    pub unsafe fn reconstruct_at(object_pointer: *mut Object, references_pointer: *mut u8) -> usize {
+        let mut pointer = references_pointer;
+        let mut size: usize = 0;
+
+        // string name
+        let mut len = *(pointer as *const usize);
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len);
+        core::ptr::write(addr_of_mut!((*object_pointer).name), ManuallyDrop::take(&mut assign));
+        len = ((len + 7) / 8) * 8;
+        pointer = pointer.offset(len as isize);
+        size += mem::size_of::<usize>() + len;
+
+        // string description
+        let mut len = *(pointer as *const usize);
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len);
+        core::ptr::write(addr_of_mut!((*object_pointer).name), ManuallyDrop::take(&mut assign));
+        len = ((len + 7) / 8) * 8;
+        pointer = pointer.offset(len as isize);
+        size += mem::size_of::<usize>() + len;
+
+        size
     }
 }
 

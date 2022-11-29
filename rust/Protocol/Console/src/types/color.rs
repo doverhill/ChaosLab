@@ -3,6 +3,7 @@
 #![allow(unused_variables)]
 use core::mem;
 use core::mem::ManuallyDrop;
+use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
@@ -14,56 +15,30 @@ pub struct Color {
 }
 
 impl Color {
-    pub unsafe fn create_at_address(pointer: *mut u8, alpha: u8, red: u8, green: u8, blue: u8) -> usize {
-        let object: *mut Color = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<Color>() as isize);
-
-        // alpha
-        (*object).alpha = alpha;
-
-        // red
-        (*object).red = red;
-
-        // green
-        (*object).green = green;
-
-        // blue
-        (*object).blue = blue;
-
-        // return
-        mem::size_of::<Color>()
-    }
-
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+    pub unsafe fn write_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
         core::ptr::copy(self, pointer as *mut Color, 1);
-        let pointer = pointer.offset(mem::size_of::<Color>() as isize);
+        pointer = pointer.offset(mem::size_of::<Color>() as isize);
 
-        // alpha
-
-        // red
-
-        // green
-
-        // blue
-
-        // return
-        mem::size_of::<Color>()
+        mem::size_of::<Color>() + self.write_references_at(pointer)
     }
 
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
-        let object: *mut Color = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<Color>() as isize);
+    pub unsafe fn write_references_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
+        let mut size: usize = 0;
 
-        // alpha
+        size
+    }
 
-        // red
+    pub unsafe fn reconstruct_at_inline(object_pointer: *mut u8) -> usize {
+        mem::size_of::<Color>() + Self::reconstruct_at(object_pointer as *mut Color, object_pointer.offset(mem::size_of::<Color>() as isize))
+    }
 
-        // green
+    pub unsafe fn reconstruct_at(object_pointer: *mut Color, references_pointer: *mut u8) -> usize {
+        let mut pointer = references_pointer;
+        let mut size: usize = 0;
 
-        // blue
-
-        // return
-        (mem::size_of::<Color>(), object)
+        size
     }
 }
 

@@ -3,6 +3,7 @@
 #![allow(unused_variables)]
 use core::mem;
 use core::mem::ManuallyDrop;
+use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
@@ -12,56 +13,64 @@ pub struct Image {
 }
 
 impl Image {
-    pub unsafe fn create_at_address(pointer: *mut u8, size_width: u64, size_height: u64, pixels_count: usize) -> (usize, ManuallyDrop<Vec<Color>>) {
-        let object: *mut Image = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<Image>() as isize);
-
-        // size
-        (*object).size.width = size_width;
-        (*object).size.height = size_height;
-
-        // pixels
-        *(pointer as *mut usize) = pixels_count;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let pixels = Vec::<Color>::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
-        let pointer = pointer.offset(pixels_count as isize * mem::size_of::<Color>() as isize);
-
-        // return
-        (mem::size_of::<Image>() + mem::size_of::<usize>() + pixels_count * mem::size_of::<Color>(), ManuallyDrop::new(pixels))
-    }
-
-    pub unsafe fn write_at_address(&self, pointer: *mut u8) -> usize {
+    pub unsafe fn write_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
         core::ptr::copy(self, pointer as *mut Image, 1);
-        let pointer = pointer.offset(mem::size_of::<Image>() as isize);
+        pointer = pointer.offset(mem::size_of::<Image>() as isize);
 
-        // size
-
-        // pixels
-        let pixels_count = self.pixels.len();
-        *(pointer as *mut usize) = pixels_count;
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let pixels = Vec::<Color>::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
-        let pointer = pointer.offset(pixels_count as isize * mem::size_of::<Color>() as isize);
-
-        // return
-        mem::size_of::<Image>() + mem::size_of::<usize>() + pixels_count * mem::size_of::<Color>()
+        mem::size_of::<Image>() + self.write_references_at(pointer)
     }
 
-    pub unsafe fn get_from_address(pointer: *mut u8) -> (usize, *mut Self) {
-        let object: *mut Image = mem::transmute(pointer);
-        let pointer = pointer.offset(mem::size_of::<Image>() as isize);
+    pub unsafe fn write_references_at(&self, pointer: *mut u8) -> usize {
+        let mut pointer = pointer;
+        let mut size: usize = 0;
 
-        // size
+        // type Size size
+        // TODO
 
-        // pixels
-        let pixels_count = *(pointer as *mut usize);
-        let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let pixels = Vec::<Color>::from_raw_parts(pointer as *mut Color, pixels_count, pixels_count);
-        let pointer = pointer.offset(pixels_count as isize * mem::size_of::<Color>() as isize);
-        (*object).pixels = pixels;
+        // array pixels
+        let len = self.pixels.len();
+        *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        core::ptr::copy(self.pixels.as_ptr(), pointer as *mut Color, len);
+        pointer = pointer.offset(len as isize * mem::size_of::<Color>() as isize);
+        size += mem::size_of::<usize>() + len * mem::size_of::<Color>();
+        for item in self.pixels.iter() {
+            let item_size = item.write_references_at(pointer);
+            pointer = pointer.offset(item_size as isize);
+            size += item_size;
+        }
 
-        // return
-        (mem::size_of::<Image>() + mem::size_of::<usize>() + pixels_count * mem::size_of::<Color>(), object)
+        size
+    }
+
+    pub unsafe fn reconstruct_at_inline(object_pointer: *mut u8) -> usize {
+        mem::size_of::<Image>() + Self::reconstruct_at(object_pointer as *mut Image, object_pointer.offset(mem::size_of::<Image>() as isize))
+    }
+
+    pub unsafe fn reconstruct_at(object_pointer: *mut Image, references_pointer: *mut u8) -> usize {
+        let mut pointer = references_pointer;
+        let mut size: usize = 0;
+
+        // type Size size
+        // TODO
+
+        // array pixels
+        let len = *(pointer as *const usize);
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut Color, len, len);
+        core::ptr::writer(addr_of_mut!((*object_pointer).pixels), ManuallyDrop::take(&mut assign));
+        size += mem::size_of::<usize>() + len * mem::size_of::<Color>();
+        let mut references_pointer = pointer.offset(len as isize * mem::size_of::<Color>() as isize);
+        for item in (*object_pointer).pixels.iter() {
+            let item_size = Color::reconstruct_at(pointer as *mut Color, references_pointer);
+            pointer = pointer.offset(mem::size_of::<Color>() as isize);
+            references_pointer = references_pointer.offset(item_size as isize);
+            size += item_size;
+        }
+        pointer = references_pointer;
+
+        size
     }
 }
 
