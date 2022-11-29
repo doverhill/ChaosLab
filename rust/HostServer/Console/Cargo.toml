@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-library_chaos = { path = "../../Library/Chaos" }
+#library_chaos = { path = "../../Library/Chaos" }
 protocol_console = { path = "../../Protocol/Console" }
-sdl2 = "0.35.1"
+sdl2 = "*"

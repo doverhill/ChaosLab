@@ -104,6 +104,8 @@ namespace IDLCompiler
                     "#![allow(dead_code)]\r\n" +
                     "#![allow(unused_imports)]\r\n" +
                     "#![allow(unused_variables)]\r\n" +
+                    "#![allow(unused_assignments)]\r\n" +
+                    "#![allow(unused_mut)]\r\n" +
                     "use core::mem;\r\n" +
                     "use core::mem::ManuallyDrop;\r\n" +
                     "use core::ptr::addr_of_mut;\r\n" +

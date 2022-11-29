@@ -84,7 +84,7 @@ namespace IDLCompiler
                             }
                         }
 
-                        modSource.AddLine($"pub mod {enumName.ToSnake()};");
+                        modSource.AddLine($"mod {enumName.ToSnake()};");
                         modSource.AddLine($"pub use {enumName.ToSnake()}::*;");
                     }
 
@@ -117,7 +117,7 @@ namespace IDLCompiler
                             }
                         }
 
-                        modSource.AddLine($"pub mod {typeName.ToSnake()};");
+                        modSource.AddLine($"mod {typeName.ToSnake()};");
                         modSource.AddLine($"pub use {typeName.ToSnake()}::*;");
                     }
 
@@ -157,7 +157,7 @@ namespace IDLCompiler
                         }
                         message_id++;
 
-                        modSource.AddLine($"pub mod {call.Key};");
+                        modSource.AddLine($"mod {call.Key};");
                         modSource.AddLine($"pub use {call.Key}::*;");
                     }
 
@@ -195,7 +195,7 @@ namespace IDLCompiler
                         }
                         message_id++;
 
-                        modSource.AddLine($"pub mod {call.Key};");
+                        modSource.AddLine($"mod {call.Key};");
                         modSource.AddLine($"pub use {call.Key}::*;");
                     }
 

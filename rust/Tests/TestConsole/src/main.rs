@@ -4,6 +4,8 @@ use std::{
     mem::{self, ManuallyDrop},
 };
 
+extern crate protocol_console;
+
 mod test_type;
 use test_type::*;
 
@@ -132,13 +134,17 @@ fn test_get_capabilities_returns() {
         let raw: *mut u8 = mem::transmute(alloc::alloc(layout));
 
         let test = GetCapabilitiesReturns {
-            
+            framebuffer_size: Size { width: 1024, height: 768 },
+            is_framebuffer: true,
+            text_size: Size { width: 80, height: 50 },
         };
-        let size_write = GetCapabilitiesReturns::create_at_address(raw, true, 1024, 768, 80, 50);
+        let size_write = test.write_at(raw);
         assert!(size_write > 0);
 
-        let (size_read, result) = GetCapabilitiesReturns::get_from_address(raw);
+        let size_read = GetCapabilitiesReturns::reconstruct_at_inline(raw);
+        let result = raw as *const GetCapabilitiesReturns;
         assert_eq!(size_write, size_read);
+
         assert_eq!(true, (*result).is_framebuffer);
         assert_eq!(1024, (*result).framebuffer_size.width);
         assert_eq!(768, (*result).framebuffer_size.height);

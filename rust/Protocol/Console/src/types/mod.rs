@@ -1,20 +1,20 @@
-pub mod color;
+mod color;
 pub use color::*;
-pub mod point;
+mod point;
 pub use point::*;
-pub mod size;
+mod size;
 pub use size::*;
-pub mod image;
+mod image;
 pub use image::*;
-pub mod image_patch;
+mod image_patch;
 pub use image_patch::*;
-pub mod object;
+mod object;
 pub use object::*;
-pub mod map_field;
+mod map_field;
 pub use map_field::*;
-pub mod map;
+mod map;
 pub use map::*;
-pub mod table;
+mod table;
 pub use table::*;
 
 
