@@ -54,9 +54,10 @@
             {
                 var caseBlock = matchBlock.AddBlock($"{option.ToMatchString()} =>");
                 caseBlock.CommaAfter = true;
-                if (option.Type == IDLField.FieldType.CustomType)
+                if (option.Type == IDLField.FieldType.CustomType ||
+                    option.Type == IDLField.FieldType.OneOfType)
                 {
-                    caseBlock.AddLine("value.write_at(pointer)");
+                    caseBlock.AddLine("value.write_references_at(pointer)");
                 }
                 else if (option.Type == IDLField.FieldType.String)
                 {
@@ -66,11 +67,6 @@
                     caseBlock.AddLine("core::ptr::copy(value.as_ptr(), pointer, len);");
                     caseBlock.AddLine("len = ((len + 7) / 8) * 8;");
                     caseBlock.AddLine("mem::size_of::<usize>() + len");
-                }
-                else if (option.Type == IDLField.FieldType.OneOfType)
-                {
-                    caseBlock.AddLine("// FIXME: check this");
-                    caseBlock.AddLine("value.write_at(pointer)");
                 }
                 else
                 {
@@ -87,7 +83,8 @@
             {
                 var caseBlock = matchBlock.AddBlock($"{option.ToEnumStructMatchString()} =>");
                 caseBlock.CommaAfter = true;
-                if (option.Type == IDLField.FieldType.CustomType)
+                if (option.Type == IDLField.FieldType.CustomType ||
+                    option.Type == IDLField.FieldType.OneOfType)
                 {
                     caseBlock.AddLine($"{option.CustomType.Name}::reconstruct_at(addr_of_mut!((*object).payload.{EnumList.Option.GetPayloadUnionFieldName(option.Name)}) as *mut {option.CustomType.Name}, references_pointer)");
                 }
@@ -99,11 +96,6 @@
                     caseBlock.AddLine($"(*object).payload.{EnumList.Option.GetPayloadUnionFieldName(option.Name)} = ManuallyDrop::new(String::from_raw_parts(pointer, len, len));");
                     caseBlock.AddLine("len = ((len + 7) / 8) * 8;");
                     caseBlock.AddLine("mem::size_of::<usize>() + len");
-                }
-                else if (option.Type == IDLField.FieldType.OneOfType)
-                {
-                    caseBlock.AddLine("// FIXME: check this");
-                    caseBlock.AddLine("value.write_at(pointer)");
                 }
                 else
                 {
