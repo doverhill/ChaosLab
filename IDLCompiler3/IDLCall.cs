@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace IDLCompiler
@@ -42,14 +43,40 @@ namespace IDLCompiler
             if (Parameters == null) Parameters = new();
             foreach (var parameter in Parameters)
             {
-                parameter.Value.Validate($"{Name}Parameters", parameter.Key, customEnumLists, customTypes);
+                parameter.Value.Validate(parameter.Key, customEnumLists, customTypes);
             }
 
             if (ReturnValues == null) ReturnValues = new();
             foreach (var returnValue in ReturnValues)
             {
-                returnValue.Value.Validate($"{Name}Returns", returnValue.Key, customEnumLists, customTypes);
+                returnValue.Value.Validate(returnValue.Key, customEnumLists, customTypes);
             }
+        }
+
+        public IDLType ToParametersType()
+        {
+            if (Parameters.Count > 0)
+            {
+                return new IDLType
+                {
+                    Name = CasedString.FromSnake(Name).ToPascal() + "Parameters",
+                    Fields = Parameters
+                };
+            }
+            return null;
+        }
+
+        public IDLType ToReturnsType()
+        {
+            if (ReturnValues.Count > 0)
+            {
+                return new IDLType
+                {
+                    Name = CasedString.FromSnake(Name).ToPascal() + "Returns",
+                    Fields = ReturnValues
+                };
+            }
+            return null;
         }
     }
 }

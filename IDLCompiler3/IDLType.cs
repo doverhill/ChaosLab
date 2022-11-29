@@ -25,7 +25,7 @@ namespace IDLCompiler
             if (Fields == null) Fields = new();
             foreach (var field in Fields)
             {
-                field.Value.Validate(Name, field.Key, customEnumLists, customTypes);
+                field.Value.Validate(field.Key, customEnumLists, customTypes);
             }
         }
     }

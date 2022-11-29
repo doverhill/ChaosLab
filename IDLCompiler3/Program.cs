@@ -59,10 +59,11 @@ namespace IDLCompiler
 
             Directory.CreateDirectory("src");
 
-            bool hasEnums = false;
+            var hasEnums = idl.EnumLists.Count > 0;
+            var hasTypes = idl.Types.Count > 0;
+
             if (idl.EnumLists.Count > 0)
             {
-                hasEnums = true;
                 Console.WriteLine("Generating enums");
                 Directory.CreateDirectory("src/enums");
                 using (var modOutput = new FileStream("src/enums/mod.rs", FileMode.Create))
@@ -71,16 +72,15 @@ namespace IDLCompiler
 
                     foreach (var enumList in idl.EnumLists)
                     {
-                        Console.WriteLine("    " + enumList.Key);
                         var enumName = CasedString.FromPascal(enumList.Key);
 
                         var codeSource = new SourceGenerator(true);
-                        EnumGenerator.GenerateEnum(codeSource, enumList.Value);
+                        EnumGenerator.GenerateEnum(codeSource, enumList.Value, false);
                         using (var output = new FileStream($"src/enums/{enumName.ToSnake()}.rs", FileMode.Create))
                         {
                             using (var writer = new StreamWriter(output, leaveOpen: true))
                             {
-                                writer.WriteLine(codeSource.GetSource(true));
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
                             }
                         }
 
@@ -90,7 +90,7 @@ namespace IDLCompiler
 
                     using (var writer = new StreamWriter(modOutput, leaveOpen: true))
                     {
-                        writer.WriteLine(modSource.GetSource(true));
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
                     }
                 }
             }
@@ -105,7 +105,6 @@ namespace IDLCompiler
 
                     foreach (var type in idl.Types)
                     {
-                        Console.WriteLine("    " + type.Key);
                         var typeName = CasedString.FromPascal(type.Key);
 
                         var codeSource = new SourceGenerator(true);
@@ -114,7 +113,7 @@ namespace IDLCompiler
                         {
                             using (var writer = new StreamWriter(output, leaveOpen: true))
                             {
-                                writer.WriteLine(codeSource.GetSource(hasEnums));
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
                             }
                         }
 
@@ -124,76 +123,88 @@ namespace IDLCompiler
 
                     using (var writer = new StreamWriter(modOutput, leaveOpen: true))
                     {
-                        writer.WriteLine(modSource.GetSource(hasEnums));
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
                     }
                 }
             }
 
-            //var message_id = 1;
+            var message_id = 1;
 
-            //if (idl.FromClient.Count > 0)
-            //{
-            //    Console.WriteLine("Generating calls from client");
-            //    Directory.CreateDirectory("src/from_client");
-            //    using (var modOutput = new FileStream("src/from_client/mod.rs", FileMode.Create))
-            //    {
-            //        var modSource = new SourceGenerator(false);
+            if (idl.FromClient.Count > 0)
+            {
+                Console.WriteLine("Generating calls from client");
+                Directory.CreateDirectory("src/from_client");
+                using (var modOutput = new FileStream("src/from_client/mod.rs", FileMode.Create))
+                {
+                    var modSource = new SourceGenerator(false);
 
-            //        foreach (var call in idl.FromClient)
-            //        {
-            //            var codeSource = new SourceGenerator(true);
-            //            CallGenerator.GenerateCall(codeSource, call.Value, message_id);
-            //            using (var output = new FileStream($"src/from_client/{call.Key}.rs", FileMode.Create))
-            //            {
-            //                using (var writer = new StreamWriter(output, leaveOpen: true))
-            //                {
-            //                    writer.WriteLine(codeSource.GetSource(hasEnums));
-            //                }
-            //            }
-            //            message_id++;
+                    foreach (var call in idl.FromClient)
+                    {
+                        var codeSource = new SourceGenerator(true);
+                        //CallGenerator.GenerateCall(codeSource, call.Value, message_id);
 
-            //            modSource.AddLine($"pub mod {call.Key};");
-            //            modSource.AddLine($"pub use {call.Key}::*;");
-            //        }
+                        var parametersType = call.Value.ToParametersType();
+                        if (parametersType != null) TypeGenerator.GenerateType(codeSource, parametersType);
+                        var returnsType = call.Value.ToReturnsType();
+                        if (returnsType != null) TypeGenerator.GenerateType(codeSource, returnsType);
 
-            //        using (var writer = new StreamWriter(modOutput, leaveOpen: true))
-            //        {
-            //            writer.WriteLine(modSource.GetSource(hasEnums));
-            //        }
-            //    }
-            //}
+                        using (var output = new FileStream($"src/from_client/{call.Key}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
+                            }
+                        }
+                        message_id++;
 
-            //if (idl.FromClient.Count > 0)
-            //{
-            //    Console.WriteLine("Generating calls from server");
-            //    Directory.CreateDirectory("src/from_server");
-            //    using (var modOutput = new FileStream("src/from_server/mod.rs", FileMode.Create))
-            //    {
-            //        var modSource = new SourceGenerator(false);
+                        modSource.AddLine($"pub mod {call.Key};");
+                        modSource.AddLine($"pub use {call.Key}::*;");
+                    }
 
-            //        foreach (var call in idl.FromServer)
-            //        {
-            //            var codeSource = new SourceGenerator(true);
-            //            CallGenerator.GenerateCall(codeSource, call.Value, message_id);
-            //            using (var output = new FileStream($"src/from_server/{call.Key}.rs", FileMode.Create))
-            //            {
-            //                using (var writer = new StreamWriter(output, leaveOpen: true))
-            //                {
-            //                    writer.WriteLine(codeSource.GetSource(hasEnums));
-            //                }
-            //            }
-            //            message_id++;
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
+                    }
+                }
+            }
 
-            //            modSource.AddLine($"pub mod {call.Key};");
-            //            modSource.AddLine($"pub use {call.Key}::*;");
-            //        }
+            if (idl.FromClient.Count > 0)
+            {
+                Console.WriteLine("Generating calls from server");
+                Directory.CreateDirectory("src/from_server");
+                using (var modOutput = new FileStream("src/from_server/mod.rs", FileMode.Create))
+                {
+                    var modSource = new SourceGenerator(false);
 
-            //        using (var writer = new StreamWriter(modOutput, leaveOpen: true))
-            //        {
-            //            writer.WriteLine(modSource.GetSource(hasEnums));
-            //        }
-            //    }
-            //}
+                    foreach (var call in idl.FromServer)
+                    {
+                        var codeSource = new SourceGenerator(true);
+                        //CallGenerator.GenerateCall(codeSource, call.Value, message_id);
+
+                        var parametersType = call.Value.ToParametersType();
+                        if (parametersType != null) TypeGenerator.GenerateType(codeSource, parametersType);
+                        var returnsType = call.Value.ToReturnsType();
+                        if (returnsType != null) TypeGenerator.GenerateType(codeSource, returnsType);
+
+                        using (var output = new FileStream($"src/from_server/{call.Key}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
+                            }
+                        }
+                        message_id++;
+
+                        modSource.AddLine($"pub mod {call.Key};");
+                        modSource.AddLine($"pub use {call.Key}::*;");
+                    }
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
+                    }
+                }
+            }
 
             Console.WriteLine("Generating library");
             using (var output = new FileStream("src/lib.rs", FileMode.Create))
@@ -223,7 +234,7 @@ namespace IDLCompiler
 
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
-                    writer.WriteLine(source.GetSource(hasEnums));
+                    writer.WriteLine(source.GetSource(hasTypes, hasEnums));
                 }
             }
         }

@@ -51,12 +51,8 @@ impl OtherTypePathsEnum {
         println!("writing OtherTypePathsEnum at {:p}", pointer);
 
         match self {
-            OtherTypePathsEnum::TypeTestType(value) => {
-                value.write_references_at(pointer)
-            }
-            OtherTypePathsEnum::TypeI64(value) => {
-                0
-            }
+            OtherTypePathsEnum::TypeTestType(value) => value.write_references_at(pointer),
+            OtherTypePathsEnum::TypeI64(value) => 0,
             OtherTypePathsEnum::TypeString(value) => {
                 let mut len = value.len();
                 *(pointer as *mut usize) = len;
@@ -76,21 +72,21 @@ impl OtherTypePathsEnum {
 
         println!("reading OtherTypePathsEnum at {:p}", references_pointer);
 
-        match ((*object).tag) {
-            OtherTypePathsEnumStructTag::TypeTestType => {
-                TestType::reconstruct_at(addr_of_mut!((*object).payload.payload_test_type) as *mut TestType, references_pointer)
-            },
-            OtherTypePathsEnumStructTag::TypeI64 => {
-                0
-            },
+        match (*object).tag {
+            OtherTypePathsEnumStructTag::TypeTestType => TestType::reconstruct_at(
+                addr_of_mut!((*object).payload.payload_test_type) as *mut TestType,
+                references_pointer,
+            ),
+            OtherTypePathsEnumStructTag::TypeI64 => 0,
             OtherTypePathsEnumStructTag::TypeString => {
                 let mut pointer = references_pointer;
                 let mut len = *(pointer as *const usize);
                 pointer = pointer.offset(mem::size_of::<usize>() as isize);
-                (*object).payload.payload_string = ManuallyDrop::new(String::from_raw_parts(pointer, len, len));
+                (*object).payload.payload_string =
+                    ManuallyDrop::new(String::from_raw_parts(pointer, len, len));
                 len = ((len + 7) / 8) * 8;
                 mem::size_of::<usize>() + len
-            },
+            }
         }
     }
 }
@@ -176,7 +172,10 @@ impl OtherType {
         let mut references_pointer =
             pointer.offset(len as isize * mem::size_of::<OtherTypePathsEnum>() as isize);
         for item in (*object_pointer).paths.iter() {
-            println!("  reading OtherType.paths item from {:p}", references_pointer);
+            println!(
+                "  reading OtherType.paths item from {:p}",
+                references_pointer
+            );
             let item_size = OtherTypePathsEnum::reconstruct_at(
                 pointer as *mut OtherTypePathsEnum,
                 references_pointer,
@@ -202,6 +201,7 @@ pub struct TestType {
     pub objects: Vec<OtherType>,
     pub other: OtherType,
     pub cities: Vec<String>,
+    pub numbers: Vec<u32>,
 }
 
 impl TestType {
@@ -217,8 +217,6 @@ impl TestType {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
-        // pointer is after TestType, write strings
-
         // name - make sure to 8 byte align pointer after writing
         println!("writing TestType.name at {:p}", pointer);
         let mut len = self.name.len();
@@ -228,15 +226,6 @@ impl TestType {
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
-
-        // write custom types
-        println!("writing TestType.other at {:p}", pointer);
-        let len = self.other.write_references_at(pointer);
-        println!("===> {} bytes", len);
-        pointer = pointer.offset(len as isize);
-        size += len;
-
-        // pointer is after strings, write arrays
 
         // objects - rust will align for us
         println!("writing TestType.objects at {:p}", pointer);
@@ -253,6 +242,13 @@ impl TestType {
             pointer = pointer.offset(item_size as isize);
             size += item_size;
         }
+
+        // other
+        println!("writing TestType.other at {:p}", pointer);
+        let len = self.other.write_references_at(pointer);
+        println!("===> {} bytes", len);
+        pointer = pointer.offset(len as isize);
+        size += len;
 
         // cities
         println!("writing TestType.cities at {:p}", pointer);
@@ -274,6 +270,17 @@ impl TestType {
             size += mem::size_of::<usize>() + len;
         }
 
+        // numbers
+        println!("writing TestType.numbers at {:p}", pointer);
+        let len = self.numbers.len();
+        *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        core::ptr::copy(self.numbers.as_ptr(), pointer as *mut u32, len);
+        pointer = pointer.offset(len as isize * mem::size_of::<u32>() as isize);
+        size += mem::size_of::<usize>() + len * mem::size_of::<u32>();
+
+        // no item loop
+
         size
     }
 
@@ -292,8 +299,6 @@ impl TestType {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
-        // pointer is after TestType, read strings
-
         // name - make sure to 8 byte align pointer after reading
         println!("reading TestType.name from {:p}", pointer);
         let mut len = *(pointer as *const usize);
@@ -306,15 +311,6 @@ impl TestType {
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
-
-        // read custom types
-        println!("reading TestType.other from {:p}", pointer);
-        let len = OtherType::reconstruct_at(addr_of_mut!((*object_pointer).other), pointer);
-        println!("===> {} bytes", len);
-        pointer = pointer.offset(len as isize);
-        size += len;
-
-        // pointer is after strings, read arrays
 
         // objects - rust will align for us
         println!("reading TestType.objects from {:p}", pointer);
@@ -333,7 +329,10 @@ impl TestType {
         let mut references_pointer =
             pointer.offset(len as isize * mem::size_of::<OtherType>() as isize);
         for item in (*object_pointer).objects.iter() {
-            println!("  reading TestType.objects item from {:p}", references_pointer);
+            println!(
+                "  reading TestType.objects item from {:p}",
+                references_pointer
+            );
             let item_size =
                 OtherType::reconstruct_at(pointer as *mut OtherType, references_pointer);
             pointer = pointer.offset(mem::size_of::<OtherType>() as isize);
@@ -342,12 +341,18 @@ impl TestType {
         }
         pointer = references_pointer;
 
+        // other
+        println!("reading TestType.other from {:p}", pointer);
+        let len = OtherType::reconstruct_at(addr_of_mut!((*object_pointer).other), pointer);
+        println!("===> {} bytes", len);
+        pointer = pointer.offset(len as isize);
+        size += len;
+
         // cities
         println!("reading TestType.cities from {:p}", pointer);
         let len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign =
-            ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut String, len, len));
+        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut String, len, len));
         core::ptr::write(
             addr_of_mut!((*object_pointer).cities),
             ManuallyDrop::take(&mut assign),
@@ -357,16 +362,32 @@ impl TestType {
         let mut references_pointer =
             pointer.offset(len as isize * mem::size_of::<String>() as isize);
         for item in (*object_pointer).cities.iter() {
-            println!("  reading TestType.cities item from {:p}", references_pointer);
+            println!(
+                "  reading TestType.cities item from {:p}",
+                references_pointer
+            );
             let mut len = *(references_pointer as *const usize);
             references_pointer = references_pointer.offset(mem::size_of::<usize>() as isize);
-            let mut assign = ManuallyDrop::new(String::from_raw_parts(references_pointer, len, len));
+            let mut assign =
+                ManuallyDrop::new(String::from_raw_parts(references_pointer, len, len));
             core::ptr::write(pointer as *mut String, ManuallyDrop::take(&mut assign));
             pointer = pointer.offset(mem::size_of::<String>() as isize);
             len = ((len + 7) / 8) * 8;
             references_pointer = references_pointer.offset(len as isize);
             size += mem::size_of::<usize>() + len;
         }
+        pointer = references_pointer;
+
+        // numbers
+        println!("reading TestType.numbers from {:p}", pointer);
+        let len = *(pointer as *const usize);
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
+        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut u32, len, len));
+        core::ptr::write(addr_of_mut!((*object_pointer).numbers), ManuallyDrop::take(&mut assign));
+        size += mem::size_of::<usize>() + len * mem::size_of::<u32>();
+
+        let mut references_pointer =
+        pointer.offset(len as isize * mem::size_of::<u32>() as isize);
         pointer = references_pointer;
 
         size

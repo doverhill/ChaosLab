@@ -43,6 +43,12 @@ namespace IDLCompiler
         public EnumList CustomEnumList = null;
         public List<EnumList.Option> CustomOneOfOptions = null;
 
+        public static string GetOneOfTypeName(string owningTypeName, string fieldName)
+        {
+            //if (fieldType != FieldType.OneOfType) throw new ArgumentException($"Can not get OneOfTypeName for field of type {fieldType}");
+            return $"{owningTypeName}{CasedString.FromSnake(fieldName).ToPascal()}Enum";
+        }
+
         public static string GetRustType(FieldType fieldType, IDLType customType, string owningTypeName, string fieldName, EnumList customEnumList, bool isArray)
         {
             var typeName = fieldType switch
@@ -54,7 +60,7 @@ namespace IDLCompiler
                 FieldType.Bool => "bool",
                 FieldType.String => "String",
                 FieldType.CustomType => customType.Name,
-                FieldType.OneOfType => $"{owningTypeName}{CasedString.FromSnake(fieldName).ToPascal()}Enum",
+                FieldType.OneOfType => GetOneOfTypeName(owningTypeName, fieldName),
                 FieldType.Enum => customEnumList.Name
             };
 
@@ -112,7 +118,7 @@ namespace IDLCompiler
         //    return typeName;
         //}
 
-        public void Validate(string owningTypeName, string name, Dictionary<string, EnumList> customEnumLists, Dictionary<string, IDLType> customTypes)
+        public void Validate(string name, Dictionary<string, EnumList> customEnumLists, Dictionary<string, IDLType> customTypes)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException("Field name is missing");
             if (!CasedString.IsSnake(name)) throw new ArgumentException($"Field name '{name}' must be snake case");
@@ -153,13 +159,13 @@ namespace IDLCompiler
                         {
                             if (customTypes.TryGetValue(option, out var customType))
                             {
-                                CustomOneOfOptions.Add(new EnumList.Option(owningTypeName, oneOfType, customType));
+                                CustomOneOfOptions.Add(new EnumList.Option(oneOfType, customType));
                             }
                             else throw new ArgumentException($"Custom type '{option}' not found for one-of list on field '{name}'");
                         }
                         else
                         {
-                            CustomOneOfOptions.Add(new EnumList.Option(owningTypeName, oneOfType, null));
+                            CustomOneOfOptions.Add(new EnumList.Option(oneOfType, null));
                         }
                     }
                 }

@@ -26,7 +26,7 @@ impl Map {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
-        // string name
+        // String name
         let mut len = self.name.len();
         *(pointer as *mut usize) = len;
         core::ptr::copy(self.name.as_ptr(), pointer, len);
@@ -34,7 +34,7 @@ impl Map {
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // string description
+        // String description
         let mut len = self.description.len();
         *(pointer as *mut usize) = len;
         core::ptr::copy(self.description.as_ptr(), pointer, len);
@@ -42,7 +42,7 @@ impl Map {
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // array fields
+        // CustomType fields
         let len = self.fields.len();
         *(pointer as *mut usize) = len;
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
@@ -66,29 +66,29 @@ impl Map {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
-        // string name
+        // String name
         let mut len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len);
+        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len));
         core::ptr::write(addr_of_mut!((*object_pointer).name), ManuallyDrop::take(&mut assign));
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // string description
+        // String description
         let mut len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len);
-        core::ptr::write(addr_of_mut!((*object_pointer).name), ManuallyDrop::take(&mut assign));
+        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len));
+        core::ptr::write(addr_of_mut!((*object_pointer).description), ManuallyDrop::take(&mut assign));
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // array fields
+        // CustomType fields
         let len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut MapField, len, len);
-        core::ptr::writer(addr_of_mut!((*object_pointer).fields), ManuallyDrop::take(&mut assign));
+        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut MapField, len, len));
+        core::ptr::write(addr_of_mut!((*object_pointer).fields), ManuallyDrop::take(&mut assign));
         size += mem::size_of::<usize>() + len * mem::size_of::<MapField>();
         let mut references_pointer = pointer.offset(len as isize * mem::size_of::<MapField>() as isize);
         for item in (*object_pointer).fields.iter() {
@@ -102,5 +102,6 @@ impl Map {
         size
     }
 }
+
 
 

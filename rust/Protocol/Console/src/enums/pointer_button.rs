@@ -7,59 +7,59 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
-#[repr(C, u64)]
-pub enum PointerButtonEnum {
+#[repr(u64)]
+pub enum PointerButton {
     Left,
     Right,
     Middle,
 }
 
 #[repr(C)]
-struct PointerButtonEnumStruct {
+struct PointerButtonStruct {
     tag: PointerButtonStructTag,
     payload: PointerButtonStructPayload,
 }
 
 #[repr(u64)]
-enum PointerButtonEnumStructTag {
+enum PointerButtonStructTag {
     Left,
     Right,
     Middle,
 }
 
 #[repr(C)]
-union PointerButtonEnumStructPayload {
+union PointerButtonStructPayload {
     payload_left: [u8; 0],
     payload_right: [u8; 0],
     payload_middle: [u8; 0],
 }
 
-impl PointerButtonEnum {
+impl PointerButton {
     pub unsafe fn write_at(&self, pointer: *mut u8) -> usize {
         let mut pointer = pointer;
-        core::ptr::copy(self, pointer as *mut PointerButtonEnum, 1);
-        pointer = pointer.offset(mem::size_of::<PointerButtonEnum>() as isize);
-        mem::size_of::<PointerButtonEnum>() + self.write_references_at(pointer)
+        core::ptr::copy(self, pointer as *mut PointerButton, 1);
+        pointer = pointer.offset(mem::size_of::<PointerButton>() as isize);
+        mem::size_of::<PointerButton>() + self.write_references_at(pointer)
     }
 
     pub unsafe fn write_references_at(&self, pointer: *mut u8) -> usize {
         let mut pointer = pointer;
         match self {
-            PointerButtonEnum::Left => {
+            PointerButton::Left => {
                 0
             },
-            PointerButtonEnum::Right => {
+            PointerButton::Right => {
                 0
             },
-            PointerButtonEnum::Middle => {
+            PointerButton::Middle => {
                 0
             },
         }
     }
 
-    pub unsafe fn reconstruct_at(object_pointer: *mut PointerButtonEnum, references_pointer: *mut u8) -> usize {
-        let object = object_pointer as *mut PointerButtonEnumStruct;
-        match ((*object).tag) {
+    pub unsafe fn reconstruct_at(object_pointer: *mut PointerButton, references_pointer: *mut u8) -> usize {
+        let object = object_pointer as *mut PointerButtonStruct;
+        match (*object).tag {
             PointerButtonStructTag::Left => {
                 0
             },
@@ -72,5 +72,6 @@ impl PointerButtonEnum {
         }
     }
 }
+
 
 

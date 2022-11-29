@@ -27,6 +27,14 @@ impl Color {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
+        // U8 alpha
+
+        // U8 red
+
+        // U8 green
+
+        // U8 blue
+
         size
     }
 
@@ -38,8 +46,17 @@ impl Color {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
+        // U8 alpha
+
+        // U8 red
+
+        // U8 green
+
+        // U8 blue
+
         size
     }
 }
+
 
 

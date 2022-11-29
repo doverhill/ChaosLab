@@ -25,6 +25,10 @@ impl Point {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
+        // I64 x
+
+        // I64 y
+
         size
     }
 
@@ -36,8 +40,13 @@ impl Point {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
+        // I64 x
+
+        // I64 y
+
         size
     }
 }
+
 
 

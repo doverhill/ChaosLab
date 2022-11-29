@@ -27,7 +27,7 @@ impl Table {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
-        // string name
+        // String name
         let mut len = self.name.len();
         *(pointer as *mut usize) = len;
         core::ptr::copy(self.name.as_ptr(), pointer, len);
@@ -35,7 +35,7 @@ impl Table {
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // string description
+        // String description
         let mut len = self.description.len();
         *(pointer as *mut usize) = len;
         core::ptr::copy(self.description.as_ptr(), pointer, len);
@@ -43,7 +43,7 @@ impl Table {
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // array columns
+        // String columns
         let len = self.columns.len();
         *(pointer as *mut usize) = len;
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
@@ -51,12 +51,16 @@ impl Table {
         pointer = pointer.offset(len as isize * mem::size_of::<String>() as isize);
         size += mem::size_of::<usize>() + len * mem::size_of::<String>();
         for item in self.columns.iter() {
-            let item_size = item.write_references_at(pointer);
-            pointer = pointer.offset(item_size as isize);
-            size += item_size;
+            let mut len = item.len();
+            *(pointer as *mut usize) = len;
+            pointer = pointer.offset(mem::size_of::<usize>() as isize);
+            core::ptr::copy(item.as_ptr(), pointer, len);
+            len = ((len + 7) / 8) * 8;
+            pointer = pointer.offset(len as isize);
+            size += mem::size_of::<usize>() + len;
         }
 
-        // array rows
+        // CustomType rows
         let len = self.rows.len();
         *(pointer as *mut usize) = len;
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
@@ -80,44 +84,48 @@ impl Table {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
-        // string name
+        // String name
         let mut len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len);
+        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len));
         core::ptr::write(addr_of_mut!((*object_pointer).name), ManuallyDrop::take(&mut assign));
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // string description
+        // String description
         let mut len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len);
-        core::ptr::write(addr_of_mut!((*object_pointer).name), ManuallyDrop::take(&mut assign));
+        let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len));
+        core::ptr::write(addr_of_mut!((*object_pointer).description), ManuallyDrop::take(&mut assign));
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
         size += mem::size_of::<usize>() + len;
 
-        // array columns
+        // String columns
         let len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut String, len, len);
-        core::ptr::writer(addr_of_mut!((*object_pointer).columns), ManuallyDrop::take(&mut assign));
+        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut String, len, len));
+        core::ptr::write(addr_of_mut!((*object_pointer).columns), ManuallyDrop::take(&mut assign));
         size += mem::size_of::<usize>() + len * mem::size_of::<String>();
         let mut references_pointer = pointer.offset(len as isize * mem::size_of::<String>() as isize);
         for item in (*object_pointer).columns.iter() {
-            let item_size = String::reconstruct_at(pointer as *mut String, references_pointer);
+            let mut len = *(references_pointer as *const usize);
+            references_pointer = references_pointer.offset(mem::size_of::<usize>() as isize);
+            let mut assign = ManuallyDrop::new(String::from_raw_parts(references_pointer, len, len));
+            core::ptr::write(pointer as *mut String, ManuallyDrop::take(&mut assign));
             pointer = pointer.offset(mem::size_of::<String>() as isize);
-            references_pointer = references_pointer.offset(item_size as isize);
-            size += item_size;
+            len = ((len + 7) / 8) * 8;
+            references_pointer = references_pointer.offset(len as isize);
+            size += mem::size_of::< usize > () + len;
         }
         pointer = references_pointer;
 
-        // array rows
+        // CustomType rows
         let len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut Map, len, len);
-        core::ptr::writer(addr_of_mut!((*object_pointer).rows), ManuallyDrop::take(&mut assign));
+        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut Map, len, len));
+        core::ptr::write(addr_of_mut!((*object_pointer).rows), ManuallyDrop::take(&mut assign));
         size += mem::size_of::<usize>() + len * mem::size_of::<Map>();
         let mut references_pointer = pointer.offset(len as isize * mem::size_of::<Map>() as isize);
         for item in (*object_pointer).rows.iter() {
@@ -131,5 +139,6 @@ impl Table {
         size
     }
 }
+
 
 

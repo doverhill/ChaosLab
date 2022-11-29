@@ -1,11 +1,19 @@
-﻿namespace IDLCompiler
+﻿using System;
+
+namespace IDLCompiler
 {
     internal static class EnumGenerator
     {
-        public static void GenerateEnum(SourceGenerator source, EnumList enumList)
+        public static void GenerateEnum(SourceGenerator source, EnumList enumList, bool dataCarrying)
         {
-            source.AddLine("#[repr(C, u64)]");
-            var enumBlock = source.AddBlock($"pub enum {enumList.Name}Enum");
+            Console.WriteLine($"    Enum {enumList.Name}");
+
+            if (dataCarrying)
+                source.AddLine("#[repr(C, u64)]");
+            else
+                source.AddLine("#[repr(u64)]");
+
+            var enumBlock = source.AddBlock($"pub enum {enumList.Name}");
             foreach (var option in enumList.Options)
             {
                 enumBlock.AddLine($"{option.ToEnumDeclarationString()},");
@@ -14,14 +22,14 @@
             source.AddBlank();
 
             source.AddLine("#[repr(C)]");
-            var structBlock = source.AddBlock($"struct {enumList.Name}EnumStruct");
+            var structBlock = source.AddBlock($"struct {enumList.Name}Struct");
             structBlock.AddLine($"tag: {enumList.Name}StructTag,");
             structBlock.AddLine($"payload: {enumList.Name}StructPayload,");
 
             source.AddBlank();
 
             source.AddLine("#[repr(u64)]");
-            var tagEnumBlock = source.AddBlock($"enum {enumList.Name}EnumStructTag");
+            var tagEnumBlock = source.AddBlock($"enum {enumList.Name}StructTag");
             foreach (var option in enumList.Options)
             {
                 tagEnumBlock.AddLine($"{option.ToTagEnumDeclarationString()},");
@@ -30,20 +38,20 @@
             source.AddBlank();
 
             source.AddLine("#[repr(C)]");
-            var unionBlock = source.AddBlock($"union {enumList.Name}EnumStructPayload");
+            var unionBlock = source.AddBlock($"union {enumList.Name}StructPayload");
             foreach (var option in enumList.Options)
             {
-                unionBlock.AddLine(option.ToUnionDeclarationString());
+                unionBlock.AddLine(option.ToUnionDeclarationString(enumList.Name));
             }
 
             source.AddBlank();
 
-            var implBlock = source.AddBlock($"impl {enumList.Name}Enum");
+            var implBlock = source.AddBlock($"impl {enumList.Name}");
             var writeAtBlock = implBlock.AddBlock("pub unsafe fn write_at(&self, pointer: *mut u8) -> usize");
             writeAtBlock.AddLine("let mut pointer = pointer;");
-            writeAtBlock.AddLine($"core::ptr::copy(self, pointer as *mut {enumList.Name}Enum, 1);");
-            writeAtBlock.AddLine($"pointer = pointer.offset(mem::size_of::<{enumList.Name}Enum>() as isize);");
-            writeAtBlock.AddLine($"mem::size_of::<{enumList.Name}Enum>() + self.write_references_at(pointer)");
+            writeAtBlock.AddLine($"core::ptr::copy(self, pointer as *mut {enumList.Name}, 1);");
+            writeAtBlock.AddLine($"pointer = pointer.offset(mem::size_of::<{enumList.Name}>() as isize);");
+            writeAtBlock.AddLine($"mem::size_of::<{enumList.Name}>() + self.write_references_at(pointer)");
 
             implBlock.AddBlank();
 
@@ -52,7 +60,7 @@
             var matchBlock = writeReferencesAtBlock.AddBlock("match self");
             foreach (var option in enumList.Options)
             {
-                var caseBlock = matchBlock.AddBlock($"{option.ToMatchString()} =>");
+                var caseBlock = matchBlock.AddBlock($"{option.ToMatchString(enumList.Name)} =>");
                 caseBlock.CommaAfter = true;
                 if (option.Type == IDLField.FieldType.CustomType ||
                     option.Type == IDLField.FieldType.OneOfType)
@@ -76,12 +84,12 @@
 
             implBlock.AddBlank();
 
-            var reconstructAtBlock = implBlock.AddBlock($"pub unsafe fn reconstruct_at(object_pointer: *mut {enumList.Name}Enum, references_pointer: *mut u8) -> usize");
-            reconstructAtBlock.AddLine($"let object = object_pointer as *mut {enumList.Name}EnumStruct;");
-            matchBlock = reconstructAtBlock.AddBlock("match ((*object).tag)");
+            var reconstructAtBlock = implBlock.AddBlock($"pub unsafe fn reconstruct_at(object_pointer: *mut {enumList.Name}, references_pointer: *mut u8) -> usize");
+            reconstructAtBlock.AddLine($"let object = object_pointer as *mut {enumList.Name}Struct;");
+            matchBlock = reconstructAtBlock.AddBlock("match (*object).tag");
             foreach (var option in enumList.Options)
             {
-                var caseBlock = matchBlock.AddBlock($"{option.ToEnumStructMatchString()} =>");
+                var caseBlock = matchBlock.AddBlock($"{option.ToEnumStructMatchString(enumList.Name)} =>");
                 caseBlock.CommaAfter = true;
                 if (option.Type == IDLField.FieldType.CustomType ||
                     option.Type == IDLField.FieldType.OneOfType)
@@ -102,6 +110,8 @@
                     caseBlock.AddLine("0");
                 }
             }
+
+            source.AddBlank();
         }
     }
 }

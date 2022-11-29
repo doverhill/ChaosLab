@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -10,6 +12,18 @@ namespace IDLCompiler
     {
         public static void GenerateType(SourceGenerator source, IDLType type)
         {
+            Console.WriteLine($"    Type {type.Name}");
+
+            // any one of types that we need to implement?
+            foreach (var field in type.Fields.Values)
+            {
+                if (field.Type == IDLField.FieldType.OneOfType)
+                {
+                    var enumList = new EnumList(IDLField.GetOneOfTypeName(type.Name, field.Name), field.CustomOneOfOptions);
+                    EnumGenerator.GenerateEnum(source, enumList, true);
+                }
+            }
+
             var enumBlock = source.AddBlock($"pub struct {type.Name}");
             foreach (var field in type.Fields.Values)
             {
@@ -32,52 +46,62 @@ namespace IDLCompiler
             functionBlock.AddLine("let mut size: usize = 0;");
 
             // strings
-            foreach (var field in type.Fields.Values.Where(t => !t.IsArray && t.Type == IDLField.FieldType.String))
+            foreach (var field in type.Fields.Values)
             {
                 functionBlock.AddBlank();
-                functionBlock.AddLine($"// string {field.Name}");
-                functionBlock.AddLine($"let mut len = self.{field.Name}.len();");
-                functionBlock.AddLine("*(pointer as *mut usize) = len;");
-                functionBlock.AddLine($"core::ptr::copy(self.{field.Name}.as_ptr(), pointer, len);");
-                functionBlock.AddLine("len = ((len + 7) / 8) * 8;");
-                functionBlock.AddLine("pointer = pointer.offset(len as isize);");
-                functionBlock.AddLine("size += mem::size_of::<usize>() + len;");
-            }
+                functionBlock.AddLine($"// {field.Type} {field.Name}");
 
-            // custom type
-            foreach (var field in type.Fields.Values.Where(t => !t.IsArray && t.Type == IDLField.FieldType.CustomType))
-            {
-                functionBlock.AddBlank();
-                functionBlock.AddLine($"// type {field.CustomType.Name} {field.Name}");
-                functionBlock.AddLine("// TODO");
-            }
+                if (!field.IsArray)
+                {
+                    if (field.Type == IDLField.FieldType.String)
+                    {
+                        functionBlock.AddLine($"let mut len = self.{field.Name}.len();");
+                        functionBlock.AddLine("*(pointer as *mut usize) = len;");
+                        functionBlock.AddLine($"core::ptr::copy(self.{field.Name}.as_ptr(), pointer, len);");
+                        functionBlock.AddLine("len = ((len + 7) / 8) * 8;");
+                        functionBlock.AddLine("pointer = pointer.offset(len as isize);");
+                        functionBlock.AddLine("size += mem::size_of::<usize>() + len;");
+                    }
+                    else if (field.Type == IDLField.FieldType.CustomType ||
+                        field.Type == IDLField.FieldType.OneOfType)
+                    {
+                        functionBlock.AddLine($"let len = self.{field.Name}.write_references_at(pointer);");
+                        functionBlock.AddLine("pointer = pointer.offset(len as isize);");
+                        functionBlock.AddLine("size += len;");
+                    }
+                }
+                else
+                {
+                    var innerType = IDLField.GetRustType(field.Type, field.CustomType, type.Name, field.Name, field.CustomEnumList, false);
 
-            // one of
-            foreach (var field in type.Fields.Values.Where(t => !t.IsArray && t.Type == IDLField.FieldType.OneOfType))
-            {
-                functionBlock.AddBlank();
-                functionBlock.AddLine($"// one of {field.Name}");
-                functionBlock.AddLine("// TODO");
-            }
+                    functionBlock.AddLine($"let len = self.{field.Name}.len();");
+                    functionBlock.AddLine("*(pointer as *mut usize) = len;");
+                    functionBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                    functionBlock.AddLine($"core::ptr::copy(self.{field.Name}.as_ptr(), pointer as *mut {innerType}, len);");
+                    functionBlock.AddLine($"pointer = pointer.offset(len as isize * mem::size_of::<{innerType}>() as isize);");
+                    functionBlock.AddLine($"size += mem::size_of::<usize>() + len * mem::size_of::<{innerType}>();");
 
-            // arrays
-            foreach (var field in type.Fields.Values.Where(t => t.IsArray))
-            {
-                var innerType = IDLField.GetRustType(field.Type, field.CustomType, type.Name, field.Name, field.CustomEnumList, false);
+                    if (field.Type == IDLField.FieldType.String)
+                    {
+                        var forBlock = functionBlock.AddBlock($"for item in self.{field.Name}.iter()");
+                        forBlock.AddLine("let mut len = item.len();");
+                        forBlock.AddLine("*(pointer as *mut usize) = len;");
+                        forBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                        forBlock.AddLine("core::ptr::copy(item.as_ptr(), pointer, len);");
+                        forBlock.AddLine("len = ((len + 7) / 8) * 8;");
+                        forBlock.AddLine("pointer = pointer.offset(len as isize);");
+                        forBlock.AddLine("size += mem::size_of::<usize>() + len;");
 
-                functionBlock.AddBlank();
-                functionBlock.AddLine($"// array {field.Name}");
-                functionBlock.AddLine($"let len = self.{field.Name}.len();");
-                functionBlock.AddLine("*(pointer as *mut usize) = len;");
-                functionBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
-                functionBlock.AddLine($"core::ptr::copy(self.{field.Name}.as_ptr(), pointer as *mut {innerType}, len);");
-                functionBlock.AddLine($"pointer = pointer.offset(len as isize * mem::size_of::<{innerType}>() as isize);");
-                functionBlock.AddLine($"size += mem::size_of::<usize>() + len * mem::size_of::<{innerType}>();");
-
-                var forBlock = functionBlock.AddBlock($"for item in self.{field.Name}.iter()");
-                forBlock.AddLine("let item_size = item.write_references_at(pointer);");
-                forBlock.AddLine("pointer = pointer.offset(item_size as isize);");
-                forBlock.AddLine("size += item_size;");
+                    }
+                    else if (field.Type == IDLField.FieldType.CustomType ||
+                        field.Type == IDLField.FieldType.OneOfType)
+                    {
+                        var forBlock = functionBlock.AddBlock($"for item in self.{field.Name}.iter()");
+                        forBlock.AddLine("let item_size = item.write_references_at(pointer);");
+                        forBlock.AddLine("pointer = pointer.offset(item_size as isize);");
+                        forBlock.AddLine("size += item_size;");
+                    }
+                }
             }
 
             functionBlock.AddBlank();
@@ -94,84 +118,73 @@ namespace IDLCompiler
             functionBlock.AddLine("let mut pointer = references_pointer;");
             functionBlock.AddLine("let mut size: usize = 0;");
 
-            // strings
-            foreach (var field in type.Fields.Values.Where(t => !t.IsArray && t.Type == IDLField.FieldType.String))
+            foreach (var field in type.Fields.Values)
             {
                 functionBlock.AddBlank();
-                functionBlock.AddLine($"// string {field.Name}");
-                functionBlock.AddLine("let mut len = *(pointer as *const usize);");
-                functionBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
-                functionBlock.AddLine("let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len);");
-                functionBlock.AddLine("core::ptr::write(addr_of_mut!((*object_pointer).name), ManuallyDrop::take(&mut assign));");
-                functionBlock.AddLine("len = ((len + 7) / 8) * 8;");
-                functionBlock.AddLine("pointer = pointer.offset(len as isize);");
-                functionBlock.AddLine("size += mem::size_of::<usize>() + len;");
+                functionBlock.AddLine($"// {field.Type} {field.Name}");
+
+                if (!field.IsArray)
+                {
+                    if (field.Type == IDLField.FieldType.String)
+                    {
+                        functionBlock.AddLine("let mut len = *(pointer as *const usize);");
+                        functionBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                        functionBlock.AddLine("let mut assign = ManuallyDrop::new(String::from_raw_parts(pointer, len, len));");
+                        functionBlock.AddLine($"core::ptr::write(addr_of_mut!((*object_pointer).{field.Name}), ManuallyDrop::take(&mut assign));");
+                        functionBlock.AddLine("len = ((len + 7) / 8) * 8;");
+                        functionBlock.AddLine("pointer = pointer.offset(len as isize);");
+                        functionBlock.AddLine("size += mem::size_of::<usize>() + len;");
+                    }
+                    else if (field.Type == IDLField.FieldType.CustomType ||
+                        field.Type == IDLField.FieldType.OneOfType)
+                    {
+                        var typeName = field.Type == IDLField.FieldType.CustomType ? field.CustomType.Name : IDLField.GetOneOfTypeName(type.Name, field.Name);
+                        functionBlock.AddLine($"let len = {typeName}::reconstruct_at(addr_of_mut!((*object_pointer).{field.Name}), pointer);");
+                        functionBlock.AddLine("pointer = pointer.offset(len as isize);");
+                        functionBlock.AddLine("size += len;");
+                    }
+                }
+                else
+                {
+                    var innerType = IDLField.GetRustType(field.Type, field.CustomType, type.Name, field.Name, field.CustomEnumList, false);
+
+                    functionBlock.AddLine($"let len = *(pointer as *const usize);");
+                    functionBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
+                    functionBlock.AddLine($"let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut {innerType}, len, len));");
+                    functionBlock.AddLine($"core::ptr::write(addr_of_mut!((*object_pointer).{field.Name}), ManuallyDrop::take(&mut assign));");
+                    functionBlock.AddLine($"size += mem::size_of::<usize>() + len * mem::size_of::<{innerType}>();");
+                    functionBlock.AddLine($"let mut references_pointer = pointer.offset(len as isize * mem::size_of::<{innerType}>() as isize);");
+
+                    if (field.Type == IDLField.FieldType.String)
+                    {
+                        var forBlock = functionBlock.AddBlock($"for item in (*object_pointer).{field.Name}.iter()");
+                        forBlock.AddLine("let mut len = *(references_pointer as *const usize);");
+                        forBlock.AddLine("references_pointer = references_pointer.offset(mem::size_of::<usize>() as isize);");
+                        forBlock.AddLine("let mut assign = ManuallyDrop::new(String::from_raw_parts(references_pointer, len, len));");
+                        forBlock.AddLine("core::ptr::write(pointer as *mut String, ManuallyDrop::take(&mut assign));");
+                        forBlock.AddLine("pointer = pointer.offset(mem::size_of::<String>() as isize);");
+                        forBlock.AddLine("len = ((len + 7) / 8) * 8;");
+                        forBlock.AddLine("references_pointer = references_pointer.offset(len as isize);");
+                        forBlock.AddLine("size += mem::size_of::< usize > () + len;");
+
+                    }
+                    else
+                    {
+                        var forBlock = functionBlock.AddBlock($"for item in (*object_pointer).{field.Name}.iter()");
+                        forBlock.AddLine($"let item_size = {innerType}::reconstruct_at(pointer as *mut {innerType}, references_pointer);");
+                        forBlock.AddLine($"pointer = pointer.offset(mem::size_of::<{innerType}>() as isize);");
+                        forBlock.AddLine("references_pointer = references_pointer.offset(item_size as isize);");
+                        forBlock.AddLine("size += item_size;");
+                    }
+
+                    functionBlock.AddLine("pointer = references_pointer;");
+                }
             }
-
-            // custom type
-            foreach (var field in type.Fields.Values.Where(t => !t.IsArray && t.Type == IDLField.FieldType.CustomType))
-            {
-                functionBlock.AddBlank();
-                functionBlock.AddLine($"// type {field.CustomType.Name} {field.Name}");
-                functionBlock.AddLine("// TODO");
-            }
-
-            // one of
-            foreach (var field in type.Fields.Values.Where(t => !t.IsArray && t.Type == IDLField.FieldType.OneOfType))
-            {
-                functionBlock.AddBlank();
-                functionBlock.AddLine($"// one of {field.Name}");
-                functionBlock.AddLine("// TODO");
-            }
-
-            // arrays
-            foreach (var field in type.Fields.Values.Where(t => t.IsArray))
-            {
-                var innerType = IDLField.GetRustType(field.Type, field.CustomType, type.Name, field.Name, field.CustomEnumList, false);
-
-                functionBlock.AddBlank();
-                functionBlock.AddLine($"// array {field.Name}");
-                functionBlock.AddLine($"let len = *(pointer as *const usize);");
-                functionBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
-                functionBlock.AddLine($"let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut {innerType}, len, len);");
-                functionBlock.AddLine($"core::ptr::writer(addr_of_mut!((*object_pointer).{field.Name}), ManuallyDrop::take(&mut assign));");
-                functionBlock.AddLine($"size += mem::size_of::<usize>() + len * mem::size_of::<{innerType}>();");
-                functionBlock.AddLine($"let mut references_pointer = pointer.offset(len as isize * mem::size_of::<{innerType}>() as isize);");
-
-                var forBlock = functionBlock.AddBlock($"for item in (*object_pointer).{field.Name}.iter()");
-                forBlock.AddLine($"let item_size = {innerType}::reconstruct_at(pointer as *mut {innerType}, references_pointer);");
-                forBlock.AddLine($"pointer = pointer.offset(mem::size_of::<{innerType}>() as isize);");
-                forBlock.AddLine("references_pointer = references_pointer.offset(item_size as isize);");
-                forBlock.AddLine("size += item_size;");
-
-                functionBlock.AddLine("pointer = references_pointer;");
-            }
-
-            //if (option.Type == IDLField.FieldType.CustomType)
-            //{
-            //    caseBlock.AddLine("value.write_at(pointer)");
-            //}
-            //else if (option.Type == IDLField.FieldType.String)
-            //{
-            //    caseBlock.AddLine("let mut len = value.len();");
-            //    caseBlock.AddLine("*(pointer as *mut usize) = len;");
-            //    caseBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
-            //    caseBlock.AddLine("core::ptr::copy(value.as_ptr(), pointer, len);");
-            //    caseBlock.AddLine("len = ((len + 7) / 8) * 8;");
-            //    caseBlock.AddLine("mem::size_of::<usize>() + len");
-            //}
-            //else if (option.Type == IDLField.FieldType.OneOfType)
-            //{
-            //    caseBlock.AddLine("// FIXME: check this");
-            //    caseBlock.AddLine("value.write_at(pointer)");
-            //}
-            //else
-            //{
-            //    caseBlock.AddLine("0");
-            //}
 
             functionBlock.AddBlank();
             functionBlock.AddLine("size");
+
+            source.AddBlank();
         }
     }
 }

@@ -25,6 +25,10 @@ impl Size {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
+        // U64 width
+
+        // U64 height
+
         size
     }
 
@@ -36,8 +40,13 @@ impl Size {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
+        // U64 width
+
+        // U64 height
+
         size
     }
 }
+
 
 

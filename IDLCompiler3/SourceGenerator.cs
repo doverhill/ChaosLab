@@ -96,7 +96,7 @@ namespace IDLCompiler
             return block;
         }
 
-        public string GetSource(bool hasEnums)
+        public string GetSource(bool hasTypes, bool hasEnums)
         {
             if (_includeUsings)
             {
@@ -107,8 +107,9 @@ namespace IDLCompiler
                     "use core::mem;\r\n" +
                     "use core::mem::ManuallyDrop;\r\n" +
                     "use core::ptr::addr_of_mut;\r\n" +
-                    "use crate::types::*;\r\n" +
-                    (hasEnums ? "use crate::enums::*;\r\n\r\n" : "") +
+                    (hasTypes ? "use crate::types::*;\r\n" : "") +
+                    (hasEnums ? "use crate::enums::*;\r\n" : "") +
+                    "\r\n" +
                     string.Join("", Blocks.Select(b => b.GetSource(0))) + "\r\n";
             }
             else

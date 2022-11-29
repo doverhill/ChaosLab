@@ -25,10 +25,12 @@ impl Image {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
-        // type Size size
-        // TODO
+        // CustomType size
+        let len = self.size.write_references_at(pointer);
+        pointer = pointer.offset(len as isize);
+        size += len;
 
-        // array pixels
+        // CustomType pixels
         let len = self.pixels.len();
         *(pointer as *mut usize) = len;
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
@@ -52,14 +54,16 @@ impl Image {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
-        // type Size size
-        // TODO
+        // CustomType size
+        let len = Size::reconstruct_at(addr_of_mut!((*object_pointer).size), pointer);
+        pointer = pointer.offset(len as isize);
+        size += len;
 
-        // array pixels
+        // CustomType pixels
         let len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
-        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut Color, len, len);
-        core::ptr::writer(addr_of_mut!((*object_pointer).pixels), ManuallyDrop::take(&mut assign));
+        let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut Color, len, len));
+        core::ptr::write(addr_of_mut!((*object_pointer).pixels), ManuallyDrop::take(&mut assign));
         size += mem::size_of::<usize>() + len * mem::size_of::<Color>();
         let mut references_pointer = pointer.offset(len as isize * mem::size_of::<Color>() as isize);
         for item in (*object_pointer).pixels.iter() {
@@ -73,5 +77,6 @@ impl Image {
         size
     }
 }
+
 
 

@@ -7,7 +7,7 @@ use std::{
 mod test_type;
 use test_type::*;
 
-//use protocol_console::*;
+use protocol_console::*;
 
 // fn main() {
 //     test_type();
@@ -25,13 +25,14 @@ fn test_type() {
             size: 9,
             objects: vec![],
             cities: vec![],
-            other: OtherType { include: false, offset: 7000, paths: vec![] }
+            other: OtherType { include: false, offset: 7000, paths: vec![] },
+            numbers: vec![ 3, 4, 5 ],
         };
 
         let other1 = OtherType {
             include: true,
             offset: -5,
-            paths: vec![ OtherTypePathsEnum::TypeTestType(q), OtherTypePathsEnum::TypeI64(99), OtherTypePathsEnum::TypeString("hejsan".to_string()) ]
+            paths: vec![ OtherTypePathsEnum::TypeTestType(q), OtherTypePathsEnum::TypeI64(99), OtherTypePathsEnum::TypeString("hejsan".to_string()) ],
         };
 
         let other2 = OtherType { include: false, offset: 767, paths: vec![] };
@@ -41,7 +42,8 @@ fn test_type() {
             size: 77,
             objects: vec![ other1, other2 ],
             cities: vec![ "uppsala".to_string(), "stockholm".to_string() ],
-            other: OtherType { include: true, offset: -9999, paths: vec![ OtherTypePathsEnum::TypeI64(-23) ] }
+            other: OtherType { include: true, offset: -9999, paths: vec![ OtherTypePathsEnum::TypeI64(-23) ] },
+            numbers: vec![ 99, 23, 4, 54, 23, 5 ],
         };
 
         let size_write = test.write_at(raw1);
@@ -91,7 +93,8 @@ fn test_type() {
             size: 3,
             objects: vec![ other3, other4, other5 ],
             cities: vec![],
-            other: OtherType { include: false, offset: 1, paths: vec![] }
+            other: OtherType { include: false, offset: 1, paths: vec![] },
+            numbers: vec![ 34, 2, 3, 4, 1, 2, 0 ],
         };
 
         let size_write = test.write_at(raw1);
@@ -122,24 +125,27 @@ fn test_type() {
     }
 }
 
-// #[test]
-// fn test_get_capabilities_returns() {
-//     unsafe {
-//         let layout = Layout::from_size_align(512 * 1024, 4 * 1024).expect("Invalid layout");
-//         let raw: *mut u8 = mem::transmute(alloc::alloc(layout));
+#[test]
+fn test_get_capabilities_returns() {
+    unsafe {
+        let layout = Layout::from_size_align(512 * 1024, 4 * 1024).expect("Invalid layout");
+        let raw: *mut u8 = mem::transmute(alloc::alloc(layout));
 
-//         let size_write = GetCapabilitiesReturns::create_at_address(raw, true, 1024, 768, 80, 50);
-//         assert!(size_write > 0);
+        let test = GetCapabilitiesReturns {
+            
+        };
+        let size_write = GetCapabilitiesReturns::create_at_address(raw, true, 1024, 768, 80, 50);
+        assert!(size_write > 0);
 
-//         let (size_read, result) = GetCapabilitiesReturns::get_from_address(raw);
-//         assert_eq!(size_write, size_read);
-//         assert_eq!(true, (*result).is_framebuffer);
-//         assert_eq!(1024, (*result).framebuffer_size.width);
-//         assert_eq!(768, (*result).framebuffer_size.height);
-//         assert_eq!(80, (*result).text_size.width);
-//         assert_eq!(50, (*result).text_size.height);
-//     }
-// }
+        let (size_read, result) = GetCapabilitiesReturns::get_from_address(raw);
+        assert_eq!(size_write, size_read);
+        assert_eq!(true, (*result).is_framebuffer);
+        assert_eq!(1024, (*result).framebuffer_size.width);
+        assert_eq!(768, (*result).framebuffer_size.height);
+        assert_eq!(80, (*result).text_size.width);
+        assert_eq!(50, (*result).text_size.height);
+    }
+}
 
 // #[test]
 // fn test_write_objects_parameters_empty() {
