@@ -1,5 +1,5 @@
 [package]
-name = "Console"
+name = "hostserver_console"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,4 @@ edition = "2021"
 #library_chaos = { path = "../../Library/Chaos" }
 protocol_console = { path = "../../Protocol/Console" }
 sdl2 = "*"
+crossbeam = "*"
