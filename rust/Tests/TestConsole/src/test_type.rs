@@ -1,8 +1,202 @@
 use core::ptr::addr_of_mut;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     alloc::{self, Layout},
     mem::{self, ManuallyDrop},
 };
+
+struct ProtocolVersion {
+    major: u16,
+    minor: u16,
+    patch: u16,
+    is_preview: bool,
+    preview_version: u16,
+}
+
+struct ChannelHeader {
+    lock: AtomicBool,
+    channel_magic: u64,
+    protocol_name: [u8; 32],
+    protocol_version: ProtocolVersion,
+    first_message_offset: usize,
+    last_message_offset: usize,
+}
+
+impl ChannelHeader {
+    pub const MAGIC: u64 = u64::from_be_bytes([
+        'C' as u8, 'C' as u8, 'H' as u8, 'A' as u8, 'N' as u8, 'N' as u8, 'E' as u8, 'L' as u8,
+    ]);
+}
+
+struct ChannelMessageHeader {
+    message_magic: u64,
+    message_id: u64,
+    message_length: usize,
+    previous_message_offset: usize,
+    next_message_offset: usize,
+    should_combine: bool,
+    under_construction: bool,
+}
+
+impl ChannelMessageHeader {
+    pub const MAGIC: u64 = u64::from_be_bytes([
+        'C' as u8, 'M' as u8, 'E' as u8, 'S' as u8, 'S' as u8, 'A' as u8, 'G' as u8, 'E' as u8,
+    ]);
+}
+
+struct ConsoleChannel {
+    channel_handle: u64,
+    channel_address: *mut u8,
+}
+
+struct ChannelLock {
+    channel_header: *const ChannelHeader,
+}
+
+impl ChannelLock {
+    pub unsafe fn get(channel: &ConsoleChannel) -> Self {
+        let channel_header = channel.channel_address as *const ChannelHeader;
+        while (*channel_header).lock.swap(true, Ordering::Acquire) {}
+        ChannelLock {
+            channel_header: channel_header,
+        }
+    }
+}
+
+impl Drop for ChannelLock {
+    fn drop(&mut self) {
+        unsafe {
+            (*self.channel_header).lock.swap(false, Ordering::Release);
+        }
+    }
+}
+
+impl ConsoleChannel {
+    pub unsafe fn new(channel_handle: u64, channel_address: *mut u8, is_server: bool) -> Self {
+        if !is_server {
+            let channel_header = channel_address as *mut ChannelHeader;
+            (*channel_header).lock.store(false, Ordering::Relaxed);
+            (*channel_header).channel_magic = ChannelHeader::MAGIC;
+            (*channel_header).protocol_name[0] = 7;
+            (*channel_header).protocol_name[1] = 'c' as u8;
+            (*channel_header).protocol_name[2] = 'o' as u8;
+            (*channel_header).protocol_name[3] = 'n' as u8;
+            (*channel_header).protocol_name[4] = 's' as u8;
+            (*channel_header).protocol_name[5] = 'o' as u8;
+            (*channel_header).protocol_name[6] = 'l' as u8;
+            (*channel_header).protocol_name[7] = 'e' as u8;
+            (*channel_header).protocol_version = ProtocolVersion {
+                major: 1,
+                minor: 0,
+                patch: 0,
+                is_preview: false,
+                preview_version: 0,
+            };
+            (*channel_header).first_message_offset = 0;
+            (*channel_header).last_message_offset = 0;
+        }
+
+        ConsoleChannel {
+            channel_handle: channel_handle,
+            channel_address: channel_address,
+        }
+    }
+
+    pub unsafe fn check_compatible(&self) -> bool {
+        let channel_header = self.channel_address as *mut ChannelHeader;
+
+        (*channel_header).channel_magic == ChannelHeader::MAGIC
+            && (*channel_header).protocol_version.major == 1
+            && (*channel_header).protocol_name[0] == 0
+            && (*channel_header).protocol_name[1] == 'c' as u8
+            && (*channel_header).protocol_name[2] == 'o' as u8
+            && (*channel_header).protocol_name[3] == 'n' as u8
+            && (*channel_header).protocol_name[4] == 's' as u8
+            && (*channel_header).protocol_name[5] == 'o' as u8
+            && (*channel_header).protocol_name[6] == 'l' as u8
+            && (*channel_header).protocol_name[7] == 'e' as u8
+    }
+
+    pub unsafe fn start_message(&self, message_id: u64) -> *mut u8 {
+        let channel_header = self.channel_address as *mut ChannelHeader;
+
+        let lock = ChannelLock::get(self);
+
+        if (*channel_header).last_message_offset == 0 { 
+
+        }
+        else { 
+
+        }
+
+        
+
+
+        let pointer: *mut u8 = self
+            .channel_address
+            .offset((*channel_header).write_offset as isize);
+        let message_header: *mut ChannelMessageHeader = mem::transmute(pointer);
+        (*message_header).message_magic = ChannelMessageHeader::MAGIC;
+        (*message_header).message_id = message_id;
+        pointer.offset(mem::size_of::<ChannelMessageHeader>() as isize)
+    }
+
+    pub unsafe fn end_message(&self, message_payload_size: usize) {
+        let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+        #[cfg(debug)]
+        assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+
+        let new_offset = (*channel_header).write_offset
+            + mem::size_of::<ChannelMessageHeader>() as u64
+            + message_payload_size as u64;
+        while (*channel_header).lock.swap(true, Ordering::Acquire) {}
+        if (*channel_header).read_offset == 0 {
+            (*channel_header).read_offset = (*channel_header).write_offset;
+        }
+        (*channel_header).write_offset = new_offset;
+        (*channel_header).lock.swap(false, Ordering::Release);
+    }
+
+    pub unsafe fn read_message(&self) -> (u64, *mut u8) {
+        let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+        #[cfg(debug)]
+        assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+
+        if (*channel_header).read_offset == 0 {
+            (0, 0 as *mut u8)
+        } else {
+            let pointer: *mut u8 = self
+                .channel_address
+                .offset((*channel_header).read_offset as isize);
+            let message_header: *mut ChannelMessageHeader = mem::transmute(pointer);
+            #[cfg(debug)]
+            assert_eq!(ChannelMessageHeader::MAGIC, (*message_header).message_magic);
+
+            (
+                (*message_header).message_id,
+                pointer.offset(mem::size_of::<ChannelMessageHeader>() as isize),
+            )
+        }
+    }
+
+    pub unsafe fn end_read(&self, message_payload_size: usize) {
+        let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+        #[cfg(debug)]
+        assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+
+        let new_offset = (*channel_header).read_offset
+            + mem::size_of::<ChannelMessageHeader>() as u64
+            + message_payload_size as u64;
+        while (*channel_header).lock.swap(true, Ordering::Acquire) {}
+        if (*channel_header).read_offset == (*channel_header).write_offset {
+            (*channel_header).read_offset = 0;
+            (*channel_header).write_offset = mem::size_of::<ChannelHeader>() as u64;
+        } else {
+            (*channel_header).read_offset = new_offset;
+        }
+        (*channel_header).lock.swap(false, Ordering::Release);
+    }
+}
 
 // OtherType IDL
 // paths: TestType|i64|string[]
@@ -383,11 +577,13 @@ impl TestType {
         let len = *(pointer as *const usize);
         pointer = pointer.offset(mem::size_of::<usize>() as isize);
         let mut assign = ManuallyDrop::new(Vec::from_raw_parts(pointer as *mut u32, len, len));
-        core::ptr::write(addr_of_mut!((*object_pointer).numbers), ManuallyDrop::take(&mut assign));
+        core::ptr::write(
+            addr_of_mut!((*object_pointer).numbers),
+            ManuallyDrop::take(&mut assign),
+        );
         size += mem::size_of::<usize>() + len * mem::size_of::<u32>();
 
-        let mut references_pointer =
-        pointer.offset(len as isize * mem::size_of::<u32>() as isize);
+        let mut references_pointer = pointer.offset(len as isize * mem::size_of::<u32>() as isize);
         pointer = references_pointer;
 
         size
