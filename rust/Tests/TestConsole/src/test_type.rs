@@ -110,7 +110,7 @@ impl ConsoleChannel {
 
         (*channel_header).channel_magic == ChannelHeader::MAGIC
             && (*channel_header).protocol_version.major == 1
-            && (*channel_header).protocol_name[0] == 0
+            && (*channel_header).protocol_name[0] == 7
             && (*channel_header).protocol_name[1] == 'c' as u8
             && (*channel_header).protocol_name[2] == 'o' as u8
             && (*channel_header).protocol_name[3] == 'n' as u8

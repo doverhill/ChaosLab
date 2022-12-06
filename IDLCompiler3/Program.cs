@@ -206,12 +206,25 @@ namespace IDLCompiler
                 }
             }
 
+            Console.WriteLine("Generating library scaffolding");
             Directory.CreateDirectory("src/code");
             if (!File.Exists("src/code/mod.rs"))
             {
                 using (var writer = File.CreateText("src/code/mod.rs"))
                 {
                     writer.WriteLine("// library code goes in this mod...");
+                }
+            }
+
+            Console.WriteLine("Generting channel");
+            using (var output = new FileStream("src/channel.rs", FileMode.Create))
+            {
+                var source = new SourceGenerator(true);
+
+                ChannelGenerator.GenerateChannel(source, idl);
+                using (var writer = new StreamWriter(output, leaveOpen: true))
+                {
+                    writer.WriteLine(source.GetSource(hasTypes, hasEnums));
                 }
             }
 
@@ -240,6 +253,8 @@ namespace IDLCompiler
                     source.AddLine("mod from_server;");
                     source.AddLine("pub use from_server::*;");
                 }
+
+                source.AddLine("pub use channel::*");
 
                 source.AddLine("mod code;");
                 source.AddLine("pub use code::*;");

@@ -232,7 +232,12 @@ fn test_channel() {
 
         let recv = server.find_message();
         let got_message = if let Some(_) = recv { true } else { false };
+        server.unlink_message(recv.unwrap(), false);
         assert!(got_message);
+
+        let recv = server.find_message();
+        let got_message = if let Some(_) = recv { true } else { false };
+        assert!(!got_message);
     }
 }
 
