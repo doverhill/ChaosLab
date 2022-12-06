@@ -27,25 +27,41 @@ fn test_type() {
             size: 9,
             objects: vec![],
             cities: vec![],
-            other: OtherType { include: false, offset: 7000, paths: vec![] },
-            numbers: vec![ 3, 4, 5 ],
+            other: OtherType {
+                include: false,
+                offset: 7000,
+                paths: vec![],
+            },
+            numbers: vec![3, 4, 5],
         };
 
         let other1 = OtherType {
             include: true,
             offset: -5,
-            paths: vec![ OtherTypePathsEnum::TypeTestType(q), OtherTypePathsEnum::TypeI64(99), OtherTypePathsEnum::TypeString("hejsan".to_string()) ],
+            paths: vec![
+                OtherTypePathsEnum::TypeTestType(q),
+                OtherTypePathsEnum::TypeI64(99),
+                OtherTypePathsEnum::TypeString("hejsan".to_string()),
+            ],
         };
 
-        let other2 = OtherType { include: false, offset: 767, paths: vec![] };
+        let other2 = OtherType {
+            include: false,
+            offset: 767,
+            paths: vec![],
+        };
 
         let test = TestType {
             name: "apa".to_string(),
             size: 77,
-            objects: vec![ other1, other2 ],
-            cities: vec![ "uppsala".to_string(), "stockholm".to_string() ],
-            other: OtherType { include: true, offset: -9999, paths: vec![ OtherTypePathsEnum::TypeI64(-23) ] },
-            numbers: vec![ 99, 23, 4, 54, 23, 5 ],
+            objects: vec![other1, other2],
+            cities: vec!["uppsala".to_string(), "stockholm".to_string()],
+            other: OtherType {
+                include: true,
+                offset: -9999,
+                paths: vec![OtherTypePathsEnum::TypeI64(-23)],
+            },
+            numbers: vec![99, 23, 4, 54, 23, 5],
         };
 
         let size_write = test.write_at(raw1);
@@ -78,25 +94,67 @@ fn test_type() {
         assert_eq!(test.objects[1].offset, 767);
         assert_eq!((*test_read).objects[1].offset, 767);
 
-        assert_eq!(test.objects[0].paths.len(), (*test_read).objects[0].paths.len());
+        assert_eq!(
+            test.objects[0].paths.len(),
+            (*test_read).objects[0].paths.len()
+        );
         assert_eq!(test.objects[0].paths.len(), 3);
         assert_eq!((*test_read).objects[0].paths.len(), 3);
 
-        assert!(if let OtherTypePathsEnum::TypeTestType(a) = &test.objects[0].paths[0] { assert_eq!(a.name, "q"); assert_eq!(a.size, 9); assert_eq!(a.objects.len(), 0); true } else { false });
-        assert!(if let OtherTypePathsEnum::TypeI64(a) = &test.objects[0].paths[1] { assert_eq!(*a, 99); true } else { false });
-        assert!(if let OtherTypePathsEnum::TypeString(a) = &test.objects[0].paths[2] { assert_eq!(a, "hejsan"); true } else { false });
+        assert!(
+            if let OtherTypePathsEnum::TypeTestType(a) = &test.objects[0].paths[0] {
+                assert_eq!(a.name, "q");
+                assert_eq!(a.size, 9);
+                assert_eq!(a.objects.len(), 0);
+                true
+            } else {
+                false
+            }
+        );
+        assert!(
+            if let OtherTypePathsEnum::TypeI64(a) = &test.objects[0].paths[1] {
+                assert_eq!(*a, 99);
+                true
+            } else {
+                false
+            }
+        );
+        assert!(
+            if let OtherTypePathsEnum::TypeString(a) = &test.objects[0].paths[2] {
+                assert_eq!(a, "hejsan");
+                true
+            } else {
+                false
+            }
+        );
 
-        let other3 = OtherType { include: true, offset: -334, paths: vec![] };
-        let other4 = OtherType { include: false, offset: -33, paths: vec![] };
-        let other5 = OtherType { include: false, offset: -3, paths: vec![] };
+        let other3 = OtherType {
+            include: true,
+            offset: -334,
+            paths: vec![],
+        };
+        let other4 = OtherType {
+            include: false,
+            offset: -33,
+            paths: vec![],
+        };
+        let other5 = OtherType {
+            include: false,
+            offset: -3,
+            paths: vec![],
+        };
 
         let test = TestType {
             name: "xyz".to_string(),
             size: 3,
-            objects: vec![ other3, other4, other5 ],
+            objects: vec![other3, other4, other5],
             cities: vec![],
-            other: OtherType { include: false, offset: 1, paths: vec![] },
-            numbers: vec![ 34, 2, 3, 4, 1, 2, 0 ],
+            other: OtherType {
+                include: false,
+                offset: 1,
+                paths: vec![],
+            },
+            numbers: vec![34, 2, 3, 4, 1, 2, 0],
         };
 
         let size_write = test.write_at(raw1);
@@ -123,7 +181,6 @@ fn test_type() {
         assert_eq!(test.objects[0].offset, (*test_read).objects[0].offset);
         assert_eq!(test.objects[1].offset, (*test_read).objects[1].offset);
         assert_eq!(test.objects[2].offset, (*test_read).objects[2].offset);
-
     }
 }
 
@@ -134,9 +191,15 @@ fn test_get_capabilities_returns() {
         let raw: *mut u8 = mem::transmute(alloc::alloc(layout));
 
         let test = GetCapabilitiesReturns {
-            framebuffer_size: Size { width: 1024, height: 768 },
+            framebuffer_size: Size {
+                width: 1024,
+                height: 768,
+            },
             is_framebuffer: true,
-            text_size: Size { width: 80, height: 50 },
+            text_size: Size {
+                width: 80,
+                height: 50,
+            },
         };
         let size_write = test.write_at(raw);
         assert!(size_write > 0);
@@ -150,6 +213,26 @@ fn test_get_capabilities_returns() {
         assert_eq!(768, (*result).framebuffer_size.height);
         assert_eq!(80, (*result).text_size.width);
         assert_eq!(50, (*result).text_size.height);
+    }
+}
+
+#[test]
+fn test_channel() {
+    unsafe {
+        let layout = Layout::from_size_align(512 * 1024, 4 * 1024).expect("Invalid layout");
+        let raw: *mut u8 = mem::transmute(alloc::alloc(layout));
+
+        let server = ConsoleChannel::new(0, raw, true);
+        let client = ConsoleChannel::new(0, raw, false);
+
+        assert!(server.check_compatible());
+
+        let message = client.prepare_message(12, false);
+        client.commit_message(0);
+
+        let recv = server.find_message();
+        let got_message = if let Some(_) = recv { true } else { false };
+        assert!(got_message);
     }
 }
 
@@ -194,8 +277,8 @@ fn test_get_capabilities_returns() {
 //             name: "field".to_string(),
 //             value: MapFieldValueEnum::TypeI64(77 as i64)
 //         };
-//         let mut map = Map { 
-//             name: "map".to_string(), 
+//         let mut map = Map {
+//             name: "map".to_string(),
 //             description: "mapdescr".to_string(),
 //             fields: vec!(&mut map_field1 as *mut MapField),
 //         };

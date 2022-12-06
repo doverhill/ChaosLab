@@ -5,7 +5,7 @@ use std::{
     mem::{self, ManuallyDrop},
 };
 
-struct ProtocolVersion {
+pub struct ProtocolVersion {
     major: u16,
     minor: u16,
     patch: u16,
@@ -13,13 +13,15 @@ struct ProtocolVersion {
     preview_version: u16,
 }
 
-struct ChannelHeader {
+pub struct ChannelHeader {
     lock: AtomicBool,
     channel_magic: u64,
     protocol_name: [u8; 32],
     protocol_version: ProtocolVersion,
     first_message_offset: usize,
     last_message_offset: usize,
+    number_of_messages: usize,
+    is_writing: bool,
 }
 
 impl ChannelHeader {
@@ -28,14 +30,13 @@ impl ChannelHeader {
     ]);
 }
 
-struct ChannelMessageHeader {
+pub struct ChannelMessageHeader {
     message_magic: u64,
-    message_id: u64,
+    message_id: usize,
     message_length: usize,
     previous_message_offset: usize,
     next_message_offset: usize,
-    should_combine: bool,
-    under_construction: bool,
+    replace_pending: bool,
 }
 
 impl ChannelMessageHeader {
@@ -44,8 +45,8 @@ impl ChannelMessageHeader {
     ]);
 }
 
-struct ConsoleChannel {
-    channel_handle: u64,
+pub struct ConsoleChannel {
+    channel_handle: usize,
     channel_address: *mut u8,
 }
 
@@ -72,7 +73,7 @@ impl Drop for ChannelLock {
 }
 
 impl ConsoleChannel {
-    pub unsafe fn new(channel_handle: u64, channel_address: *mut u8, is_server: bool) -> Self {
+    pub unsafe fn new(channel_handle: usize, channel_address: *mut u8, is_server: bool) -> Self {
         if !is_server {
             let channel_header = channel_address as *mut ChannelHeader;
             (*channel_header).lock.store(false, Ordering::Relaxed);
@@ -94,6 +95,8 @@ impl ConsoleChannel {
             };
             (*channel_header).first_message_offset = 0;
             (*channel_header).last_message_offset = 0;
+            (*channel_header).number_of_messages = 0;
+            (*channel_header).is_writing = false;
         }
 
         ConsoleChannel {
@@ -117,84 +120,125 @@ impl ConsoleChannel {
             && (*channel_header).protocol_name[7] == 'e' as u8
     }
 
-    pub unsafe fn start_message(&self, message_id: u64) -> *mut u8 {
+    pub unsafe fn prepare_message(&self, message_id: usize, replace_pending: bool) -> *mut u8 {
         let channel_header = self.channel_address as *mut ChannelHeader;
 
         let lock = ChannelLock::get(self);
+        #[cfg(debug)]
+        assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
+        assert!(!(*channel_header).is_writing);
 
-        if (*channel_header).last_message_offset == 0 { 
-
+        let mut message: *mut ChannelMessageHeader;
+        if (*channel_header).number_of_messages == 0 { 
+            // create first message in channel
+            (*channel_header).first_message_offset = mem::size_of::<ChannelHeader>();
+            (*channel_header).last_message_offset = mem::size_of::<ChannelHeader>();
+            message = self.channel_address.offset(mem::size_of::<ChannelHeader>() as isize) as *mut ChannelMessageHeader;
+            (*message).previous_message_offset = 0;
         }
-        else { 
-
+        else {
+            let last_message_offset = (*channel_header).last_message_offset;
+            let last_message = self.channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;
+            (*last_message).next_message_offset = (*channel_header).last_message_offset + (*last_message).message_length;
+            message = self.channel_address.offset((*last_message).next_message_offset as isize) as *mut ChannelMessageHeader;
+            (*message).previous_message_offset = last_message_offset;
         }
 
-        
+        (*channel_header).is_writing = true;
 
+        (*message).message_magic = ChannelMessageHeader::MAGIC;
+        (*message).message_id = message_id;
+        (*message).replace_pending = replace_pending;
+        (*message).message_length = 0;
+        (*message).next_message_offset = 0;
 
-        let pointer: *mut u8 = self
-            .channel_address
-            .offset((*channel_header).write_offset as isize);
-        let message_header: *mut ChannelMessageHeader = mem::transmute(pointer);
-        (*message_header).message_magic = ChannelMessageHeader::MAGIC;
-        (*message_header).message_id = message_id;
-        pointer.offset(mem::size_of::<ChannelMessageHeader>() as isize)
+        message as *mut u8
     }
 
-    pub unsafe fn end_message(&self, message_payload_size: usize) {
-        let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
-        #[cfg(debug)]
-        assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+    pub unsafe fn commit_message(&self, message_payload_size: usize) {
+        let channel_header = self.channel_address as *mut ChannelHeader;
 
-        let new_offset = (*channel_header).write_offset
-            + mem::size_of::<ChannelMessageHeader>() as u64
-            + message_payload_size as u64;
-        while (*channel_header).lock.swap(true, Ordering::Acquire) {}
-        if (*channel_header).read_offset == 0 {
-            (*channel_header).read_offset = (*channel_header).write_offset;
-        }
-        (*channel_header).write_offset = new_offset;
-        (*channel_header).lock.swap(false, Ordering::Release);
+        let lock = ChannelLock::get(self);
+        let last_message = self.channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;
+        #[cfg(debug)]
+        assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
+        assert!((*channel_header).is_writing);
+        #[cfg(debug)]
+        assert!((*last_message).message_magic == ChannelMessageHeader::MAGIC);
+
+        (*channel_header).is_writing = false;
+        (*channel_header).number_of_messages = (*channel_header).number_of_messages + 1;
+        (*last_message).message_length = mem::size_of::<ChannelMessageHeader>() + message_payload_size;
     }
 
-    pub unsafe fn read_message(&self) -> (u64, *mut u8) {
-        let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
+    pub unsafe fn find_message(&self) -> Option<*mut ChannelMessageHeader> {
+        let channel_header = self.channel_address as *mut ChannelHeader;
+
+        let lock = ChannelLock::get(self);
+        let first_message = self.channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;
         #[cfg(debug)]
-        assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+        assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
+        #[cfg(debug)]
+        assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
 
-        if (*channel_header).read_offset == 0 {
-            (0, 0 as *mut u8)
-        } else {
-            let pointer: *mut u8 = self
-                .channel_address
-                .offset((*channel_header).read_offset as isize);
-            let message_header: *mut ChannelMessageHeader = mem::transmute(pointer);
-            #[cfg(debug)]
-            assert_eq!(ChannelMessageHeader::MAGIC, (*message_header).message_magic);
-
-            (
-                (*message_header).message_id,
-                pointer.offset(mem::size_of::<ChannelMessageHeader>() as isize),
-            )
+        if (*channel_header).number_of_messages == 0 {
+            return None;
         }
+        else {
+            if !(*first_message).replace_pending {
+                return Some(first_message);
+            }
+            else {
+                let mut last_of_kind = first_message;
+                let iter = first_message;
+                while (*iter).next_message_offset != 0 {
+                    let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+                    if (*iter).message_id == (*first_message).message_id {
+                        last_of_kind = iter;
+                    }
+                }
+                let iter = first_message;
+                while (*iter).next_message_offset != 0 {
+                    if (*iter).message_id == (*first_message).message_id && iter != last_of_kind {
+                        assert!((*channel_header).number_of_messages > 1);
+                        self.unlink_message(iter, true);
+                    }
+                    let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+                }
+                Some(last_of_kind)
+            }
+        }
+
     }
 
-    pub unsafe fn end_read(&self, message_payload_size: usize) {
-        let channel_header: *mut ChannelHeader = mem::transmute(self.channel_address);
-        #[cfg(debug)]
-        assert_eq!(ChannelHeader::MAGIC, (*channel_header).channel_magic);
+    pub unsafe fn unlink_message(&self, message: *mut ChannelMessageHeader, lock_held: bool) {
+        let channel_header = self.channel_address as *mut ChannelHeader;
 
-        let new_offset = (*channel_header).read_offset
-            + mem::size_of::<ChannelMessageHeader>() as u64
-            + message_payload_size as u64;
-        while (*channel_header).lock.swap(true, Ordering::Acquire) {}
-        if (*channel_header).read_offset == (*channel_header).write_offset {
-            (*channel_header).read_offset = 0;
-            (*channel_header).write_offset = mem::size_of::<ChannelHeader>() as u64;
-        } else {
-            (*channel_header).read_offset = new_offset;
+        let lock = if lock_held { None } else { Some(ChannelLock::get(self)) };
+        #[cfg(debug)]
+        assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
+        #[cfg(debug)]
+        assert!((*message).message_magic == ChannelMessageHeader::MAGIC);
+
+        if (*message).previous_message_offset == 0 {
+            // first message
+            (*channel_header).first_message_offset = (*message).next_message_offset;
         }
-        (*channel_header).lock.swap(false, Ordering::Release);
+        else {
+            let previous_message = self.channel_address.offset((*message).previous_message_offset as isize) as *mut ChannelMessageHeader;
+            (*previous_message).next_message_offset = (*message).next_message_offset;
+        }
+
+        if (*message).next_message_offset == 0 {
+            // last message
+            (*channel_header).last_message_offset = (*message).previous_message_offset;
+        }
+        else {
+            let next_message = self.channel_address.offset((*message).next_message_offset as isize) as *mut ChannelMessageHeader;
+            (*next_message).previous_message_offset = (*message).previous_message_offset;
+        }
+
+        (*channel_header).number_of_messages = (*channel_header).number_of_messages - 1;
     }
 }
 

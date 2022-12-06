@@ -206,6 +206,15 @@ namespace IDLCompiler
                 }
             }
 
+            Directory.CreateDirectory("src/code");
+            if (!File.Exists("src/code/mod.rs"))
+            {
+                using (var writer = File.CreateText("src/code/mod.rs"))
+                {
+                    writer.WriteLine("// library code goes in this mod...");
+                }
+            }
+
             Console.WriteLine("Generating library");
             using (var output = new FileStream("src/lib.rs", FileMode.Create))
             {
@@ -231,6 +240,9 @@ namespace IDLCompiler
                     source.AddLine("mod from_server;");
                     source.AddLine("pub use from_server::*;");
                 }
+
+                source.AddLine("mod code;");
+                source.AddLine("pub use code::*;");
 
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
