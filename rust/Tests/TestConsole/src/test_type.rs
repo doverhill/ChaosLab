@@ -25,9 +25,7 @@ pub struct ChannelHeader {
 }
 
 impl ChannelHeader {
-    pub const MAGIC: u64 = u64::from_be_bytes([
-        'C' as u8, 'C' as u8, 'H' as u8, 'A' as u8, 'N' as u8, 'N' as u8, 'E' as u8, 'L' as u8,
-    ]);
+    pub const MAGIC: u64 = u64::from_be_bytes(['C' as u8, 'C' as u8, 'H' as u8, 'A' as u8, 'N' as u8, 'N' as u8, 'E' as u8, 'L' as u8]);
 }
 
 pub struct ChannelMessageHeader {
@@ -45,10 +43,6 @@ impl ChannelMessageHeader {
     ]);
 }
 
-pub struct ConsoleChannel {
-    channel_handle: usize,
-    channel_address: *mut u8,
-}
 
 struct ChannelLock {
     channel_header: *const ChannelHeader,
@@ -58,7 +52,7 @@ impl ChannelLock {
     pub unsafe fn get(channel: &ConsoleChannel) -> Self {
         let channel_header = channel.channel_address as *const ChannelHeader;
         while (*channel_header).lock.swap(true, Ordering::Acquire) {}
-        ChannelLock {
+        Self {
             channel_header: channel_header,
         }
     }
@@ -72,8 +66,12 @@ impl Drop for ChannelLock {
     }
 }
 
+pub struct ConsoleChannel {
+    channel_address: *mut u8,
+}
+
 impl ConsoleChannel {
-    pub unsafe fn new(channel_handle: usize, channel_address: *mut u8, is_server: bool) -> Self {
+    pub unsafe fn new(channel_address: *mut u8, is_server: bool) -> Self {
         if !is_server {
             let channel_header = channel_address as *mut ChannelHeader;
             (*channel_header).lock.store(false, Ordering::Relaxed);
@@ -100,7 +98,6 @@ impl ConsoleChannel {
         }
 
         ConsoleChannel {
-            channel_handle: channel_handle,
             channel_address: channel_address,
         }
     }

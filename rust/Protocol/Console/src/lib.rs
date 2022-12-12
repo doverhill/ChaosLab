@@ -6,6 +6,7 @@ mod from_client;
 pub use from_client::*;
 mod from_server;
 pub use from_server::*;
+pub use channel::*
 mod code;
 pub use code::*;
 
