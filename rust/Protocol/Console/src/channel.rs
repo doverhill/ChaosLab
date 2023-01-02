@@ -66,7 +66,14 @@ impl Drop for ChannelLock {
         }
     }
 }
+
 pub struct ConsoleChannel {
+    channel_address: *mut u8,
+}
+
+impl ConsoleChannel {
+    pub unsafe fn new(channel_address: *mut u8, is_server: bool) -> Self {
+    }
 }
 
 
