@@ -254,6 +254,7 @@ namespace IDLCompiler
                     source.AddLine("pub use from_server::*;");
                 }
 
+                source.AddLine("mod channel;");
                 source.AddLine("pub use channel::*;");
 
                 source.AddLine("mod code;");

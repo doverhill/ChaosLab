@@ -172,16 +172,17 @@ impl ConsoleChannel {
         let channel_header = self.channel_address as *mut ChannelHeader;
 
         let lock = ChannelLock::get(self);
-        let first_message = self.channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;
         #[cfg(debug)]
         assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
-        #[cfg(debug)]
-        assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
 
         if (*channel_header).number_of_messages == 0 {
             return None;
         }
         else {
+            let first_message = self.channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
+            #[cfg(debug)]
+            assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
+
             if !(*first_message).replace_pending {
                 return Some(first_message);
             }

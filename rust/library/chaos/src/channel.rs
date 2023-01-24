@@ -18,31 +18,6 @@ use std::collections::HashMap;
 use std::mem;
 use std::slice;
 
-use std::sync::atomic::AtomicU64;
-
-pub struct ChannelHeader {
-    lock: AtomicU64,
-    channel_magic: u64,
-    protocol_name_low: u64,
-    protocol_name_high: u64,
-    message_count: u64,
-    write_offset: u64,
-    read_offset: u64
-}
-
-pub struct ChannelMessageHeader {
-    message_magic: u64,
-    message_id: u64,
-    message_flags: u64,
-    message_length: u64,
-    object_count: u64
-}
-
-pub struct ChannelMessageObjectHeader {
-    object_id: u64,
-    object_length: u64
-}
-
 lazy_static! {
     static ref CHANNELS: Mutex<HashMap<Handle, Arc<Mutex<Channel>>>> = {
         Mutex::new(HashMap::new())
@@ -51,11 +26,6 @@ lazy_static! {
 
 pub type Message = u64;
 pub type ComposedMessage = u64;
-
-pub trait ChannelObject {
-    unsafe fn write_to_channel(self, pointer: *mut u8) -> usize;
-    unsafe fn from_channel(pointer: *const u8) -> Self;
-}
 
 pub struct Channel {
     pub handle: Handle,
@@ -84,22 +54,6 @@ impl Drop for Channel {
         syscalls::channel_destroy(self.handle).unwrap();
     }
 }
-
-// CHANNEL MEMORY LAYOUT:
-// ----------------------
-// HEADER:
-//     usize ChannelInitialized (0 = No, 0x1337 = Yes)
-//     usize ProtocolVersion
-//     usize ReplyReadyFlag
-//     usize ProtocolNameLength
-//     u8[] ProtocolName
-// BODY:
-//     usize ObjectCount
-//     [
-//         usize ObjectId // created by IDL compiler for each type to be sent on the channel
-//         usize ObjectLength
-//         u8[] ObjectData
-//     ]*
 
 impl Channel {
     pub fn new(handle: Handle, size: usize) -> Arc<Mutex<Channel>> {
@@ -311,91 +265,8 @@ impl Channel {
         pointer
     }
 
-    pub unsafe fn get_object_pointer(&self, index: usize) -> *mut u8 {
-        let pointer = self.get_object_wrapper_pointer(index);
-        let pointer = pointer.offset(2 * mem::size_of::<usize>() as isize);
-        pointer as *mut u8
-    }
-
-    pub fn get_object_id(&self, index: usize) -> usize {
-        unsafe {
-            let pointer = self.get_object_wrapper_pointer(index);
-            *(pointer as *const usize)
-        }
-    }
-
-    pub fn get_object_length(&self, index: usize) -> usize {
-        unsafe {
-            let pointer = self.get_object_wrapper_pointer(index);
-            let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-            *(pointer as *const usize)
-        }
-    }
-
-    pub fn get_object<T : ChannelObject>(&self, index: usize, expected_id: usize) -> Result<T, Error> {
-        unsafe {
-            let count = self.get_object_count();
-            if index >= count {
-                println!("ERROR: Tried to get object at index {}, but there are only {} objects", index, count);
-                return Err(Error::NotFound);
-            }
-
-            let id = self.get_object_id(index);
-            if id != expected_id {
-                println!("Expected object with id {} at index {}, but found object with id {}", expected_id, index, id);
-                return Err(Error::NotFound);
-            }
-
-            let pointer = self.get_object_pointer(index);
-            Ok(T::from_channel(pointer))
-        }
-    }
-
     pub fn send(&self, message: u64) {
         syscalls::channel_message(self.handle, message).unwrap();
-    }
-
-    pub fn start(&mut self) {
-        if !self.is_initialized() {
-            panic!("Tried to start sending on uninitialized channel");
-        }
-
-        // set up body pointer, initial object count and allocation pointer
-        unsafe {
-            // skip initialized field, version and ready flag
-            let pointer = self.map_pointer.offset(3 * mem::size_of::<usize>() as isize);
-            let length = *(pointer as *const usize);
-            let pointer = pointer.offset((mem::size_of::<usize>() + length) as isize);
-            self.body_pointer = pointer;
-            let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-            self.allocation_pointer = pointer;
-
-            // initial object count is 0
-            *(self.body_pointer as *mut usize) = 0;
-        }
-    }
-
-    pub fn add_object<T : ChannelObject>(&mut self, object_id: usize, object: T) {
-        if !self.is_initialized() {
-            panic!("Tried to add object on uninitialized channel");
-        }
-
-        // FIXME: Use self.map_capacity and self.allocation_pointer to figure out remaining space. pass along to object.write_to_channel and make that function fallible if there is not enough room
-        let _ = self.map_capacity;
-
-        unsafe {
-            let pointer = self.allocation_pointer;
-            *(pointer as *mut usize) = object_id;
-            let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-            let size_pointer = pointer;
-            let pointer = pointer.offset(mem::size_of::<usize>() as isize);
-            let size = object.write_to_channel(pointer);
-            *(size_pointer as *mut usize) = size;
-            self.allocation_pointer = self.allocation_pointer.offset((2 * mem::size_of::<usize>() + size) as isize);
-
-            // increase object count
-            *(self.body_pointer as *mut usize) = *(self.body_pointer as *const usize) + 1;
-        }
     }
 
     pub fn call_sync(&self, message: u64, has_more: bool, timeout_milliseconds: i32) -> Result<(), Error> {
