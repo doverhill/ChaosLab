@@ -1,12 +1,32 @@
-﻿namespace IDLCompiler
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace IDLCompiler
 {
-    internal class CasedString
+    public class CasedString
     {
-        private List<string> parts;
+        private List<string> _parts;
+
+        public static bool IsSnake(string s)
+        {
+            var pascal = FromPascal(s);
+            var snake = FromSnake(s);
+
+            return snake.NumberOfParts() >= pascal.NumberOfParts();
+        }
+
+        public static bool IsPascal(string s)
+        {
+            var pascal = FromPascal(s);
+            var snake = FromSnake(s);
+
+            return pascal.NumberOfParts() >= snake.NumberOfParts();
+        }
 
         public CasedString(List<string> parts)
         {
-            this.parts = parts;
+            this._parts = parts;
         }
 
         public static CasedString FromPascal(string pascalString)
@@ -50,17 +70,19 @@
 
         public string ToPascal()
         {
-            return string.Join(null, parts.Select(p => CapitalizeFirst(p)));
+            return string.Join(null, _parts.Select(p => CapitalizeFirst(p)));
         }
 
         public string ToSnake()
         {
-            return string.Join("_", parts);
+            return string.Join("_", _parts);
         }
 
         public string ToScreamingSnake()
         {
-            return string.Join("_", parts.Select(p => p.ToUpper()));
+            return string.Join("_", _parts.Select(p => p.ToUpper()));
         }
+
+        public int NumberOfParts() => _parts.Count;
     }
 }

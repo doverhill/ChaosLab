@@ -1,140 +1,273 @@
-﻿using IDLCompiler;
+﻿using System;
+using System.IO;
 using System.Text.Json;
 
-if (args.Length < 1)
+namespace IDLCompiler
 {
-    Console.WriteLine("Error: Use with <FileName.IDL.json>");
-    return;
-}
-
-var filename = args[0];
-var fileContents = File.ReadAllText(filename);
-JsonSerializerOptions options = new()
-{
-    AllowTrailingCommas = true,
-    IncludeFields = true,
-    WriteIndented = false,
-    PropertyNamingPolicy = null,
-    DictionaryKeyPolicy = null,
-    ReadCommentHandling = JsonCommentHandling.Skip,
-    NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict,
-    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-};
-
-IDL idl = null;
-try
-{
-    idl = JsonSerializer.Deserialize<IDL>(fileContents, options);
-}
-catch (Exception e)
-{
-    Console.WriteLine("Error: Failed to read IDL file: " + e.Message);
-}
-
-if (idl == null)
-{
-    Console.WriteLine("Error: Failed to read IDL file. File empty?");
-    return;
-}
-
-if (idl.Interface == null)
-{
-    Console.WriteLine("Error: IDL file is missing Interface description");
-    return;
-}
-
-Console.WriteLine("Building interface " + idl.Interface.Name + " (version " + idl.Interface.Version + ")");
-Console.WriteLine();
-
-// set up lib
-var libStream = new StreamWriter(File.Create("lib.rs"));
-libStream.WriteLine("#[macro_use]");
-libStream.WriteLine("extern crate lazy_static;");
-libStream.WriteLine();
-
-// emit types
-TypeEmitter.Reset();
-if (idl.Types != null)
-{
-    Console.WriteLine(idl.Types.Count + " type(s)");
-
-    libStream.WriteLine("mod types;");
-    libStream.WriteLine("pub use types::*;");
-    libStream.WriteLine();
-
-    foreach (var type in idl.Types)
+    public class IDLCompiler
     {
-        Console.WriteLine("    Emitting type " + type.Name);
-        TypeEmitter.Emit(idl, type);
-    }
+        public static void Main(string[] args)
+        {
+            if (args.Length < 1)
+            {
+                Console.WriteLine("Error: Use with <IDL file>");
+                return;
+            }
 
-    Console.WriteLine();
+            var filename = args[0];
+
+            try
+            {
+                ProcessIDLFile(filename);
+                Console.WriteLine("IDL compiler: done");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("IDL compiler: ERROR: " + e.Message);
+            }
+        }
+
+        private static void ProcessIDLFile(string filename)
+        {
+            var fileContents = File.ReadAllText(filename);
+
+            JsonSerializerOptions options = new()
+            {
+                AllowTrailingCommas = true,
+                IncludeFields = true,
+                WriteIndented = false,
+                PropertyNamingPolicy = null,
+                DictionaryKeyPolicy = null,
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict,
+                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+            };
+
+            IDL idl = null;
+            try
+            {
+                idl = JsonSerializer.Deserialize<IDL>(fileContents, options);
+            }
+            catch (Exception e)
+            {
+                throw new ArgumentException("Failed to read IDL file: " + e.Message);
+            }
+            if (idl == null) throw new ArgumentException("Failed to read IDL file. File empty?");
+
+            idl.Validate();
+            idl.Dump();
+
+            Directory.CreateDirectory("src");
+
+            var hasEnums = idl.EnumLists.Count > 0;
+            var hasTypes = idl.Types.Count > 0;
+
+            if (idl.EnumLists.Count > 0)
+            {
+                Console.WriteLine("Generating enums");
+                Directory.CreateDirectory("src/enums");
+                using (var modOutput = new FileStream("src/enums/mod.rs", FileMode.Create))
+                {
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var enumList in idl.EnumLists)
+                    {
+                        var enumName = CasedString.FromPascal(enumList.Key);
+
+                        var codeSource = new SourceGenerator(true);
+                        EnumGenerator.GenerateEnum(codeSource, enumList.Value, false);
+                        using (var output = new FileStream($"src/enums/{enumName.ToSnake()}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
+                            }
+                        }
+
+                        modSource.AddLine($"mod {enumName.ToSnake()};");
+                        modSource.AddLine($"pub use {enumName.ToSnake()}::*;");
+                    }
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
+                    }
+                }
+            }
+
+            if (idl.Types.Count > 0)
+            {
+                Console.WriteLine("Generating types");
+                Directory.CreateDirectory("src/types");
+                using (var modOutput = new FileStream("src/types/mod.rs", FileMode.Create))
+                {
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var type in idl.Types)
+                    {
+                        var typeName = CasedString.FromPascal(type.Key);
+
+                        var codeSource = new SourceGenerator(true);
+                        TypeGenerator.GenerateType(codeSource, type.Value);
+                        using (var output = new FileStream($"src/types/{typeName.ToSnake()}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
+                            }
+                        }
+
+                        modSource.AddLine($"mod {typeName.ToSnake()};");
+                        modSource.AddLine($"pub use {typeName.ToSnake()}::*;");
+                    }
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
+                    }
+                }
+            }
+
+            var message_id = 1;
+
+            if (idl.FromClient.Count > 0)
+            {
+                Console.WriteLine("Generating calls from client");
+                Directory.CreateDirectory("src/from_client");
+                using (var modOutput = new FileStream("src/from_client/mod.rs", FileMode.Create))
+                {
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var call in idl.FromClient)
+                    {
+                        var codeSource = new SourceGenerator(true);
+                        //CallGenerator.GenerateCall(codeSource, call.Value, message_id);
+
+                        var parametersType = call.Value.ToParametersType();
+                        if (parametersType != null) TypeGenerator.GenerateType(codeSource, parametersType);
+                        var returnsType = call.Value.ToReturnsType();
+                        if (returnsType != null) TypeGenerator.GenerateType(codeSource, returnsType);
+
+                        using (var output = new FileStream($"src/from_client/{call.Key}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
+                            }
+                        }
+                        message_id++;
+
+                        modSource.AddLine($"mod {call.Key};");
+                        modSource.AddLine($"pub use {call.Key}::*;");
+                    }
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
+                    }
+                }
+            }
+
+            if (idl.FromClient.Count > 0)
+            {
+                Console.WriteLine("Generating calls from server");
+                Directory.CreateDirectory("src/from_server");
+                using (var modOutput = new FileStream("src/from_server/mod.rs", FileMode.Create))
+                {
+                    var modSource = new SourceGenerator(false);
+
+                    foreach (var call in idl.FromServer)
+                    {
+                        var codeSource = new SourceGenerator(true);
+                        //CallGenerator.GenerateCall(codeSource, call.Value, message_id);
+
+                        var parametersType = call.Value.ToParametersType();
+                        if (parametersType != null) TypeGenerator.GenerateType(codeSource, parametersType);
+                        var returnsType = call.Value.ToReturnsType();
+                        if (returnsType != null) TypeGenerator.GenerateType(codeSource, returnsType);
+
+                        using (var output = new FileStream($"src/from_server/{call.Key}.rs", FileMode.Create))
+                        {
+                            using (var writer = new StreamWriter(output, leaveOpen: true))
+                            {
+                                writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
+                            }
+                        }
+                        message_id++;
+
+                        modSource.AddLine($"mod {call.Key};");
+                        modSource.AddLine($"pub use {call.Key}::*;");
+                    }
+
+                    using (var writer = new StreamWriter(modOutput, leaveOpen: true))
+                    {
+                        writer.WriteLine(modSource.GetSource(hasTypes, hasEnums));
+                    }
+                }
+            }
+
+            Console.WriteLine("Generating library scaffolding");
+            Directory.CreateDirectory("src/code");
+            if (!File.Exists("src/code/mod.rs"))
+            {
+                using (var writer = File.CreateText("src/code/mod.rs"))
+                {
+                    writer.WriteLine("// library code goes in this mod...");
+                }
+            }
+
+            Console.WriteLine("Generting channel");
+            using (var output = new FileStream("src/channel.rs", FileMode.Create))
+            {
+                var source = new SourceGenerator(true);
+
+                ChannelGenerator.GenerateChannel(source, idl);
+                using (var writer = new StreamWriter(output, leaveOpen: true))
+                {
+                    writer.WriteLine(source.GetSource(hasTypes, hasEnums));
+                }
+            }
+
+            Console.WriteLine("Generating library");
+            using (var output = new FileStream("src/lib.rs", FileMode.Create))
+            {
+                var source = new SourceGenerator(false);
+
+                if (idl.EnumLists.Count > 0)
+                {
+                    source.AddLine("mod enums;");
+                    source.AddLine("pub use enums::*;");
+                }
+                if (idl.Types.Count > 0)
+                {
+                    source.AddLine("mod types;");
+                    source.AddLine("pub use types::*;");
+                }
+                if (idl.FromClient.Count > 0)
+                {
+                    source.AddLine("mod from_client;");
+                    source.AddLine("pub use from_client::*;");
+                }
+                if (idl.FromServer.Count > 0)
+                {
+                    source.AddLine("mod from_server;");
+                    source.AddLine("pub use from_server::*;");
+                }
+
+                source.AddLine("mod channel;");
+                source.AddLine("pub use channel::*;");
+
+                source.AddLine("mod code;");
+                source.AddLine("pub use code::*;");
+
+                var protocolName = CasedString.FromSnake(idl.Protocol.Name);
+                source.AddLine($"pub static {protocolName.ToScreamingSnake()}_PROTOCOL_NAME: &str = \"{idl.Protocol.Name}\";");
+
+                using (var writer = new StreamWriter(output, leaveOpen: true))
+                {
+                    writer.WriteLine(source.GetSource(hasTypes, hasEnums));
+                }
+            }
+        }
+    }
 }
-
-// emit client to server calls
-CallEmitter.Reset();
-var emittedClientToServerCall = false;
-if (idl.ClientToServerCalls != null)
-{
-    Console.WriteLine(idl.ClientToServerCalls.Count + " client->server call(s)");
-
-    foreach (var call in idl.ClientToServerCalls)
-    {
-        Console.WriteLine("    Emitting client->server call " + call.Name);
-        CallEmitter.Emit(CallEmitter.Direction.ClientToServer, idl, call);
-        emittedClientToServerCall = true;
-    }
-
-    if (emittedClientToServerCall)
-    {
-        libStream.WriteLine("mod client_to_server_calls;");
-        libStream.WriteLine();
-    }
-
-    Console.WriteLine();
-}
-
-// emit server to client calls
-var emittedServerToClientCall = false;
-if (idl.ServerToClientCalls != null)
-{
-    Console.WriteLine(idl.ServerToClientCalls.Count + " server->client call(s)");
-
-    foreach (var call in idl.ServerToClientCalls)
-    {
-        Console.WriteLine("    Emitting server->client call " + call.Name);
-        CallEmitter.Emit(CallEmitter.Direction.ServerToClient, idl, call);
-        emittedServerToClientCall = true;
-    }
-
-    if (emittedServerToClientCall)
-    {
-        libStream.WriteLine("mod server_to_client_calls;");
-        libStream.WriteLine();
-    }
-
-    Console.WriteLine();
-}
-
-// emit "server"
-ClientServerEmitter.Emit(ClientServerEmitter.Side.Server, idl, idl.ClientToServerCalls, idl.ServerToClientCalls);
-libStream.WriteLine("mod server;");
-libStream.WriteLine("pub use server::" + idl.Interface.Name + "Server;");
-libStream.WriteLine("pub use server::" + idl.Interface.Name + "ServerImplementation;");
-libStream.WriteLine();
-
-// emit "client"
-ClientServerEmitter.Emit(ClientServerEmitter.Side.Client, idl, idl.ServerToClientCalls, idl.ClientToServerCalls);
-libStream.WriteLine("mod client;");
-libStream.WriteLine("pub use client::" + idl.Interface.Name + "Client;");
-libStream.WriteLine("pub use client::" + idl.Interface.Name + "ClientImplementation;");
-libStream.WriteLine();
-
-if (!emittedClientToServerCall && !emittedServerToClientCall)
-{
-    Console.WriteLine("Warning: No calls emitted!");
-}
-
-libStream.Close();
-
-Console.WriteLine("Done");
