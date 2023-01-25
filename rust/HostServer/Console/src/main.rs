@@ -2,23 +2,23 @@ extern crate library_chaos;
 extern crate protocol_console;
 extern crate sdl2;
 
-use library_chaos::Process;
+use library_chaos::{Event, Handle, Process};
 use protocol_console::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::{EventPump, EventSubsystem};
-use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(Debug)]
 struct StormEvent {
-    channel: u32
+    event: Event,
+    quit: bool,
 }
 
 fn main() {
-    let me = Process::new("HostServer.Console").unwrap();
+    let mut process = Process::new("HostServer.Console").unwrap();
 
     let scale_factor: usize = 2;
     let width = 800;
@@ -58,10 +58,16 @@ fn main() {
 
     canvas.present();
 
-
     // set up service
-    me.services.create("console", "", "", Uuid::emp);
-
+    let service_handle = process
+        .services
+        .create(
+            CONSOLE_PROTOCOL_NAME,
+            "Chaos",
+            "SDL console host server",
+            Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
+        )
+        .unwrap();
 
     // hack to get events from both sdl and storm:
     // spawn thread doing storm event wait - posting events to sdl event queue
@@ -71,8 +77,12 @@ fn main() {
     let events = sdl_context.event().unwrap();
     events.register_custom_event::<StormEvent>().unwrap();
     let sender = events.event_sender();
-    thread::spawn(move || {
-        sender.push_custom_event(StormEvent { channel: 98 })
+    thread::spawn(move || loop {
+        let event = process.wait().unwrap();
+        sender.push_custom_event(StormEvent {
+            event: event,
+            quit: false,
+        });
     });
 
     // main loop
@@ -94,13 +104,5 @@ fn main() {
         }
     }
 
-    // create a unique handler for each connection
-    // let _ = ConsoleServer::default("Chaos", "Hosted console", || Box::new(ServerHandler { })).unwrap();
-
-    // // run server
-    // let error = Process::run();
-    // Process::emit_error(&error, "Event loop error").unwrap();
-
-    // // this is needed for now at the end of every program to clean up correctly
-    // Process::end();
+    process.end();
 }

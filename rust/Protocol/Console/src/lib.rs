@@ -10,5 +10,6 @@ mod channel;
 pub use channel::*;
 mod code;
 pub use code::*;
+pub static CONSOLE_PROTOCOL_NAME: &str = "console";
 
 

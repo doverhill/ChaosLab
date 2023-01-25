@@ -17,22 +17,26 @@ namespace Storm
         {
             lock (_lock)
             {
-                Console.ForegroundColor = ConsoleColor.Gray;
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.BackgroundColor = ConsoleColor.Blue;
+                var prefix = DateTime.Now.ToString("HH:mm:ss.fff") + " " + type.ToString();
                 if (process != null)
                 {
-                    if (process.Name != null)
+                    if (!string.IsNullOrEmpty(process.Name))
                     {
-                        Console.Write("[" + process.PID + "/" + process.Name + "] ");
+                        Console.Write($"[{prefix} {process.PID}/{process.Name}]");
                     }
                     else
                     {
-                        Console.Write("[" + process.PID + "] ");
+                        Console.Write($"[{prefix} {process.PID}]");
                     }
                 }
                 else
                 {
-                    Console.Write("[KERNEL] ");
+                    Console.Write($"[{prefix} KERNEL]");
                 }
+                Console.BackgroundColor = ConsoleColor.Black;
+                Console.Write(" ");
 
                 switch (type)
                 {

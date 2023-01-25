@@ -260,6 +260,9 @@ namespace IDLCompiler
                 source.AddLine("mod code;");
                 source.AddLine("pub use code::*;");
 
+                var protocolName = CasedString.FromSnake(idl.Protocol.Name);
+                source.AddLine($"pub static {protocolName.ToScreamingSnake()}_PROTOCOL_NAME: &str = \"{idl.Protocol.Name}\";");
+
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));

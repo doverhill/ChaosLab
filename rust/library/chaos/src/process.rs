@@ -1,4 +1,4 @@
-use crate::{ syscalls, Error, Action, ServiceCollection, ChannelCollection };
+use crate::{ syscalls, Error, Action, ServiceCollection, ChannelCollection, Event };
 
 pub struct Process {
     name: String,
@@ -54,6 +54,10 @@ impl Process {
     //         }
     //     }
     // }
+
+    pub fn event_wait(&self) -> Result<Event, Error> {
+        match syscalls::event_wait(handle, action, message, timeout_milliseconds)
+    }
 
     pub fn end(&self) -> ! {
         syscalls::process_destroy().unwrap();
