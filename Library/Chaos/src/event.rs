@@ -1,8 +1,9 @@
-use crate::{ Handle, Action };
+use crate::{ StormHandle, StormAction };
 
-pub struct Event {
-    handle: Handle,
-    argument_handle: Handle,
-    action: Action,
+#[derive(Debug)]
+pub struct StormEvent {
+    handle: StormHandle,
+    argument_handle: StormHandle,
+    action: StormAction,
     parameter: u64
 }

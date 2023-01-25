@@ -1,7 +1,7 @@
-use crate::{ Handle };
+use crate::{ StormHandle };
 
 pub struct ChannelCollection {
-    handles: Vec<Handle>
+    handles: Vec<StormHandle>
 }
 
 impl ChannelCollection {

@@ -12,12 +12,12 @@ mod process;
 mod service_collection;
 mod channel_collection;
 
-pub use event::Event;
-pub use action::Action;
-pub use process::Process;
+pub use event::StormEvent;
+pub use action::StormAction;
+pub use process::StormProcess;
 // pub use service::Service;
-pub use error::Error;
-pub use handle::Handle;
+pub use error::StormError;
+pub use handle::StormHandle;
 // pub use channel::Channel;
 pub use service_collection::ServiceCollection;
 pub use channel_collection::ChannelCollection;

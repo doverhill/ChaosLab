@@ -1,5 +1,5 @@
 #[derive(PartialEq, Eq, Debug)]
-pub enum Error {
+pub enum StormError {
     None = 0,
     NotFound = 1,
     PermissionDenied = 2,
@@ -10,31 +10,31 @@ pub enum Error {
     General = 7
 }
 
-impl Error {
-    pub fn from_i32(value: i32) -> Error {
+impl StormError {
+    pub fn from_i32(value: i32) -> Self {
         match value {
-            0 => Error::None,
-            1 => Error::NotFound,
-            2 => Error::PermissionDenied,
-            3 => Error::NotImplemented,
-            4 => Error::Timeout,
-            5 => Error::Cancelled,
-            6 => Error::AlreadyExists,
-            7 => Error::General,
-            _ => Error::General
+            0 => Self::None,
+            1 => Self::NotFound,
+            2 => Self::PermissionDenied,
+            3 => Self::NotImplemented,
+            4 => Self::Timeout,
+            5 => Self::Cancelled,
+            6 => Self::AlreadyExists,
+            7 => Self::General,
+            _ => Self::General
         }
     }
 
-    pub fn to_i32(error: &Error) -> i32 {
+    pub fn to_i32(error: Self) -> i32 {
         match error {
-            Error::None => 0,
-            Error::NotFound => 1,
-            Error::PermissionDenied => 2,
-            Error::NotImplemented => 3,
-            Error::Timeout => 4,
-            Error::Cancelled => 5,
-            Error::AlreadyExists => 6,
-            Error::General => 7
+            Self::None => 0,
+            Self::NotFound => 1,
+            Self::PermissionDenied => 2,
+            Self::NotImplemented => 3,
+            Self::Timeout => 4,
+            Self::Cancelled => 5,
+            Self::AlreadyExists => 6,
+            Self::General => 7
         }
     }
 }

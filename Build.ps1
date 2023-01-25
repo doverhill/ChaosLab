@@ -1,3 +1,5 @@
+$ErrorActionPreference = "Stop"
+
 # Build Storm
 dotnet publish -c Release .\Storm\StormHost\StormHost.csproj -o .\build
 
@@ -22,4 +24,8 @@ Set-Location Protocol\Tornado
 Set-Location ..\..
 
 # Compile servers and applications
+Set-Location HostServer\Console
+cargo build
+Set-Location ..\..
+
 

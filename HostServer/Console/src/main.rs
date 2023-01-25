@@ -2,7 +2,7 @@ extern crate library_chaos;
 extern crate protocol_console;
 extern crate sdl2;
 
-use library_chaos::{Event, Handle, Process};
+use library_chaos::{StormEvent, StormHandle, StormProcess};
 use protocol_console::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -11,14 +11,13 @@ use sdl2::{EventPump, EventSubsystem};
 use std::thread;
 use uuid::Uuid;
 
-#[derive(Debug)]
-struct StormEvent {
-    event: Event,
+struct StormEventWrapper {
+    event: StormEvent,
     quit: bool,
 }
 
 fn main() {
-    let mut process = Process::new("HostServer.Console").unwrap();
+    let mut process = StormProcess::new("HostServer.Console").unwrap();
 
     let scale_factor: usize = 2;
     let width = 800;
@@ -75,22 +74,22 @@ fn main() {
 
     // spawn storm thread
     let events = sdl_context.event().unwrap();
-    events.register_custom_event::<StormEvent>().unwrap();
+    events.register_custom_event::<StormEventWrapper>().unwrap();
     let sender = events.event_sender();
     thread::spawn(move || loop {
-        let event = process.wait().unwrap();
-        sender.push_custom_event(StormEvent {
-            event: event,
-            quit: false,
-        });
+        // let event = process.wait().unwrap();
+        // sender.push_custom_event(StormEvent {
+        //     event: event,
+        //     quit: false,
+        // });
     });
 
     // main loop
     let mut pump = sdl_context.event_pump().unwrap();
     'main_loop: loop {
         let event = pump.wait_event();
-        if let Some(storm_event) = event.as_user_event_type::<StormEvent>() {
-            println!("storm event {:?}", storm_event);
+        if let Some(storm_event) = event.as_user_event_type::<StormEventWrapper>() {
+            println!("storm event");
         } else {
             match event {
                 Event::MouseMotion { .. } => {

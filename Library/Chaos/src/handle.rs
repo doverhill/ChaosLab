@@ -1,1 +1,1 @@
-pub type Handle = u64;
+pub type StormHandle = u64;

@@ -1,5 +1,6 @@
 ﻿using Core;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -11,10 +12,30 @@ namespace Storm
         private object _lock = new object();
         private ulong nextPid = 1;
 
-        public void Start()
+        public void Start(List<StartupCommand> startupList)
         {
             Output.WriteLineKernel(SyscallProcessEmitType.Information, null, "Starting Storm kernel...");
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, $"{startupList.Count} startup commands");
+
+            var threadStart = new ParameterizedThreadStart(HandleStartup);
+            var startupThread = new Thread(threadStart);
+            startupThread.Start(startupList);
+
             AcceptClients();
+        }
+
+        private void HandleStartup(object? list)
+        {
+            var startupList = (List<StartupCommand>)list;
+
+            Thread.Sleep(1000);
+
+            foreach (var item in startupList)
+            {
+                Output.WriteLineKernel(SyscallProcessEmitType.Information, null, $"Starting {item.Path} with delay {item.DelayMs}...");
+                System.Diagnostics.Process.Start(item.Path);
+                Thread.Sleep(item.DelayMs);
+            }
         }
 
         private void AcceptClients()
