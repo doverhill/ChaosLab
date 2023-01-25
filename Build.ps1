@@ -1,3 +1,6 @@
+# Build Storm
+dotnet publish -c Release .\Storm\StormHost\StormHost.csproj -o .\build
+
 # Build IDL compiler
 dotnet publish -c Release .\IDLCompiler\IDLCompiler.csproj -o .\build
 
@@ -17,3 +20,6 @@ Set-Location ..\..
 Set-Location Protocol\Tornado
 ..\..\build\IDLCompiler Tornado.IDL.json
 Set-Location ..\..
+
+# Compile servers and applications
+

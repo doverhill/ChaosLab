@@ -1,0 +1,72 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {
+      "StormHost/1.0.0": {
+        "dependencies": {
+          "Storm": "1.0.0"
+        },
+        "runtime": {
+          "StormHost.dll": {}
+        }
+      },
+      "Uuids/1.0.3": {
+        "runtime": {
+          "lib/netcoreapp3.1/Uuids.CoreLib.dll": {
+            "assemblyVersion": "1.0.3.0",
+            "fileVersion": "0.0.0.0"
+          },
+          "lib/netcoreapp3.1/Uuids.dll": {
+            "assemblyVersion": "1.0.3.0",
+            "fileVersion": "1.0.3.0"
+          }
+        }
+      },
+      "Core/1.0.0": {
+        "dependencies": {
+          "Uuids": "1.0.3"
+        },
+        "runtime": {
+          "Core.dll": {}
+        }
+      },
+      "Storm/1.0.0": {
+        "dependencies": {
+          "Core": "1.0.0",
+          "Uuids": "1.0.3"
+        },
+        "runtime": {
+          "Storm.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "StormHost/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Uuids/1.0.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-pZC2QHbYSuHdi3FjIylr3HsupiTQbmDANN42u/csQE7zbJpWxMooe0Rl+LMPYZn2LZCdBIs74Vq0iTHiCSuOeg==",
+      "path": "uuids/1.0.3",
+      "hashPath": "uuids.1.0.3.nupkg.sha512"
+    },
+    "Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Storm/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

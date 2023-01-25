@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "Library/Chaos"
+		},
+		{
+			"path": "HostServer/Console"
+		},
+		{
+			"path": "Protocol/Console"
+		}
+	],
+	"settings": {}
+}
