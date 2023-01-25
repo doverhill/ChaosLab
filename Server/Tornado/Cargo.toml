@@ -1,0 +1,12 @@
+[package]
+name = "server_tornado"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+library_chaos = { path = "../../Library/Chaos" }
+protocol_console = { path = "../../Protocol/Console" }
+protocol_tornado = { path = "../../Protocol/Tornado" }
+uuid = { version = "0.8.2", features = ["v4"] }

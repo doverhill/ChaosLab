@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "Protocol/Console"
+		},
+		{
+			"path": "Server/Tornado"
 		}
 	],
 	"settings": {}
