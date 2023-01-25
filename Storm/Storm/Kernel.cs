@@ -28,12 +28,17 @@ namespace Storm
         {
             var startupList = (List<StartupCommand>)list;
 
-            Thread.Sleep(1000);
+            Thread.Sleep(200);
 
             foreach (var item in startupList)
             {
-                Output.WriteLineKernel(SyscallProcessEmitType.Information, null, $"Starting {item.Path} with delay {item.DelayMs}...");
-                System.Diagnostics.Process.Start(item.Path);
+                var path = Path.Combine(Environment.CurrentDirectory, item.Path);
+                var exePath = Path.Combine(path, item.Executable);
+                Output.WriteLineKernel(SyscallProcessEmitType.Information, null, $"Starting {exePath} in {path} with delay {item.DelayMs}...");
+
+                var startInfo = new ProcessStartInfo(exePath);
+                startInfo.WorkingDirectory = path;
+                System.Diagnostics.Process.Start(startInfo);
                 Thread.Sleep(item.DelayMs);
             }
         }

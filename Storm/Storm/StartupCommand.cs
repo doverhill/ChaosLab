@@ -10,11 +10,13 @@ namespace Storm
     {
         public int DelayMs;
         public string Path;
+        public string Executable;
 
-        public StartupCommand(int delayMs, string path)
+        public StartupCommand(int delayMs, string path, string executable)
         {
             DelayMs = delayMs;
             Path = path;
+            Executable = executable;
         }
     }
 }
