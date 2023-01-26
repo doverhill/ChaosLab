@@ -16,30 +16,23 @@ fn main() {
     let mut state = State {};
 
     // connect to console
-    let console_channel_handle = process
-        .services
-        .connect(CONSOLE_PROTOCOL_NAME)
-        .unwrap();
+    let console_client = ConsoleClient::connect_first(process, CONSOLE_PROTOCOL_NAME).unwrap();
 
-    let console = ConsoleChannel::new(console_channel_handle, false);
-    console.on_pointer_moved = |parameters| handle_pointer_moved(parameters);
+    console_client.write_text("Hello from Tornado!");
 
     // set up service
-    let tornado_service = process
-        .services
-        .create(
-            TORNADO_PROTOCOL_NAME,
-            "Chaos",
-            "Tornado server",
-            Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-        )
-        .unwrap();
+    let tornado_server = TornadoServer::create(process, "Chaos", "Tornado server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
-    
+    // set up logic
+    console_client.on_pointer_moved = || {
+        println!("pointer moved");
+    };
 
+    tornado_server.on_connect = || {
+        println!("tornado: connect");
+    };
+
+    // run
     process.run();
 }
 
-fn handle_pointer_moved(parameters: PointerMovedParameters) {
-    println!("pointer moved");
-}

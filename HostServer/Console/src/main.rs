@@ -58,15 +58,11 @@ fn main() {
     canvas.present();
 
     // set up service
-    let service_handle = process
-        .services
-        .create(
-            CONSOLE_PROTOCOL_NAME,
-            "Chaos",
-            "SDL console host server",
-            Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-        )
-        .unwrap();
+    let console_server = ConsoleServer::create(process, "Chaos", "SDL console host server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
+
+    console_server.on_connect = || {
+        println!("console: connect");
+    };
 
     // hack to get events from both sdl and storm:
     // spawn thread doing storm event wait - posting events to sdl event queue
@@ -93,7 +89,7 @@ fn main() {
         } else {
             match event {
                 Event::MouseMotion { .. } => {
-                    println!("got mouse move {:?}", event);
+                    // println!("got mouse move {:?}", event);
                 }
                 Event::Quit { .. } => {
                     break 'main_loop;

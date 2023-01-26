@@ -228,6 +228,30 @@ namespace IDLCompiler
                 }
             }
 
+            Console.WriteLine("Generating server");
+            using (var output = new FileStream("src/server.rs", FileMode.Create))
+            {
+                var source = new SourceGenerator(true);
+
+                ClientServerGenerator.GenerateSource(source, idl, idl.FromClient, idl.FromServer);
+                using (var writer = new StreamWriter(output, leaveOpen: true))
+                {
+                    writer.WriteLine(source.GetSource(hasTypes, hasEnums));
+                }
+            }
+
+            Console.WriteLine("Generating client");
+            using (var output = new FileStream("src/client.rs", FileMode.Create))
+            {
+                var source = new SourceGenerator(true);
+
+                ClientServerGenerator.GenerateSource(source, idl, idl.FromServer, idl.FromClient);
+                using (var writer = new StreamWriter(output, leaveOpen: true))
+                {
+                    writer.WriteLine(source.GetSource(hasTypes, hasEnums));
+                }
+            }
+
             Console.WriteLine("Generating library");
             using (var output = new FileStream("src/lib.rs", FileMode.Create))
             {
@@ -256,6 +280,11 @@ namespace IDLCompiler
 
                 source.AddLine("mod channel;");
                 source.AddLine("pub use channel::*;");
+
+                source.AddLine("mod server;");
+                source.AddLine("pub use server::*;");
+                source.AddLine("mod client;");
+                source.AddLine("pub use client::*;");
 
                 source.AddLine("mod code;");
                 source.AddLine("pub use code::*;");
