@@ -7,17 +7,17 @@
     "IDLCompiler - Tornado": {
       "commandName": "Project",
       "commandLineArgs": "Tornado.IDL.json",
-      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\Tornado"
+      "workingDirectory": "C:\\Git\\ChaosLab\\Protocol\\Tornado"
     },
     "IDLCompiler - Console": {
       "commandName": "Project",
       "commandLineArgs": "Console.IDL.json",
-      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\Console"
+      "workingDirectory": "C:\\Git\\ChaosLab\\Protocol\\Console"
     },
     "IDLCompiler - Storage": {
       "commandName": "Project",
       "commandLineArgs": "Storage.IDL.json",
-      "workingDirectory": "C:\\Git\\ChaosLab\\rust\\Protocol\\Storage"
+      "workingDirectory": "C:\\Git\\ChaosLab\\Protocol\\Storage"
     }
   }
 }

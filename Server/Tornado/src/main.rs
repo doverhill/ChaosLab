@@ -7,8 +7,32 @@ use protocol_console::*;
 use protocol_tornado::*;
 use uuid::Uuid;
 
-struct State {
+struct ClientState {
 
+}
+
+impl ClientState {
+    pub fn new() -> Self {
+        ClientState { }
+    }
+}
+
+struct GlobalState {
+    clients: HashMap<StormHandle, ClientState>
+}
+
+impl GlobalState {
+    pub fn new() -> Self {
+        GlobalState { clients: HashMap::new() }
+    }
+
+    pub fn add_client(&self, channel_handle: StormHandle) {
+
+    }
+
+    pub fn remove_client(&self, channel_handle: StormHandle) {
+        
+    }
 }
 
 fn main() {
@@ -24,13 +48,19 @@ fn main() {
     let tornado_server = TornadoServer::create(process, "Chaos", "Tornado server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
     // set up logic
-    console_client.on_pointer_moved = || {
+    console_client.on_pointer_moved(|| {
         println!("pointer moved");
-    };
+    });
 
-    tornado_server.on_connect = || {
-        println!("tornado: connect");
-    };
+
+
+    tornado_server.on_connect(|channel_handle| {
+        state.add_client(channel_handle);
+    });
+
+    tornado_server.on_disconnect(|channel_handle| {
+        state.remove_client(channel_handle);
+    });
 
     // run
     process.run();

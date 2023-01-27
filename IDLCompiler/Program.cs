@@ -233,7 +233,7 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(true);
 
-                ClientServerGenerator.GenerateSource(source, idl, idl.FromClient, idl.FromServer);
+                ClientServerGenerator.GenerateSource(source, idl, idl.FromClient, idl.FromServer, "Server");
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));
@@ -245,7 +245,7 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(true);
 
-                ClientServerGenerator.GenerateSource(source, idl, idl.FromServer, idl.FromClient);
+                ClientServerGenerator.GenerateSource(source, idl, idl.FromServer, idl.FromClient, "Client");
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));
