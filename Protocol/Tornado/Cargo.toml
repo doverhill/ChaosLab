@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 library_chaos = { path = "../../Library/Chaos" }
+uuid = { version = "0.8.2", features = ["v4"] }
 

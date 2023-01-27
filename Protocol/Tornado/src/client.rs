@@ -11,6 +11,7 @@ use crate::enums::*;
 
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, StormHandle};
+use uuid::Uuid;
 
 pub struct TornadoClient {
     channel_handle: StormHandle,
@@ -19,8 +20,9 @@ pub struct TornadoClient {
 }
 
 impl TornadoClient {
-    pub fn create(process: &StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<StormHandle> {
+    pub fn connect_first(process: &mut StormProcess) -> Option<Self> {
     }
+
     pub fn set_render_tree() {
     }
 

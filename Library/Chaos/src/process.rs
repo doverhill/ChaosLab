@@ -6,6 +6,12 @@ pub struct StormProcess {
     pub channels: ChannelCollection,
 }
 
+impl Drop for StormProcess {
+    fn drop(&mut self) {
+        self.end();
+    }
+}
+
 impl StormProcess {
     pub fn new(name: &str) -> Result<Self, StormError> {
         syscalls::process_set_info(name);

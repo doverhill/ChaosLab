@@ -10,6 +10,7 @@ use crate::types::*;
 
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, StormHandle};
+use uuid::Uuid;
 
 pub struct StorageServer {
     channel_handle: StormHandle,
@@ -25,8 +26,9 @@ pub struct StorageServer {
 }
 
 impl StorageServer {
-    pub fn create(process: &StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<StormHandle> {
+    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<Self> {
     }
+
     pub fn watched_object_changed() {
     }
 

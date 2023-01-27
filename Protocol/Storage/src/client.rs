@@ -9,7 +9,8 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 
 use alloc::boxed::Box;
-use library_chaos::{StormProcess, StormHandle};
+use library_chaos::{StormProcess, StormHandle, Service};
+use uuid::Uuid;
 
 pub struct StorageClient {
     channel_handle: StormHandle,
@@ -18,8 +19,18 @@ pub struct StorageClient {
 }
 
 impl StorageClient {
-    pub fn create(process: &StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<StormHandle> {
+    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
+        match syscalls::connect("BogusAuto", None, None, None, 4096) {
+            Ok(channel_reference) => {
+                Ok(Self::from_channel(channel_reference, implementation))
+            },
+            Err(error) => {
+                Process::emit_error(&error, "Failed to connect to BogusAuto service").unwrap();
+                Err(error)
+            }
+        }
     }
+
     pub fn get_capabilities() {
     }
 

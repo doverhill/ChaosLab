@@ -21,4 +21,8 @@ impl ServiceCollection {
             }
         }
     }
+
+    pub fn destroy(&mut self, service_handle: StormHandle) {
+        match syscalls::service_destroy(service_handle)
+    }
 }

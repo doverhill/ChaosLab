@@ -57,18 +57,12 @@ pub fn service_create(protocol_name: &str, vendor_name: &str, device_name: &str,
     }
 }
 
-pub fn service_destroy(handle: StormHandle) -> Result<(), StormError> {
+pub fn service_destroy(handle: StormHandle) -> StormError {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ServiceDestroy as i32);
     write_u64(connection, handle);
 
-    let result = StormError::from_i32(read_i32(connection));
-    if result == StormError::None {
-        Ok(())
-    }
-    else {
-        Err(result)
-    }
+    StormError::from_i32(read_i32(connection))
 }
 
 pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_name: Option<&str>, device_id: Option<Uuid>) -> Result<StormHandle, StormError> {
@@ -88,33 +82,21 @@ pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_na
     }
 }
 
-pub fn channel_destroy(channel_handle: StormHandle) -> Result<(), StormError> {
+pub fn channel_destroy(channel_handle: StormHandle) -> StormError {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ChannelDestroy as i32);
     write_u64(connection, channel_handle);
 
-    let result = StormError::from_i32(read_i32(connection));
-    if result == StormError::None {
-        Ok(())
-    }
-    else {
-        Err(result)
-    }
+    StormError::from_i32(read_i32(connection))
 }
 
-pub fn channel_message(handle: StormHandle, message: u64) -> Result<(), StormError> {
+pub fn channel_message(handle: StormHandle, message: u64) -> StormError {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ChannelMessage as i32);
     write_u64(connection, handle);
     write_u64(connection, message);
 
-    let result = StormError::from_i32(read_i32(connection));
-    if result == StormError::None {
-        Ok(())
-    }
-    else {
-        Err(result)
-    }
+    StormError::from_i32(read_i32(connection))
 }
 
 pub fn event_wait(handle: Option<StormHandle>, action: Option<StormAction>, message: Option<u64>, timeout_milliseconds: i32) -> Result<(StormHandle, StormHandle, StormAction, u64), StormError> {
@@ -145,47 +127,29 @@ pub fn event_wait(handle: Option<StormHandle>, action: Option<StormAction>, mess
     }
 }
 
-pub fn process_destroy() -> Result<(), StormError> {
+pub fn process_destroy() -> StormError {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessDestroy as i32);
 
-    let result = StormError::from_i32(read_i32(connection));
-    if result == StormError::None {
-        Ok(())
-    }
-    else {
-        Err(result)
-    }
+    StormError::from_i32(read_i32(connection))
 }
 
-pub fn process_set_info(process_name: &str) -> Result<(), StormError> {
+pub fn process_set_info(process_name: &str) -> StormError {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessSetInfo as i32);
     write_text(connection, Some(process_name));
 
-    let result = StormError::from_i32(read_i32(connection));
-    if result == StormError::None {
-        Ok(())
-    }
-    else {
-        Err(result)
-    }
+    StormError::from_i32(read_i32(connection))
 }
 
-pub fn process_emit(emit_type: EmitType, error: StormError, text: Option<&str>) -> Result<(), StormError> {
+pub fn process_emit(emit_type: EmitType, error: StormError, text: Option<&str>) -> StormError {
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
     write_i32(connection, SyscallNumber::ProcessEmit as i32);
     write_i32(connection, emit_type as i32);
     write_i32(connection, StormError::to_i32(error));
     write_text(connection, text);
 
-    let result = StormError::from_i32(read_i32(connection));
-    if result == StormError::None {
-        Ok(())
-    }
-    else {
-        Err(result)
-    }
+    StormError::from_i32(read_i32(connection))
 }
 
 pub fn cleanup() {
