@@ -9,6 +9,9 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct Point {
     pub x: i64,
     pub y: i64,

@@ -8,6 +8,9 @@ use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
 use crate::types::*;
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct WatchObjectParameters {
     pub object: StorageObject,
 }
@@ -49,6 +52,9 @@ impl WatchObjectParameters {
         size
     }
 }
+
+use alloc::vec::Vec;
+use alloc::string::String;
 
 pub struct WatchObjectReturns {
     pub watch_id: u64,

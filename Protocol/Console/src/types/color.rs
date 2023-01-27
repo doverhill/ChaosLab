@@ -9,6 +9,9 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct Color {
     pub alpha: u8,
     pub red: u8,

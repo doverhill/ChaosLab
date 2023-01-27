@@ -9,19 +9,22 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
+use alloc::boxed::Box;
+use library_chaos::{StormProcess, StormHandle};
+
 pub struct ConsoleServer {
     channel_handle: StormHandle,
     channel_address: *mut u8,
-    on_get_capabilities: fn,
-    on_set_text_color: fn,
-    on_move_text_cursor: fn,
-    on_draw_image_patch: fn,
-    on_write_text: fn,
-    on_write_objects: fn,
+    on_get_capabilities: Option<Box<dyn FnMut()>>,
+    on_set_text_color: Option<Box<dyn FnMut()>>,
+    on_move_text_cursor: Option<Box<dyn FnMut()>>,
+    on_draw_image_patch: Option<Box<dyn FnMut()>>,
+    on_write_text: Option<Box<dyn FnMut()>>,
+    on_write_objects: Option<Box<dyn FnMut()>>,
 }
 
 impl ConsoleServer {
-    pub fn create() {
+    pub fn create(process: &StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<StormHandle> {
     }
     pub fn key_pressed() {
     }

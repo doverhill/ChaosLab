@@ -1,3 +1,5 @@
+#![no_std]
+extern crate alloc;
 extern crate library_chaos;
 extern crate protocol_console;
 extern crate protocol_tornado;
@@ -6,6 +8,7 @@ use library_chaos::{StormEvent, StormHandle, StormProcess};
 use protocol_console::*;
 use protocol_tornado::*;
 use uuid::Uuid;
+use alloc::collections::BTreeMap;
 
 struct ClientState {
 
@@ -18,26 +21,26 @@ impl ClientState {
 }
 
 struct GlobalState {
-    clients: HashMap<StormHandle, ClientState>
+    clients: BTreeMap<StormHandle, ClientState>
 }
 
 impl GlobalState {
     pub fn new() -> Self {
-        GlobalState { clients: HashMap::new() }
+        GlobalState { clients: BTreeMap::new() }
     }
 
     pub fn add_client(&self, channel_handle: StormHandle) {
-
+        self.clients.insert(channel_handle, ClientState::new());
     }
 
     pub fn remove_client(&self, channel_handle: StormHandle) {
-        
+        self.clients.remove(&channel_handle);
     }
 }
 
 fn main() {
     let mut process = StormProcess::new("Server.Tornado").unwrap();
-    let mut state = State {};
+    let mut state = GlobalState::new();
 
     // connect to console
     let console_client = ConsoleClient::connect_first(process, CONSOLE_PROTOCOL_NAME).unwrap();
@@ -49,7 +52,7 @@ fn main() {
 
     // set up logic
     console_client.on_pointer_moved(|| {
-        println!("pointer moved");
+        // println!("pointer moved");
     });
 
 

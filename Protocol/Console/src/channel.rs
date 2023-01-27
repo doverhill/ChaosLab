@@ -9,7 +9,7 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 struct ProtocolVersion {
     major: u16,

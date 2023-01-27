@@ -94,6 +94,9 @@ impl MapFieldValueEnum {
     }
 }
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct MapField {
     pub name: String,
     pub value: MapFieldValueEnum,

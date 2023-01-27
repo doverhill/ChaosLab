@@ -8,6 +8,9 @@ use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
 use crate::types::*;
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct ReadObjectParameters {
     pub object: StorageObject,
     pub position: u64,
@@ -59,6 +62,9 @@ impl ReadObjectParameters {
         size
     }
 }
+
+use alloc::vec::Vec;
+use alloc::string::String;
 
 pub struct ReadObjectReturns {
     pub data: Vec<u8>,

@@ -8,13 +8,43 @@ use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
 use crate::types::*;
 
+use alloc::boxed::Box;
+use library_chaos::{StormProcess, StormHandle};
+
 pub struct StorageClient {
+    channel_handle: StormHandle,
+    channel_address: *mut u8,
+    on_watched_object_changed: Option<Box<dyn FnMut()>>,
 }
 
 impl StorageClient {
-    pub fn create() {
+    pub fn create(process: &StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<StormHandle> {
     }
-    pub fn watched_object_changed() {
+    pub fn get_capabilities() {
+    }
+
+    pub fn list_objects() {
+    }
+
+    pub fn lock_object() {
+    }
+
+    pub fn unlock_object() {
+    }
+
+    pub fn read_object() {
+    }
+
+    pub fn write_object() {
+    }
+
+    pub fn watch_object() {
+    }
+
+    pub fn unwatch_object() {
+    }
+
+    pub fn on_watched_object_changed() {
     }
 
 }

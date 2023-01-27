@@ -8,34 +8,50 @@ use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
 use crate::types::*;
 
+use alloc::boxed::Box;
+use library_chaos::{StormProcess, StormHandle};
+
 pub struct StorageServer {
+    channel_handle: StormHandle,
+    channel_address: *mut u8,
+    on_get_capabilities: Option<Box<dyn FnMut()>>,
+    on_list_objects: Option<Box<dyn FnMut()>>,
+    on_lock_object: Option<Box<dyn FnMut()>>,
+    on_unlock_object: Option<Box<dyn FnMut()>>,
+    on_read_object: Option<Box<dyn FnMut()>>,
+    on_write_object: Option<Box<dyn FnMut()>>,
+    on_watch_object: Option<Box<dyn FnMut()>>,
+    on_unwatch_object: Option<Box<dyn FnMut()>>,
 }
 
 impl StorageServer {
-    pub fn create() {
+    pub fn create(process: &StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<StormHandle> {
     }
-    pub fn get_capabilities() {
-    }
-
-    pub fn list_objects() {
+    pub fn watched_object_changed() {
     }
 
-    pub fn lock_object() {
+    pub fn on_get_capabilities() {
     }
 
-    pub fn unlock_object() {
+    pub fn on_list_objects() {
     }
 
-    pub fn read_object() {
+    pub fn on_lock_object() {
     }
 
-    pub fn write_object() {
+    pub fn on_unlock_object() {
     }
 
-    pub fn watch_object() {
+    pub fn on_read_object() {
     }
 
-    pub fn unwatch_object() {
+    pub fn on_write_object() {
+    }
+
+    pub fn on_watch_object() {
+    }
+
+    pub fn on_unwatch_object() {
     }
 
 }

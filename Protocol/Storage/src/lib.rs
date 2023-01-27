@@ -1,3 +1,7 @@
+#![no_std]
+extern crate alloc;
+extern crate library_chaos;
+
 mod types;
 pub use types::*;
 mod from_client;

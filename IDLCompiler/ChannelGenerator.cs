@@ -13,7 +13,7 @@ namespace IDLCompiler
             var protocolName = CasedString.FromSnake(idl.Protocol.Name);
             var channelName = $"{protocolName.ToPascal()}Channel";
 
-            source.AddLine("use std::sync::atomic::{AtomicBool, Ordering};");
+            source.AddLine("use core::sync::atomic::{AtomicBool, Ordering};");
             source.AddBlank();
 
             var versionBlock = source.AddBlock("struct ProtocolVersion");

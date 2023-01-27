@@ -233,7 +233,7 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(true);
 
-                ClientServerGenerator.GenerateSource(source, idl, idl.FromClient, idl.FromServer, "Server");
+                ClientServerGenerator.GenerateSource(source, idl, idl.FromClient, idl.FromServer, ClientServerGenerator.ClientServerSide.Server);
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));
@@ -245,7 +245,7 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(true);
 
-                ClientServerGenerator.GenerateSource(source, idl, idl.FromServer, idl.FromClient, "Client");
+                ClientServerGenerator.GenerateSource(source, idl, idl.FromServer, idl.FromClient, ClientServerGenerator.ClientServerSide.Client);
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));
@@ -256,6 +256,11 @@ namespace IDLCompiler
             using (var output = new FileStream("src/lib.rs", FileMode.Create))
             {
                 var source = new SourceGenerator(false);
+
+                source.AddLine("#![no_std]");
+                source.AddLine("extern crate alloc;");
+                source.AddLine("extern crate library_chaos;");
+                source.AddBlank();
 
                 if (idl.EnumLists.Count > 0)
                 {

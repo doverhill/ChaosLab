@@ -111,6 +111,9 @@ impl SetRenderTreeParametersComponentsEnum {
     }
 }
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct SetRenderTreeParameters {
     pub components: Vec<SetRenderTreeParametersComponentsEnum>,
 }

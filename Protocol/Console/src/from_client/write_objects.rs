@@ -66,6 +66,9 @@ impl WriteObjectsParametersObjectsEnum {
     }
 }
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct WriteObjectsParameters {
     pub objects: Vec<WriteObjectsParametersObjectsEnum>,
 }

@@ -8,6 +8,9 @@ use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
 use crate::types::*;
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct UnlockObjectParameters {
     pub lock_id: u64,
 }

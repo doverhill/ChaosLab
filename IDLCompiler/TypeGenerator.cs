@@ -24,6 +24,10 @@ namespace IDLCompiler
                 }
             }
 
+            source.AddLine("use alloc::vec::Vec;");
+            source.AddLine("use alloc::string::String;");
+            source.AddBlank();
+
             var enumBlock = source.AddBlock($"pub struct {type.Name}");
             foreach (var field in type.Fields.Values)
             {

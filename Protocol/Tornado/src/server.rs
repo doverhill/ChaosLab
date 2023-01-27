@@ -9,13 +9,22 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 use crate::enums::*;
 
+use alloc::boxed::Box;
+use library_chaos::{StormProcess, StormHandle};
+
 pub struct TornadoServer {
+    channel_handle: StormHandle,
+    channel_address: *mut u8,
+    on_set_render_tree: Option<Box<dyn FnMut()>>,
 }
 
 impl TornadoServer {
-    pub fn create() {
+    pub fn create(process: &StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Option<StormHandle> {
     }
-    pub fn set_render_tree() {
+    pub fn component_clicked() {
+    }
+
+    pub fn on_set_render_tree() {
     }
 
 }

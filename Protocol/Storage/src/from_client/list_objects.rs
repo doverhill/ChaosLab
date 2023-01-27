@@ -8,6 +8,9 @@ use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
 use crate::types::*;
 
+use alloc::vec::Vec;
+use alloc::string::String;
+
 pub struct ListObjectsParameters {
     pub path: String,
     pub pattern: String,
@@ -136,6 +139,9 @@ impl ListObjectsReturnsObjectsEnum {
         }
     }
 }
+
+use alloc::vec::Vec;
+use alloc::string::String;
 
 pub struct ListObjectsReturns {
     pub objects: Vec<ListObjectsReturnsObjectsEnum>,
