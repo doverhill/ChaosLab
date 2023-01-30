@@ -70,6 +70,13 @@ impl StormProcess {
         Ok(handle)
     }
 
+    pub fn get_channel_address(&self, handle: ChannelHandle) -> Result<*mut u8, StormError> {
+        match self.channels.get(&handle) {
+            Some(channel) => Ok(channel.map_pointer),
+            None => Err(StormError::NotFound),
+        }
+    }
+
     pub fn on_channel_messaged(&mut self, handle: ChannelHandle, handler: Option<Box<dyn Fn(ChannelHandle, u64)>>) -> Result<(), StormError> {
         match self.channels.get_mut(&handle) {
             Some(channel) => {

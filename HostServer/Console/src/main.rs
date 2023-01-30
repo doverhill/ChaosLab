@@ -58,11 +58,11 @@ fn main() {
     canvas.present();
 
     // set up service
-    let console_server = ConsoleServer::create(process, "Chaos", "SDL console host server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
+    let console_server = ConsoleServer::create(&mut process, "Chaos", "SDL console host server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
-    console_server.on_connect = || {
+    console_server.on_connect(|| {
         println!("console: connect");
-    };
+    });
 
     // hack to get events from both sdl and storm:
     // spawn thread doing storm event wait - posting events to sdl event queue

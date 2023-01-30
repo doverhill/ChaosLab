@@ -1,4 +1,4 @@
-use library_chaos::{StormEvent, StormHandle, StormProcess};
+use library_chaos::{StormEvent, ChannelHandle, StormProcess};
 use alloc::collections::BTreeMap;
 
 struct ClientState {
@@ -10,8 +10,8 @@ impl ClientState {
     }
 }
 
-struct GlobalState {
-    clients: BTreeMap<StormHandle, ClientState>
+pub struct GlobalState {
+    clients: BTreeMap<ChannelHandle, ClientState>
 }
 
 impl GlobalState {
@@ -19,11 +19,11 @@ impl GlobalState {
         GlobalState { clients: BTreeMap::new() }
     }
 
-    pub fn add_client(&self, channel_handle: StormHandle) {
-        self.clients.insert(channel_handle, ClientState::new());
+    pub fn add_client(&self, handle: ChannelHandle) {
+        self.clients.insert(handle, ClientState::new());
     }
 
-    pub fn remove_client(&self, channel_handle: StormHandle) {
-        self.clients.remove(&channel_handle);
+    pub fn remove_client(&self, handle: ChannelHandle) {
+        self.clients.remove(&handle);
     }
 }

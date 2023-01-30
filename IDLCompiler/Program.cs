@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Data.Common;
 using System.IO;
 using System.Text.Json;
 
@@ -128,7 +130,8 @@ namespace IDLCompiler
                 }
             }
 
-            var message_id = 1;
+            //var messageId = 1;
+            var messageIds = new List<string>();
 
             if (idl.FromClient.Count > 0)
             {
@@ -143,10 +146,18 @@ namespace IDLCompiler
                         var codeSource = new SourceGenerator(true);
                         //CallGenerator.GenerateCall(codeSource, call.Value, message_id);
 
-                        var parametersType = call.Value.ToParametersType();
-                        if (parametersType != null) TypeGenerator.GenerateType(codeSource, parametersType);
-                        var returnsType = call.Value.ToReturnsType();
-                        if (returnsType != null) TypeGenerator.GenerateType(codeSource, returnsType);
+                        var (parametersType, parametersMessageName) = call.Value.ToParametersType();
+                        messageIds.Add(parametersMessageName);
+                        if (parametersType != null)
+                        {
+                            TypeGenerator.GenerateType(codeSource, parametersType);
+                        }
+                        var (returnsType, returnsMessageName) = call.Value.ToReturnsType(false);
+                        if (returnsType != null)
+                        {
+                            messageIds.Add(returnsMessageName);
+                            TypeGenerator.GenerateType(codeSource, returnsType);
+                        }
 
                         using (var output = new FileStream($"src/from_client/{call.Key}.rs", FileMode.Create))
                         {
@@ -155,7 +166,6 @@ namespace IDLCompiler
                                 writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
                             }
                         }
-                        message_id++;
 
                         modSource.AddLine($"mod {call.Key};");
                         modSource.AddLine($"pub use {call.Key}::*;");
@@ -181,10 +191,18 @@ namespace IDLCompiler
                         var codeSource = new SourceGenerator(true);
                         //CallGenerator.GenerateCall(codeSource, call.Value, message_id);
 
-                        var parametersType = call.Value.ToParametersType();
-                        if (parametersType != null) TypeGenerator.GenerateType(codeSource, parametersType);
-                        var returnsType = call.Value.ToReturnsType();
-                        if (returnsType != null) TypeGenerator.GenerateType(codeSource, returnsType);
+                        var (parametersType, parametersMessageName) = call.Value.ToParametersType();
+                        messageIds.Add(parametersMessageName);
+                        if (parametersType != null)
+                        {
+                            TypeGenerator.GenerateType(codeSource, parametersType);
+                        }
+                        var (returnsType, returnsMessageName) = call.Value.ToReturnsType(true);
+                        if (returnsType != null)
+                        {
+                            messageIds.Add(returnsMessageName);
+                            TypeGenerator.GenerateType(codeSource, returnsType);
+                        }
 
                         using (var output = new FileStream($"src/from_server/{call.Key}.rs", FileMode.Create))
                         {
@@ -193,7 +211,6 @@ namespace IDLCompiler
                                 writer.WriteLine(codeSource.GetSource(hasTypes, hasEnums));
                             }
                         }
-                        message_id++;
 
                         modSource.AddLine($"mod {call.Key};");
                         modSource.AddLine($"pub use {call.Key}::*;");
@@ -233,7 +250,7 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(true);
 
-                ClientServerGenerator.GenerateSource(source, idl, idl.FromClient, idl.FromServer, ClientServerGenerator.ClientServerSide.Server);
+                ClientServerGenerator.GenerateServer(source, idl, idl.FromClient, idl.FromServer);
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));
@@ -245,10 +262,27 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(true);
 
-                ClientServerGenerator.GenerateSource(source, idl, idl.FromServer, idl.FromClient, ClientServerGenerator.ClientServerSide.Client);
+                ClientServerGenerator.GenerateClient(source, idl, idl.FromServer, idl.FromClient);
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));
+                }
+            }
+
+            Console.WriteLine("Generating messages");
+            using (var output = new FileStream("src/message_ids.rs", FileMode.Create))
+            {
+                var source = new SourceGenerator(false);
+
+                var enumBlock = source.AddBlock("pub enum MessageIds");
+                foreach (var message in messageIds)
+                {
+                    enumBlock.AddLine(message + ",");
+                }
+
+                using (var writer = new StreamWriter(output, leaveOpen: true))
+                {
+                    writer.WriteLine(source.GetSource(false, false));
                 }
             }
 
@@ -282,6 +316,9 @@ namespace IDLCompiler
                     source.AddLine("mod from_server;");
                     source.AddLine("pub use from_server::*;");
                 }
+
+                source.AddLine("mod message_ids;");
+                source.AddLine("pub use message_ids::MessageIds;");
 
                 source.AddLine("mod channel;");
                 source.AddLine("pub use channel::*;");

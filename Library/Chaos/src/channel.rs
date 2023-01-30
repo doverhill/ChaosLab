@@ -21,7 +21,7 @@ use std::slice;
 
 pub struct Channel {
     map_handle: HANDLE,
-    map_pointer: *mut u8,
+    pub map_pointer: *mut u8,
     pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64)>>,
     pub on_destroyed: Option<Box<dyn Fn(ChannelHandle)>>,
 }

@@ -35,7 +35,7 @@ impl ChannelHeader {
 
 pub struct ChannelMessageHeader {
     message_magic: u64,
-    message_id: usize,
+    message_id: u64,
     message_length: usize,
     previous_message_offset: usize,
     next_message_offset: usize,
@@ -108,7 +108,7 @@ impl StorageChannel {
         (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 's' as u8 && (*channel_header).protocol_name[2] == 't' as u8 && (*channel_header).protocol_name[3] == 'o' as u8 && (*channel_header).protocol_name[4] == 'r' as u8 && (*channel_header).protocol_name[5] == 'a' as u8 && (*channel_header).protocol_name[6] == 'g' as u8 && (*channel_header).protocol_name[7] == 'e' as u8
     }
 
-    pub unsafe fn prepare_message(&self, message_id: usize, replace_pending: bool) -> *mut u8 {
+    pub unsafe fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut u8 {
         let channel_header = self.channel_address as *mut ChannelHeader;
         let lock = ChannelLock::get(self);
         #[cfg(debug)]

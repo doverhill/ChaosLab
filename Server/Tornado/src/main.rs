@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 extern crate alloc;
 extern crate library_chaos;
 extern crate protocol_console;
@@ -7,7 +7,7 @@ extern crate protocol_tornado;
 mod state;
 use state::GlobalState;
 
-use library_chaos::{StormEvent, StormHandle, StormProcess};
+use library_chaos::{StormEvent, ChannelHandle, StormProcess};
 use protocol_console::*;
 use protocol_tornado::*;
 use uuid::Uuid;
@@ -19,23 +19,22 @@ fn main() {
     // connect to console
     let console_client = ConsoleClient::connect_first(&mut process).unwrap();
 
-    console_client.write_text("Hello from Tornado!");
+    console_client.write_text(&WriteTextParameters { text: "Hello from Tornado!".to_string() });
+
+    console_client.on_pointer_moved(|| {
+        println!("tornado: pointer moved");
+    });
 
     // set up service
     let tornado_server = TornadoServer::create(&mut process, "Chaos", "Tornado server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
-    // set up logic
-    console_client.on_pointer_moved(|| {
-        // println!("pointer moved");
-    });
-
-
-
-    tornado_server.on_connect(|channel_handle| {
+    tornado_server.on_client_connected(|channel_handle| {
+        println!("tornado: client connected");
         state.add_client(channel_handle);
     });
 
-    tornado_server.on_disconnect(|channel_handle| {
+    tornado_server.on_client_disconnected(|channel_handle| {
+        println!("tornado: client disconnected");
         state.remove_client(channel_handle);
     });
 

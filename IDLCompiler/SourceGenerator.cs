@@ -12,6 +12,7 @@ namespace IDLCompiler
 
             public bool CommaAfter;
             public bool SemiColonAfter;
+            public string Append;
 
             public void AddBlank()
             {
@@ -63,6 +64,7 @@ namespace IDLCompiler
                 }
                 if (CommaAfter) result += ",";
                 if (SemiColonAfter) result += ";";
+                if (Append != null) result += Append;
                 result += "\r\n";
                 return result;
             }

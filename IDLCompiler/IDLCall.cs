@@ -53,30 +53,42 @@ namespace IDLCompiler
             }
         }
 
-        public IDLType ToParametersType()
+        public (IDLType, string) ToParametersType()
         {
+            var name = CasedString.FromSnake(Name).ToPascal() + "Parameters";
+            var messageName = name;
+
             if (Parameters.Count > 0)
             {
-                return new IDLType
+                return (new IDLType
                 {
-                    Name = CasedString.FromSnake(Name).ToPascal() + "Parameters",
+                    Name = name,
                     Fields = Parameters
-                };
+                }, messageName);
             }
-            return null;
+            return (null, messageName);
         }
 
-        public IDLType ToReturnsType()
+        public (IDLType, string) ToReturnsType(bool fromServer)
         {
+            if (fromServer)
+            {
+                if (Type != CallType.Event && Type != CallType.SingleEvent) throw new Exception($"{Name}: Only event types are supported in server->client calls");
+                if (ReturnValues.Count > 0) throw new Exception($"{Name}: Return values not allowed in server->client events");
+            }
+
+            var name = CasedString.FromSnake(Name).ToPascal() + "Returns";
+            var messageName = name;
+
             if (ReturnValues.Count > 0)
             {
-                return new IDLType
+                return (new IDLType
                 {
-                    Name = CasedString.FromSnake(Name).ToPascal() + "Returns",
+                    Name = name,
                     Fields = ReturnValues
-                };
+                }, messageName);
             }
-            return null;
+            return (null, messageName);
         }
     }
 }
