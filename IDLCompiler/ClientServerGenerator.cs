@@ -46,7 +46,7 @@ namespace IDLCompiler
                 var connectBlock = implBlock.AddBlock("pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError>");
                 var matchBlock = connectBlock.AddBlock($"match syscalls::connect(\"{idl.Protocol.Name}\", None, None, None, 4096)");
                 var okBlock = connectBlock.AddBlock("Ok(service_handle) =>");
-                okBlock.AddLine($"Ok(Self { service_handle")
+                okBlock.AddLine("Ok(Self { service_handle");
             }
             implBlock.AddBlank();
 
