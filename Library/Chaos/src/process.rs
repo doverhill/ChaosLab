@@ -95,7 +95,7 @@ impl StormProcess {
         )
     }
 
-    pub fn emit_information(information_text: &str) -> Result<(), StormError> {
+    pub fn emit_information(&self, information_text: &str) -> Result<(), StormError> {
         syscalls::process_emit(
             syscalls::EmitType::Information,
             StormError::None,
@@ -103,7 +103,7 @@ impl StormProcess {
         )
     }
 
-    pub fn emit_warning(information_text: &str) -> Result<(), StormError> {
+    pub fn emit_warning(&self, information_text: &str) -> Result<(), StormError> {
         syscalls::process_emit(
             syscalls::EmitType::Warning,
             StormError::None,
@@ -111,8 +111,12 @@ impl StormProcess {
         )
     }
 
-    pub fn emit_error(error: StormError, information_text: &str) -> Result<(), StormError> {
+    pub fn emit_error(&self, error: StormError, information_text: &str) -> Result<(), StormError> {
         syscalls::process_emit(syscalls::EmitType::Error, error, Some(information_text))
+    }
+
+    pub fn wait_for_channel_message(&self, handle: ChannelHandle, message_id: u64, timeout_milliseconds: i32) -> Result<StormEvent, StormError> {
+        syscalls::event_wait(Some(handle.raw_handle()), Some(StormAction::ChannelMessaged), Some(message_id), timeout_milliseconds)
     }
 
     // pub fn run(&self) -> Error {
