@@ -17,8 +17,6 @@ struct StormEventWrapper {
 }
 
 fn main() {
-    let mut process = StormProcess::new("HostServer.Console").unwrap();
-
     let scale_factor: usize = 2;
     let width = 800;
     let height = 600;
@@ -57,13 +55,6 @@ fn main() {
 
     canvas.present();
 
-    // set up service
-    let mut console_server = ConsoleServer::create(&mut process, "Chaos", "SDL console host server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
-
-    console_server.on_client_connected(|channel_handle| {
-        println!("console: connect");
-    });
-
     // hack to get events from both sdl and storm:
     // spawn thread doing storm event wait - posting events to sdl event queue
     // on main thread, loop on sdl event queue and handle incoming events from both sources
@@ -72,12 +63,23 @@ fn main() {
     let events = sdl_context.event().unwrap();
     events.register_custom_event::<StormEventWrapper>().unwrap();
     let sender = events.event_sender();
-    thread::spawn(move || loop {
-        // let event = process.wait().unwrap();
-        // sender.push_custom_event(StormEvent {
-        //     event: event,
-        //     quit: false,
-        // });
+    thread::spawn(|| {
+        let mut process = StormProcess::new("HostServer.Console").unwrap();
+
+        // set up service
+        let mut console_server = ConsoleServer::create(
+            &mut process,
+            "Chaos",
+            "SDL console host server",
+            Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
+        )
+        .unwrap();
+
+        console_server.on_client_connected(|channel_handle| {
+            println!("console: connect");
+        });
+
+        process.run();
     });
 
     // main loop
@@ -99,5 +101,5 @@ fn main() {
         }
     }
 
-    process.end();
+    // process.end();
 }
