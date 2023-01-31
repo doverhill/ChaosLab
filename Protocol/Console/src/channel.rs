@@ -11,6 +11,17 @@ use crate::enums::*;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
+pub struct FromChannel<T> {
+    value: T,
+}
+
+impl<T> FromChannel<T> {
+    pub fn new (value: T) -> Self {
+        Self {
+            value: value,
+        }
+    }
+}
 struct ProtocolVersion {
     major: u16,
     minor: u16,
@@ -113,7 +124,7 @@ impl ConsoleChannel {
         (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 'c' as u8 && (*channel_header).protocol_name[2] == 'o' as u8 && (*channel_header).protocol_name[3] == 'n' as u8 && (*channel_header).protocol_name[4] == 's' as u8 && (*channel_header).protocol_name[5] == 'o' as u8 && (*channel_header).protocol_name[6] == 'l' as u8 && (*channel_header).protocol_name[7] == 'e' as u8
     }
 
-    pub unsafe fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut u8 {
+    pub unsafe fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut ChannelMessageHeader {
         let channel_header = self.channel_address as *mut ChannelHeader;
         let lock = ChannelLock::get(self);
         #[cfg(debug)]
@@ -139,7 +150,7 @@ impl ConsoleChannel {
         (*message).replace_pending = replace_pending;
         (*message).message_length = 0;
         (*message).next_message_offset = 0;
-        message as *mut u8
+        message
     }
 
     pub unsafe fn commit_message(&self, message_payload_size: usize) {
@@ -168,16 +179,16 @@ impl ConsoleChannel {
             let first_message = self.channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
             #[cfg(debug)]
             assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
-                let iter = first_message;
-                while (*iter).message_id != message_id && (*iter).next_message_offset != 0 {
-                    let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
-                }
-                if (*iter).message_id == message_id {
-                    Some(iter)
-                }
-                else {
-                    None
-                }
+            let iter = first_message;
+            while (*iter).message_id != message_id && (*iter).next_message_offset != 0 {
+                let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+            }
+            if (*iter).message_id == message_id {
+                Some(iter)
+            }
+            else {
+                None
+            }
         }
     }
 

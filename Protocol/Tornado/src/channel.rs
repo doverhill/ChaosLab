@@ -11,6 +11,17 @@ use crate::enums::*;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
+pub struct FromChannel<T> {
+    value: T,
+}
+
+impl<T> FromChannel<T> {
+    pub fn new (value: T) -> Self {
+        Self {
+            value: value,
+        }
+    }
+}
 struct ProtocolVersion {
     major: u16,
     minor: u16,
@@ -45,6 +56,10 @@ pub struct ChannelMessageHeader {
 
 impl ChannelMessageHeader {
     pub const MAGIC: u64 = u64::from_be_bytes(['C' as u8, 'M' as u8, 'E' as u8, 'S' as u8, 'S' as u8, 'A' as u8, 'G' as u8, 'E' as u8]);
+
+    pub fn get_payload_address(message: *mut ChannelMessageHeader) -> *mut u8 {
+        unsafe { message.offset(mem::size_of::<ChannelMessageHeader>() as isize) as *mut u8 }
+    }
 }
 
 struct ChannelLock {
@@ -109,7 +124,7 @@ impl TornadoChannel {
         (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 't' as u8 && (*channel_header).protocol_name[2] == 'o' as u8 && (*channel_header).protocol_name[3] == 'r' as u8 && (*channel_header).protocol_name[4] == 'n' as u8 && (*channel_header).protocol_name[5] == 'a' as u8 && (*channel_header).protocol_name[6] == 'd' as u8 && (*channel_header).protocol_name[7] == 'o' as u8
     }
 
-    pub unsafe fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut u8 {
+    pub unsafe fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut ChannelMessageHeader {
         let channel_header = self.channel_address as *mut ChannelHeader;
         let lock = ChannelLock::get(self);
         #[cfg(debug)]
@@ -135,7 +150,7 @@ impl TornadoChannel {
         (*message).replace_pending = replace_pending;
         (*message).message_length = 0;
         (*message).next_message_offset = 0;
-        message as *mut u8
+        message
     }
 
     pub unsafe fn commit_message(&self, message_payload_size: usize) {
@@ -150,6 +165,31 @@ impl TornadoChannel {
         (*channel_header).is_writing = false;
         (*channel_header).number_of_messages = (*channel_header).number_of_messages + 1;
         (*last_message).message_length = mem::size_of::<ChannelMessageHeader>() + message_payload_size;
+    }
+
+    pub unsafe fn find_specific_message(&self, message_id: u64) -> Option<*mut ChannelMessageHeader> {
+        let channel_header = self.channel_address as *mut ChannelHeader;
+        let lock = ChannelLock::get(self);
+        #[cfg(debug)]
+        assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
+        if (*channel_header).number_of_messages == 0 {
+            None
+        }
+        else {
+            let first_message = self.channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
+            #[cfg(debug)]
+            assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
+            let iter = first_message;
+            while (*iter).message_id != message_id && (*iter).next_message_offset != 0 {
+                let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+            }
+            if (*iter).message_id == message_id {
+                Some(iter)
+            }
+            else {
+                None
+            }
+        }
     }
 
     pub unsafe fn find_message(&self) -> Option<*mut ChannelMessageHeader> {

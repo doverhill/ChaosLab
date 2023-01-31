@@ -16,6 +16,15 @@ namespace IDLCompiler
             source.AddLine("use core::sync::atomic::{AtomicBool, Ordering};");
             source.AddBlank();
 
+            var fromChannelStruct = source.AddBlock("pub struct FromChannel<T>");
+            fromChannelStruct.AddLine("value: T,");
+            source.AddBlank();
+
+            var fromChannelImpl = source.AddBlock("impl<T> FromChannel<T>");
+            var newBlock = fromChannelImpl.AddBlock("pub fn new (value: T) -> Self");
+            var selfBlock = newBlock.AddBlock("Self");
+            selfBlock.AddLine("value: value,");
+
             var versionBlock = source.AddBlock("struct ProtocolVersion");
             versionBlock.AddLine("major: u16,");
             versionBlock.AddLine("minor: u16,");
@@ -56,7 +65,7 @@ namespace IDLCompiler
             messageImpl.AddLine("pub const MAGIC: u64 = u64::from_be_bytes(['C' as u8, 'M' as u8, 'E' as u8, 'S' as u8, 'S' as u8, 'A' as u8, 'G' as u8, 'E' as u8]);");
             messageImpl.AddBlank();
             var getAddressBlock = messageImpl.AddBlock("pub fn get_payload_address(message: *mut ChannelMessageHeader) -> *mut u8");
-            getAddressBlock.AddLine("unsafe { message.offset(mem::size_of::<ChannelMessageHeader>() as isize) as *mut u8");
+            getAddressBlock.AddLine("unsafe { message.offset(mem::size_of::<ChannelMessageHeader>() as isize) as *mut u8 }");
 
             source.AddBlank();
 
@@ -129,7 +138,7 @@ namespace IDLCompiler
 
             channelImpl.AddBlank();
 
-            var prepareBlock = channelImpl.AddBlock("pub unsafe fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut CHannelMessageHeader");
+            var prepareBlock = channelImpl.AddBlock("pub unsafe fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut ChannelMessageHeader");
             prepareBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
             prepareBlock.AddLine("let lock = ChannelLock::get(self);");
             prepareBlock.AddLine("#[cfg(debug)]");

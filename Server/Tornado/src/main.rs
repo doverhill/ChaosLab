@@ -17,16 +17,16 @@ fn main() {
     let mut state = GlobalState::new();
 
     // connect to console
-    let console_client = ConsoleClient::connect_first(&mut process).unwrap();
+    let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();
 
     console_client.write_text(&WriteTextParameters { text: "Hello from Tornado!".to_string() });
 
-    console_client.on_pointer_moved(|| {
+    console_client.on_pointer_moved(|_| {
         println!("tornado: pointer moved");
     });
 
     // set up service
-    let tornado_server = TornadoServer::create(&mut process, "Chaos", "Tornado server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
+    let mut tornado_server = TornadoServer::create(&mut process, "Chaos", "Tornado server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
     tornado_server.on_client_connected(|channel_handle| {
         println!("tornado: client connected");

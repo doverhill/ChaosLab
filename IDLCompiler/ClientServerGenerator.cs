@@ -19,7 +19,7 @@ namespace IDLCompiler
             source.AddLine("use alloc::boxed::Box;");
             source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};");
             source.AddLine("use uuid::Uuid;");
-            source.AddLine($"use crate::channel::{channelName};");
+            source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader};""");
             source.AddLine("use crate::from_client::*;");
             source.AddLine("use crate::from_server::*;");
             source.AddLine("use crate::MessageIds;");
@@ -52,13 +52,20 @@ namespace IDLCompiler
             }
 
             implBlock.AddBlank();
-            var onConnect = implBlock.AddBlock("pub fn on_client_connected(&mut self, handler: Option<Box<dyn Fn(ChannelHandle)>>)");
-            onConnect.AddLine("self.on_client_connected = handler;");
-
+            var onConnect = implBlock.AddBlock("pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'static)");
+            onConnect.AddLine("self.on_client_connected = Some(Box::new(handler));");
             implBlock.AddBlank();
-            onConnect = implBlock.AddBlock("pub fn on_client_disconnected(&mut self, handler: Option<Box<dyn Fn(ChannelHandle)>>)");
-            onConnect.AddLine("self.on_client_disconnected = handler;");
 
+            onConnect = implBlock.AddBlock("pub fn clear_on_client_connected(&mut self)");
+            onConnect.AddLine("self.on_client_connected = None;");
+            implBlock.AddBlank();
+
+            onConnect = implBlock.AddBlock("pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'static)");
+            onConnect.AddLine("self.on_client_disconnected = Some(Box::new(handler));");
+            implBlock.AddBlank();
+
+            onConnect = implBlock.AddBlock("pub fn clear_on_client_disconnected(&mut self)");
+            onConnect.AddLine("self.on_client_disconnected = None;");
             implBlock.AddBlank();
 
             foreach (var call in to.Values)
@@ -81,10 +88,11 @@ namespace IDLCompiler
                 var fnBlock = implBlock.AddBlock($"pub fn {call.Name}(&self, channel_handle: ChannelHandle{parameters}){returns}");
                 var ifBlock = fnBlock.AddBlock("if let Some(channel) = self.channels.get(&channel_handle)");
                 var unsafeBlock = ifBlock.AddBlock("unsafe");
-                unsafeBlock.AddLine($"let address = channel.prepare_message(MessageIds::{parametersMessageName} as u64, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
+                unsafeBlock.AddLine($"let message = channel.prepare_message(MessageIds::{parametersMessageName} as u64, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
                 if (parametersType != null)
                 {
-                    unsafeBlock.AddLine("let size = parameters.write_at(address);");
+                    unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
+                    unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("channel.commit_message(size);");
                 }
                 else
@@ -111,13 +119,14 @@ namespace IDLCompiler
             source.AddLine("use alloc::boxed::Box;");
             source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};");
             source.AddLine("use uuid::Uuid;");
-            source.AddLine($"use crate::channel::{channelName};");
+            source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader, FromChannel};""");
             source.AddLine("use crate::from_client::*;");
             source.AddLine("use crate::from_server::*;");
             source.AddLine("use crate::MessageIds;");
             source.AddBlank();
 
             var structBlock = source.AddBlock($"pub struct {structName}");
+            structBlock.AddLine("channel_handle: ChannelHandle,");
             structBlock.AddLine($"channel: {channelName},");
             //structBlock.AddLine("channel_handle: ChannelHandle,");
             //structBlock.AddLine("channel_address: *mut u8,");
@@ -137,6 +146,7 @@ namespace IDLCompiler
             okBlock.Append = ")";
             //okBlock.AddLine("channel_handle: channel_handle,");
             //okBlock.AddLine("channel_address: process.get_channel_address(channel_handle).unwrap(),");
+            okBlock.AddLine("channel_handle: channel_handle,");
             okBlock.AddLine("channel: channel,");
             foreach (var call in from.Values)
             {
@@ -154,20 +164,21 @@ namespace IDLCompiler
                 string returns = "";
                 if (returnsType != null)
                 {
-                    returns = " -> " + returnsType.Name;
+                    returns = $" -> Result<FromChannel<&{returnsType.Name}>, StormError>";
                     parameters = ", process: &StormProcess";
                 }
                 if (parametersType != null)
                 {
-                    parameters += ", parameters: " + parametersType.Name;
+                    parameters += ", parameters: &" + parametersType.Name;
                 }
 
                 var fnBlock = implBlock.AddBlock($"pub fn {call.Name}(&self{parameters}){returns}");
                 var unsafeBlock = fnBlock.AddBlock("unsafe");
-                unsafeBlock.AddLine($"let address = self.channel.prepare_message(MessageIds::{parametersMessageName} as u64, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
+                unsafeBlock.AddLine($"let message = self.channel.prepare_message(MessageIds::{parametersMessageName} as u64, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
                 if (parametersType != null)
                 {
-                    unsafeBlock.AddLine("let size = parameters.write_at(address);");
+                    unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
+                    unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("self.channel.commit_message(size);");
                 }
                 else
@@ -175,6 +186,21 @@ namespace IDLCompiler
                     unsafeBlock.AddLine("self.channel.commit_message(0);");
                 }
 
+                if (returnsType != null)
+                {
+                    fnBlock.AddBlank();
+                    fnBlock.AddLine($"process.wait_for_channel_message(self.channel_handle, MessageIds::{returnsMessageName} as u64, 1000)?;");
+                    fnBlock.AddBlank();
+
+                    unsafeBlock = fnBlock.AddBlock("unsafe");
+                    var ifBlock = unsafeBlock.AddBlock($"if let Some(message) = self.channel.find_specific_message(MessageIds::{returnsMessageName} as u64)");
+                    ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
+                    ifBlock.AddLine($"{returnsType.Name}::reconstruct_at_inline(payload);");
+                    ifBlock.AddLine($"let payload = payload as *mut {returnsType.Name};");
+                    ifBlock.AddLine($"Ok(FromChannel::new(payload.as_ref().unwrap()))");
+                    var elseBlock = unsafeBlock.AddBlock("else");
+                    elseBlock.AddLine("Err(StormError::NotFound)");
+                }
 
                 implBlock.AddBlank();
             }
@@ -189,10 +215,13 @@ namespace IDLCompiler
         private static void GenerateEventSetter(SourceGenerator.SourceBlock implBlock, IDLCall call)
         {
             var extraParameters = "";
-            var fnBlock = implBlock.AddBlock($"pub fn on_{call.Name}(&mut self, handler: Option<Box<dyn Fn(ChannelHandle{extraParameters})>>)");
-            fnBlock.AddLine($"self.on_{call.Name} = handler;");
+            var fnBlock = implBlock.AddBlock($"pub fn on_{call.Name}(&mut self, handler: impl Fn(ChannelHandle{extraParameters}) + 'static)");
+            fnBlock.AddLine($"self.on_{call.Name} = Some(Box::new(handler));");
             implBlock.AddBlank();
 
+            fnBlock = implBlock.AddBlock($"pub fn clear_on_{call.Name}(&mut self)");
+            fnBlock.AddLine($"self.on_{call.Name} = None;");
+            implBlock.AddBlank();
         }
     }
 }

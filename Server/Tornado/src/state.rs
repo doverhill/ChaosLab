@@ -19,11 +19,11 @@ impl GlobalState {
         GlobalState { clients: BTreeMap::new() }
     }
 
-    pub fn add_client(&self, handle: ChannelHandle) {
+    pub fn add_client(&mut self, handle: ChannelHandle) {
         self.clients.insert(handle, ClientState::new());
     }
 
-    pub fn remove_client(&self, handle: ChannelHandle) {
+    pub fn remove_client(&mut self, handle: ChannelHandle) {
         self.clients.remove(&handle);
     }
 }

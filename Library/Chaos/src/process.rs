@@ -119,31 +119,40 @@ impl StormProcess {
         syscalls::event_wait(Some(handle.raw_handle()), Some(StormAction::ChannelMessaged), Some(message_id), timeout_milliseconds)
     }
 
-    // pub fn run(&self) -> Error {
-    //     // this is the main event loop of an application
-    //     loop {
-    //         match syscalls::event_wait(None, None, None, -1) {
-    //             Ok((target_handle, argument_handle, action, parameter)) => {
-    //                 match action {
-    //                     Action::ServiceConnected => {
-    //                         Service::connected(target_handle, argument_handle);
-    //                     },
-    //                     Action::ChannelMessaged => {
-    //                         Channel::messaged(target_handle, parameter);
-    //                     },
-    //                     _ => {}
-    //                 }
-    //             },
-    //             Err(error) => {
-    //                 return error;
-    //             }
-    //         }
-    //     }
-    // }
-
     // pub fn event_wait(&self) -> Result<Event, Error> {
     //     match syscalls::event_wait(handle, action, message, timeout_milliseconds)
     // }
+
+    pub fn run(&self) -> Result<(), StormError> {
+        // this is the main event loop of an application
+        loop {
+            let event = syscalls::event_wait(None, None, None, -1)?;
+
+            match event {
+                StormEvent::ServiceConnected(service_handle, channel_handle) => {
+                    if let Some(service) = self.services.get(&service_handle) {
+                        if let Some(handler) = &service.on_connected {
+                            handler(service_handle, channel_handle);
+                        }
+                    }
+                },
+                StormEvent::ChannelMessaged(channel_handle, message_id) => {
+                    if let Some(channel) = self.channels.get(&channel_handle) {
+                        if let Some(handler) = &channel.on_messaged {
+                            handler(channel_handle, message_id);
+                        }
+                    }
+                },
+                StormEvent::ChannelDestroyed(channel_handle) => {
+                    if let Some(channel) = self.channels.get(&channel_handle) {
+                        if let Some(handler) = &channel.on_destroyed {
+                            handler(channel_handle);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     pub fn end(&self) -> ! {
         syscalls::process_destroy().unwrap();

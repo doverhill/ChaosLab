@@ -125,7 +125,7 @@ pub fn event_wait(handle: Option<u64>, action: Option<StormAction>, message: Opt
             let action = StormAction::from_i32(read_i32(connection));
             let parameter = read_u64(connection);
             Ok(match action {
-                StormAction::ServiceConnected => StormEvent::ServiceConnected(ServiceHandle(target_handle), ChannelHandle((argument_handle))),
+                StormAction::ServiceConnected => StormEvent::ServiceConnected(ServiceHandle(target_handle), ChannelHandle(argument_handle)),
                 StormAction::ChannelMessaged => StormEvent::ChannelMessaged(ChannelHandle(target_handle), parameter),
                 StormAction::ChannelDestroyed => StormEvent::ChannelDestroyed(ChannelHandle(target_handle)),
             })

@@ -12,7 +12,7 @@ use crate::enums::*;
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};
 use uuid::Uuid;
-use crate::channel::TornadoChannel;
+use crate::channel::{TornadoChannel, ChannelMessageHeader};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
@@ -20,8 +20,8 @@ use alloc::collections::BTreeMap;
 
 pub struct TornadoServer {
     channels: BTreeMap<ChannelHandle, TornadoChannel>,
-    on_client_connected: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_client_disconnected: Option<Box<dyn Fn(ChannelHandle)>>,
+    on_client_connected: Option<Box<dyn FnMut(ChannelHandle)>>,
+    on_client_disconnected: Option<Box<dyn FnMut(ChannelHandle)>>,
     on_set_render_tree: Option<Box<dyn Fn(ChannelHandle)>>,
 }
 
@@ -36,26 +36,39 @@ impl TornadoServer {
         })
     }
 
-    pub fn on_client_connected(&mut self, handler: Option<Box<dyn Fn(ChannelHandle)>>) {
-        self.on_client_connected = handler;
+    pub fn on_client_connected(&mut self, handler: impl FnMut(ChannelHandle) + 'static) {
+        self.on_client_connected = Some(Box::new(handler));
     }
 
-    pub fn on_client_disconnected(&mut self, handler: Option<Box<dyn Fn(ChannelHandle)>>) {
-        self.on_client_disconnected = handler;
+    pub fn clear_on_client_connected(&mut self) {
+        self.on_client_connected = None;
+    }
+
+    pub fn on_client_disconnected(&mut self, handler: impl FnMut(ChannelHandle) + 'static) {
+        self.on_client_disconnected = Some(Box::new(handler));
+    }
+
+    pub fn clear_on_client_disconnected(&mut self) {
+        self.on_client_disconnected = None;
     }
 
     pub fn component_clicked(&self, channel_handle: ChannelHandle, parameters: ComponentClickedParameters) {
         if let Some(channel) = self.channels.get(&channel_handle) {
             unsafe {
-                let address = channel.prepare_message(MessageIds::ComponentClickedParameters as u64, false);
-                let size = parameters.write_at(address);
+                let message = channel.prepare_message(MessageIds::ComponentClickedParameters as u64, false);
+                let payload = ChannelMessageHeader::get_payload_address(message);
+                let size = parameters.write_at(payload);
                 channel.commit_message(size);
             }
         }
     }
 
-    pub fn on_set_render_tree(&mut self, handler: Option<Box<dyn Fn(ChannelHandle)>>) {
-        self.on_set_render_tree = handler;
+    pub fn on_set_render_tree(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+        self.on_set_render_tree = Some(Box::new(handler));
+    }
+
+    pub fn clear_on_set_render_tree(&mut self) {
+        self.on_set_render_tree = None;
     }
 
 }
