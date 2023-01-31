@@ -77,12 +77,12 @@ fn main() {
     .unwrap();
 
     console_server.on_client_connected(|channel_handle| {
-        println!("console: client connected");
+        StormProcess::emit_debug("console: client connected");
         state.borrow_mut().add_client(channel_handle);
     });
 
     console_server.on_client_disconnected(|channel_handle| {
-        println!("console: client disconnected");
+        StormProcess::emit_debug("console: client disconnected");
         state.borrow_mut().remove_client(channel_handle);
     });
 
@@ -100,15 +100,13 @@ fn main() {
     'main_loop: loop {
         let event = pump.wait_event();
         if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
-            process.process_event(wrapper.event);
-            println!("storm event");
+            process.handle_event(wrapper.event);
         } else {
             match event {
                 Event::MouseMotion { x, y, .. } => {
                     if let Some(channel_handle) = state.borrow().get_first_client_handle() {
                         console_server.pointer_moved(*channel_handle, PointerMovedParameters { position: Point { x: x as i64, y: y as i64 } });
                     }
-                    // println!("got mouse move {:?}", event);
                 }
                 Event::Quit { .. } => {
                     break 'main_loop;
@@ -118,5 +116,5 @@ fn main() {
         }
     }
 
-    // process.end();
+    process.end();
 }

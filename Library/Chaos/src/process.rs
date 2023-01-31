@@ -46,11 +46,24 @@ impl<'a> StormProcess<'a> {
     pub fn on_service_connected(
         &mut self,
         handle: ServiceHandle,
-        handler: Option<Box<dyn Fn(ServiceHandle, ChannelHandle)>>,
+        handler: impl Fn(ServiceHandle, ChannelHandle) + 'a,
     ) -> Result<(), StormError> {
         match self.services.get_mut(&handle) {
             Some(service) => {
-                service.on_connected = handler;
+                service.on_connected = Some(Box::new(handler));
+                Ok(())
+            },
+            None => Err(StormError::NotFound)
+        }
+    }
+
+    pub fn clear_on_service_connected(
+        &mut self,
+        handle: ServiceHandle,
+    ) -> Result<(), StormError> {
+        match self.services.get_mut(&handle) {
+            Some(service) => {
+                service.on_connected = None;
                 Ok(())
             },
             None => Err(StormError::NotFound)
@@ -87,7 +100,7 @@ impl<'a> StormProcess<'a> {
         }
     }
 
-    pub fn emit_debug(&self, information_text: &str) -> Result<(), StormError> {
+    pub fn emit_debug(information_text: &str) -> Result<(), StormError> {
         syscalls::process_emit(
             syscalls::EmitType::Debug,
             StormError::None,
@@ -95,7 +108,7 @@ impl<'a> StormProcess<'a> {
         )
     }
 
-    pub fn emit_information(&self, information_text: &str) -> Result<(), StormError> {
+    pub fn emit_information(information_text: &str) -> Result<(), StormError> {
         syscalls::process_emit(
             syscalls::EmitType::Information,
             StormError::None,
@@ -103,7 +116,7 @@ impl<'a> StormProcess<'a> {
         )
     }
 
-    pub fn emit_warning(&self, information_text: &str) -> Result<(), StormError> {
+    pub fn emit_warning(information_text: &str) -> Result<(), StormError> {
         syscalls::process_emit(
             syscalls::EmitType::Warning,
             StormError::None,
@@ -111,7 +124,7 @@ impl<'a> StormProcess<'a> {
         )
     }
 
-    pub fn emit_error(&self, error: StormError, information_text: &str) -> Result<(), StormError> {
+    pub fn emit_error(error: StormError, information_text: &str) -> Result<(), StormError> {
         syscalls::process_emit(syscalls::EmitType::Error, error, Some(information_text))
     }
 
@@ -127,7 +140,9 @@ impl<'a> StormProcess<'a> {
         syscalls::event_wait(None, None, None, -1)
     }
 
-    pub fn process_event(&self, event: StormEvent) {
+    pub fn handle_event(&self, event: StormEvent) {
+        Self::emit_debug("handling event");
+
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
                 if let Some(service) = self.services.get(&service_handle) {
@@ -157,7 +172,7 @@ impl<'a> StormProcess<'a> {
         // this is the main event loop of an application
         loop {
             let event = syscalls::event_wait(None, None, None, -1)?;
-            self.process_event(event);
+            self.handle_event(event);
         }
     }
 
