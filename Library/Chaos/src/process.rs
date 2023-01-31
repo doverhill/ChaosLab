@@ -3,19 +3,19 @@ use crate::{syscalls, ChannelHandle, ServiceHandle, StormAction, StormError, Sto
 use std::collections::HashMap;
 use uuid::Uuid;
 
-pub struct StormProcess {
+pub struct StormProcess<'a> {
     name: String,
-    services: HashMap<ServiceHandle, Service>,
-    channels: HashMap<ChannelHandle, Channel>,
+    services: HashMap<ServiceHandle, Service<'a>>,
+    channels: HashMap<ChannelHandle, Channel<'a>>,
 }
 
-impl Drop for StormProcess {
+impl<'a> Drop for StormProcess<'a> {
     fn drop(&mut self) {
         self.end();
     }
 }
 
-impl StormProcess {
+impl<'a> StormProcess<'a> {
     pub fn new(name: &str) -> Result<Self, StormError> {
         syscalls::process_set_info(name)?;
 
@@ -115,42 +115,49 @@ impl StormProcess {
         syscalls::process_emit(syscalls::EmitType::Error, error, Some(information_text))
     }
 
+    pub fn send_channel_message(handle: ChannelHandle, message_id: u64) -> Result<(), StormError> {
+        syscalls::channel_message(handle, message_id)
+    }
+
     pub fn wait_for_channel_message(&self, handle: ChannelHandle, message_id: u64, timeout_milliseconds: i32) -> Result<StormEvent, StormError> {
         syscalls::event_wait(Some(handle.raw_handle()), Some(StormAction::ChannelMessaged), Some(message_id), timeout_milliseconds)
     }
 
-    // pub fn event_wait(&self) -> Result<Event, Error> {
-    //     match syscalls::event_wait(handle, action, message, timeout_milliseconds)
-    // }
+    pub fn wait_for_event() -> Result<StormEvent, StormError> {
+        syscalls::event_wait(None, None, None, -1)
+    }
+
+    pub fn process_event(&self, event: StormEvent) {
+        match event {
+            StormEvent::ServiceConnected(service_handle, channel_handle) => {
+                if let Some(service) = self.services.get(&service_handle) {
+                    if let Some(handler) = &service.on_connected {
+                        handler(service_handle, channel_handle);
+                    }
+                }
+            },
+            StormEvent::ChannelMessaged(channel_handle, message_id) => {
+                if let Some(channel) = self.channels.get(&channel_handle) {
+                    if let Some(handler) = &channel.on_messaged {
+                        handler(channel_handle, message_id);
+                    }
+                }
+            },
+            StormEvent::ChannelDestroyed(channel_handle) => {
+                if let Some(channel) = self.channels.get(&channel_handle) {
+                    if let Some(handler) = &channel.on_destroyed {
+                        handler(channel_handle);
+                    }
+                }
+            }
+        }
+    }
 
     pub fn run(&self) -> Result<(), StormError> {
         // this is the main event loop of an application
         loop {
             let event = syscalls::event_wait(None, None, None, -1)?;
-
-            match event {
-                StormEvent::ServiceConnected(service_handle, channel_handle) => {
-                    if let Some(service) = self.services.get(&service_handle) {
-                        if let Some(handler) = &service.on_connected {
-                            handler(service_handle, channel_handle);
-                        }
-                    }
-                },
-                StormEvent::ChannelMessaged(channel_handle, message_id) => {
-                    if let Some(channel) = self.channels.get(&channel_handle) {
-                        if let Some(handler) = &channel.on_messaged {
-                            handler(channel_handle, message_id);
-                        }
-                    }
-                },
-                StormEvent::ChannelDestroyed(channel_handle) => {
-                    if let Some(channel) = self.channels.get(&channel_handle) {
-                        if let Some(handler) = &channel.on_destroyed {
-                            handler(channel_handle);
-                        }
-                    }
-                }
-            }
+            self.process_event(event);
         }
     }
 

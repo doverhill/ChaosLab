@@ -69,6 +69,7 @@ impl<'a> ConsoleServer<'a> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
+                StormProcess::send_channel_message(channel_handle, MessageIds::KeyPressedParameters as u64);
             }
         }
     }
@@ -80,6 +81,7 @@ impl<'a> ConsoleServer<'a> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
+                StormProcess::send_channel_message(channel_handle, MessageIds::KeyReleasedParameters as u64);
             }
         }
     }
@@ -91,6 +93,7 @@ impl<'a> ConsoleServer<'a> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
+                StormProcess::send_channel_message(channel_handle, MessageIds::PointerMovedParameters as u64);
             }
         }
     }
@@ -102,6 +105,7 @@ impl<'a> ConsoleServer<'a> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
+                StormProcess::send_channel_message(channel_handle, MessageIds::PointerPressedParameters as u64);
             }
         }
     }
@@ -113,6 +117,7 @@ impl<'a> ConsoleServer<'a> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
+                StormProcess::send_channel_message(channel_handle, MessageIds::PointerReleasedParameters as u64);
             }
         }
     }
@@ -124,6 +129,7 @@ impl<'a> ConsoleServer<'a> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
+                StormProcess::send_channel_message(channel_handle, MessageIds::SizeChangedParameters as u64);
             }
         }
     }

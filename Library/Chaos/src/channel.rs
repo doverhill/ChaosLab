@@ -19,14 +19,14 @@ use std::mem;
 use std::slice;
 
 
-pub struct Channel {
+pub struct Channel<'a> {
     map_handle: HANDLE,
     pub map_pointer: *mut u8,
-    pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64)>>,
-    pub on_destroyed: Option<Box<dyn Fn(ChannelHandle)>>,
+    pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64) + 'a>>,
+    pub on_destroyed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl Channel {
+impl<'a> Channel<'a> {
     pub fn new(handle: ChannelHandle) -> Self {
         let memory_name = Self::get_map_name(handle);
         let (map_handle, map_pointer) = Self::create_shared_memory(&memory_name, 1024 * 1024);
@@ -70,7 +70,7 @@ impl Channel {
     }
 }
 
-impl Drop for Channel {
+impl<'a> Drop for Channel<'a> {
     fn drop(&mut self) {
         println!("dropping channel");
         if self.map_pointer as *mut _ != NULL {

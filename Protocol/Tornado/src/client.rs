@@ -40,6 +40,7 @@ impl<'a> TornadoClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::SetRenderTreeParameters as u64);
         }
     }
 

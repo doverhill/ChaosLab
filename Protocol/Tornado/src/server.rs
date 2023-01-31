@@ -59,6 +59,7 @@ impl<'a> TornadoServer<'a> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
+                StormProcess::send_channel_message(channel_handle, MessageIds::ComponentClickedParameters as u64);
             }
         }
     }

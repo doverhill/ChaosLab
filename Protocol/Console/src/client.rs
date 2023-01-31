@@ -71,6 +71,7 @@ impl<'a> ConsoleClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::SetTextColorParameters as u64);
         }
     }
 
@@ -80,6 +81,7 @@ impl<'a> ConsoleClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::MoveTextCursorParameters as u64);
         }
     }
 
@@ -89,6 +91,7 @@ impl<'a> ConsoleClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::DrawImagePatchParameters as u64);
         }
     }
 
@@ -98,6 +101,7 @@ impl<'a> ConsoleClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::WriteTextParameters as u64);
         }
     }
 
@@ -107,6 +111,7 @@ impl<'a> ConsoleClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::WriteObjectsParameters as u64);
         }
     }
 

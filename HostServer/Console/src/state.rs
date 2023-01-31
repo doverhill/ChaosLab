@@ -1,5 +1,5 @@
 use library_chaos::{StormEvent, ChannelHandle, StormProcess};
-use alloc::collections::BTreeMap;
+use std::collections::HashMap;
 
 struct ClientState {
 }
@@ -11,12 +11,12 @@ impl ClientState {
 }
 
 pub struct ServerState {
-    clients: BTreeMap<ChannelHandle, ClientState>,
+    clients: HashMap<ChannelHandle, ClientState>,
 }
 
 impl ServerState {
     pub fn new() -> Self {
-        Self { clients: BTreeMap::new() }
+        Self { clients: HashMap::new() }
     }
 
     pub fn add_client(&mut self, handle: ChannelHandle) {
@@ -25,5 +25,9 @@ impl ServerState {
 
     pub fn remove_client(&mut self, handle: ChannelHandle) {
         self.clients.remove(&handle);
+    }
+
+    pub fn get_first_client_handle(&self) -> Option<&ChannelHandle> {
+        self.clients.keys().next()
     }
 }

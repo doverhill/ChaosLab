@@ -5,7 +5,7 @@ extern crate protocol_console;
 extern crate protocol_tornado;
 
 mod state;
-use state::GlobalState;
+use state::ServerState;
 
 use library_chaos::{StormEvent, ChannelHandle, StormProcess};
 use protocol_console::*;
@@ -16,7 +16,7 @@ use core::cell::RefCell;
 
 fn main() {
     let mut process = StormProcess::new("Server.Tornado").unwrap();
-    let mut state = Arc::new(RefCell::new(GlobalState::new()));
+    let mut state = Arc::new(RefCell::new(ServerState::new()));
 
     // connect to console
     let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();

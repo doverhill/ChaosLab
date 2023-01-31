@@ -60,6 +60,7 @@ impl<'a> StorageClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::ListObjectsParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::ListObjectsReturns as u64, 1000)?;
@@ -83,6 +84,7 @@ impl<'a> StorageClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::LockObjectParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::LockObjectReturns as u64, 1000)?;
@@ -106,6 +108,7 @@ impl<'a> StorageClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::UnlockObjectParameters as u64);
         }
     }
 
@@ -115,6 +118,7 @@ impl<'a> StorageClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::ReadObjectParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::ReadObjectReturns as u64, 1000)?;
@@ -138,6 +142,7 @@ impl<'a> StorageClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::WriteObjectParameters as u64);
         }
     }
 
@@ -147,6 +152,7 @@ impl<'a> StorageClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::WatchObjectParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::WatchObjectReturns as u64, 1000)?;
@@ -170,6 +176,7 @@ impl<'a> StorageClient<'a> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::UnwatchObjectParameters as u64);
         }
     }
 

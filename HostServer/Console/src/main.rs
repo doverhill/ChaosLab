@@ -2,6 +2,9 @@ extern crate library_chaos;
 extern crate protocol_console;
 extern crate sdl2;
 
+mod state;
+use state::ServerState;
+
 use library_chaos::{StormEvent, StormProcess};
 use protocol_console::*;
 use sdl2::event::Event;
@@ -10,6 +13,8 @@ use sdl2::rect::Rect;
 use sdl2::{EventPump, EventSubsystem};
 use std::thread;
 use uuid::Uuid;
+use std::sync::Arc;
+use core::cell::RefCell;
 
 struct StormEventWrapper {
     event: StormEvent,
@@ -59,38 +64,50 @@ fn main() {
     // spawn thread doing storm event wait - posting events to sdl event queue
     // on main thread, loop on sdl event queue and handle incoming events from both sources
 
+    let mut process = StormProcess::new("HostServer.Console").unwrap();
+    let mut state = Arc::new(RefCell::new(ServerState::new()));
+
+    // set up service
+    let mut console_server = ConsoleServer::create(
+        &mut process,
+        "Chaos",
+        "SDL console host server",
+        Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
+    )
+    .unwrap();
+
+    console_server.on_client_connected(|channel_handle| {
+        println!("console: client connected");
+        state.borrow_mut().add_client(channel_handle);
+    });
+
+    console_server.on_client_disconnected(|channel_handle| {
+        println!("console: client disconnected");
+        state.borrow_mut().remove_client(channel_handle);
+    });
+
     // spawn storm thread
     let events = sdl_context.event().unwrap();
     events.register_custom_event::<StormEventWrapper>().unwrap();
     let sender = events.event_sender();
-    thread::spawn(|| {
-        let mut process = StormProcess::new("HostServer.Console").unwrap();
-
-        // set up service
-        let mut console_server = ConsoleServer::create(
-            &mut process,
-            "Chaos",
-            "SDL console host server",
-            Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-        )
-        .unwrap();
-
-        console_server.on_client_connected(|channel_handle| {
-            println!("console: connect");
-        });
-
-        process.run();
+    thread::spawn(move || loop {
+        let event = StormProcess::wait_for_event().unwrap();
+        sender.push_custom_event(StormEventWrapper { event: event, quit: false });
     });
 
     // main loop
     let mut pump = sdl_context.event_pump().unwrap();
     'main_loop: loop {
         let event = pump.wait_event();
-        if let Some(storm_event) = event.as_user_event_type::<StormEventWrapper>() {
+        if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
+            process.process_event(wrapper.event);
             println!("storm event");
         } else {
             match event {
-                Event::MouseMotion { .. } => {
+                Event::MouseMotion { x, y, .. } => {
+                    if let Some(channel_handle) = state.borrow().get_first_client_handle() {
+                        console_server.pointer_moved(*channel_handle, PointerMovedParameters { position: Point { x: x as i64, y: y as i64 } });
+                    }
                     // println!("got mouse move {:?}", event);
                 }
                 Event::Quit { .. } => {

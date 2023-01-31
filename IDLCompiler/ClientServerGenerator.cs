@@ -94,6 +94,7 @@ namespace IDLCompiler
                     unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("channel.commit_message(size);");
+                    unsafeBlock.AddLine($"StormProcess::send_channel_message(channel_handle, MessageIds::{parametersMessageName} as u64);");
                 }
                 else
                 {
@@ -180,6 +181,7 @@ namespace IDLCompiler
                     unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("self.channel.commit_message(size);");
+                    unsafeBlock.AddLine($"StormProcess::send_channel_message(self.channel_handle, MessageIds::{parametersMessageName} as u64);");
                 }
                 else
                 {
