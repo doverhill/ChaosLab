@@ -17,13 +17,13 @@ use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
 
-pub struct TornadoClient {
+pub struct TornadoClient<'a> {
     channel_handle: ChannelHandle,
     channel: TornadoChannel,
-    on_component_clicked: Option<Box<dyn Fn(ChannelHandle)>>,
+    on_component_clicked: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl TornadoClient {
+impl<'a> TornadoClient<'a> {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("tornado", None, None, None)?;
         let channel = unsafe { TornadoChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
@@ -43,7 +43,7 @@ impl TornadoClient {
         }
     }
 
-    pub fn on_component_clicked(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_component_clicked(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_component_clicked = Some(Box::new(handler));
     }
 

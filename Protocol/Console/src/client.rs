@@ -17,18 +17,18 @@ use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
 
-pub struct ConsoleClient {
+pub struct ConsoleClient<'a> {
     channel_handle: ChannelHandle,
     channel: ConsoleChannel,
-    on_key_pressed: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_key_released: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_pointer_moved: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_pointer_pressed: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_pointer_released: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_size_changed: Option<Box<dyn Fn(ChannelHandle)>>,
+    on_key_pressed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_key_released: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_pointer_moved: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_pointer_pressed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_pointer_released: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_size_changed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl ConsoleClient {
+impl<'a> ConsoleClient<'a> {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("console", None, None, None)?;
         let channel = unsafe { ConsoleChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
@@ -110,7 +110,7 @@ impl ConsoleClient {
         }
     }
 
-    pub fn on_key_pressed(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_key_pressed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_key_pressed = Some(Box::new(handler));
     }
 
@@ -118,7 +118,7 @@ impl ConsoleClient {
         self.on_key_pressed = None;
     }
 
-    pub fn on_key_released(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_key_released(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_key_released = Some(Box::new(handler));
     }
 
@@ -126,7 +126,7 @@ impl ConsoleClient {
         self.on_key_released = None;
     }
 
-    pub fn on_pointer_moved(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_pointer_moved(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_pointer_moved = Some(Box::new(handler));
     }
 
@@ -134,7 +134,7 @@ impl ConsoleClient {
         self.on_pointer_moved = None;
     }
 
-    pub fn on_pointer_pressed(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_pointer_pressed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_pointer_pressed = Some(Box::new(handler));
     }
 
@@ -142,7 +142,7 @@ impl ConsoleClient {
         self.on_pointer_pressed = None;
     }
 
-    pub fn on_pointer_released(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_pointer_released(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_pointer_released = Some(Box::new(handler));
     }
 
@@ -150,7 +150,7 @@ impl ConsoleClient {
         self.on_pointer_released = None;
     }
 
-    pub fn on_size_changed(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_size_changed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_size_changed = Some(Box::new(handler));
     }
 

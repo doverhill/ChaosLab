@@ -11,10 +11,12 @@ use library_chaos::{StormEvent, ChannelHandle, StormProcess};
 use protocol_console::*;
 use protocol_tornado::*;
 use uuid::Uuid;
+use alloc::sync::Arc;
+use core::cell::RefCell;
 
 fn main() {
     let mut process = StormProcess::new("Server.Tornado").unwrap();
-    let mut state = GlobalState::new();
+    let mut state = Arc::new(RefCell::new(GlobalState::new()));
 
     // connect to console
     let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();
@@ -30,12 +32,12 @@ fn main() {
 
     tornado_server.on_client_connected(|channel_handle| {
         println!("tornado: client connected");
-        state.add_client(channel_handle);
+        state.borrow_mut().add_client(channel_handle);
     });
 
     tornado_server.on_client_disconnected(|channel_handle| {
         println!("tornado: client disconnected");
-        state.remove_client(channel_handle);
+        state.borrow_mut().remove_client(channel_handle);
     });
 
     // run

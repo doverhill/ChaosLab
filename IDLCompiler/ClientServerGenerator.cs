@@ -26,18 +26,18 @@ namespace IDLCompiler
             source.AddLine("use alloc::collections::BTreeMap;");
             source.AddBlank();
 
-            var structBlock = source.AddBlock($"pub struct {structName}");
+            var structBlock = source.AddBlock($"pub struct {structName}<'a>");
             structBlock.AddLine($"channels: BTreeMap<ChannelHandle, {channelName}>,");
-            structBlock.AddLine("on_client_connected: Option<Box<dyn Fn(ChannelHandle)>>,");
-            structBlock.AddLine("on_client_disconnected: Option<Box<dyn Fn(ChannelHandle)>>,");
+            structBlock.AddLine("on_client_connected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,");
+            structBlock.AddLine("on_client_disconnected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,");
             foreach (var call in from.Values)
             {
-                structBlock.AddLine($"on_{call.Name}: Option<Box<dyn Fn(ChannelHandle)>>,");
+                structBlock.AddLine($"on_{call.Name}: Option<Box<dyn Fn(ChannelHandle) + 'a>>,");
             }
 
             source.AddBlank();
 
-            var implBlock = source.AddBlock($"impl {structName}");
+            var implBlock = source.AddBlock($"impl<'a> {structName}<'a>");
 
             var createBlock = implBlock.AddBlock("pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError>");
             createBlock.AddLine($"let service_handle = process.create_service(\"{idl.Protocol.Name}\", vendor_name, device_name, device_id)?;");
@@ -52,7 +52,7 @@ namespace IDLCompiler
             }
 
             implBlock.AddBlank();
-            var onConnect = implBlock.AddBlock("pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'static)");
+            var onConnect = implBlock.AddBlock("pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'a)");
             onConnect.AddLine("self.on_client_connected = Some(Box::new(handler));");
             implBlock.AddBlank();
 
@@ -60,7 +60,7 @@ namespace IDLCompiler
             onConnect.AddLine("self.on_client_connected = None;");
             implBlock.AddBlank();
 
-            onConnect = implBlock.AddBlock("pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'static)");
+            onConnect = implBlock.AddBlock("pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'a)");
             onConnect.AddLine("self.on_client_disconnected = Some(Box::new(handler));");
             implBlock.AddBlank();
 
@@ -125,19 +125,19 @@ namespace IDLCompiler
             source.AddLine("use crate::MessageIds;");
             source.AddBlank();
 
-            var structBlock = source.AddBlock($"pub struct {structName}");
+            var structBlock = source.AddBlock($"pub struct {structName}<'a>");
             structBlock.AddLine("channel_handle: ChannelHandle,");
             structBlock.AddLine($"channel: {channelName},");
             //structBlock.AddLine("channel_handle: ChannelHandle,");
             //structBlock.AddLine("channel_address: *mut u8,");
             foreach (var call in from.Values)
             {
-                structBlock.AddLine($"on_{call.Name}: Option<Box<dyn Fn(ChannelHandle)>>,");
+                structBlock.AddLine($"on_{call.Name}: Option<Box<dyn Fn(ChannelHandle) + 'a>>,");
             }
 
             source.AddBlank();
 
-            var implBlock = source.AddBlock($"impl {structName}");
+            var implBlock = source.AddBlock($"impl<'a> {structName}<'a>");
 
             var connectBlock = implBlock.AddBlock("pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError>");
             connectBlock.AddLine($"let channel_handle = process.connect_to_service(\"{idl.Protocol.Name}\", None, None, None)?;");
@@ -215,7 +215,7 @@ namespace IDLCompiler
         private static void GenerateEventSetter(SourceGenerator.SourceBlock implBlock, IDLCall call)
         {
             var extraParameters = "";
-            var fnBlock = implBlock.AddBlock($"pub fn on_{call.Name}(&mut self, handler: impl Fn(ChannelHandle{extraParameters}) + 'static)");
+            var fnBlock = implBlock.AddBlock($"pub fn on_{call.Name}(&mut self, handler: impl Fn(ChannelHandle{extraParameters}) + 'a)");
             fnBlock.AddLine($"self.on_{call.Name} = Some(Box::new(handler));");
             implBlock.AddBlank();
 

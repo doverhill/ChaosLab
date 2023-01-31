@@ -18,14 +18,14 @@ use crate::from_server::*;
 use crate::MessageIds;
 use alloc::collections::BTreeMap;
 
-pub struct TornadoServer {
+pub struct TornadoServer<'a> {
     channels: BTreeMap<ChannelHandle, TornadoChannel>,
-    on_client_connected: Option<Box<dyn FnMut(ChannelHandle)>>,
-    on_client_disconnected: Option<Box<dyn FnMut(ChannelHandle)>>,
-    on_set_render_tree: Option<Box<dyn Fn(ChannelHandle)>>,
+    on_client_connected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_client_disconnected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_set_render_tree: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl TornadoServer {
+impl<'a> TornadoServer<'a> {
     pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("tornado", vendor_name, device_name, device_id)?;
         Ok(Self {
@@ -36,7 +36,7 @@ impl TornadoServer {
         })
     }
 
-    pub fn on_client_connected(&mut self, handler: impl FnMut(ChannelHandle) + 'static) {
+    pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_client_connected = Some(Box::new(handler));
     }
 
@@ -44,7 +44,7 @@ impl TornadoServer {
         self.on_client_connected = None;
     }
 
-    pub fn on_client_disconnected(&mut self, handler: impl FnMut(ChannelHandle) + 'static) {
+    pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_client_disconnected = Some(Box::new(handler));
     }
 
@@ -63,7 +63,7 @@ impl TornadoServer {
         }
     }
 
-    pub fn on_set_render_tree(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_set_render_tree(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_set_render_tree = Some(Box::new(handler));
     }
 

@@ -2,7 +2,7 @@ extern crate library_chaos;
 extern crate protocol_console;
 extern crate sdl2;
 
-use library_chaos::{StormEvent, StormHandle, StormProcess};
+use library_chaos::{StormEvent, StormProcess};
 use protocol_console::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -58,9 +58,9 @@ fn main() {
     canvas.present();
 
     // set up service
-    let console_server = ConsoleServer::create(&mut process, "Chaos", "SDL console host server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
+    let mut console_server = ConsoleServer::create(&mut process, "Chaos", "SDL console host server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
-    console_server.on_connect(|| {
+    console_server.on_client_connected(|channel_handle| {
         println!("console: connect");
     });
 

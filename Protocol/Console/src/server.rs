@@ -18,19 +18,19 @@ use crate::from_server::*;
 use crate::MessageIds;
 use alloc::collections::BTreeMap;
 
-pub struct ConsoleServer {
+pub struct ConsoleServer<'a> {
     channels: BTreeMap<ChannelHandle, ConsoleChannel>,
-    on_client_connected: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_client_disconnected: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_get_capabilities: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_set_text_color: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_move_text_cursor: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_draw_image_patch: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_write_text: Option<Box<dyn Fn(ChannelHandle)>>,
-    on_write_objects: Option<Box<dyn Fn(ChannelHandle)>>,
+    on_client_connected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_client_disconnected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_get_capabilities: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_set_text_color: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_move_text_cursor: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_draw_image_patch: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_write_text: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    on_write_objects: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl ConsoleServer {
+impl<'a> ConsoleServer<'a> {
     pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("console", vendor_name, device_name, device_id)?;
         Ok(Self {
@@ -46,7 +46,7 @@ impl ConsoleServer {
         })
     }
 
-    pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_client_connected = Some(Box::new(handler));
     }
 
@@ -54,7 +54,7 @@ impl ConsoleServer {
         self.on_client_connected = None;
     }
 
-    pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_client_disconnected = Some(Box::new(handler));
     }
 
@@ -128,7 +128,7 @@ impl ConsoleServer {
         }
     }
 
-    pub fn on_get_capabilities(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_get_capabilities(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_get_capabilities = Some(Box::new(handler));
     }
 
@@ -136,7 +136,7 @@ impl ConsoleServer {
         self.on_get_capabilities = None;
     }
 
-    pub fn on_set_text_color(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_set_text_color(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_set_text_color = Some(Box::new(handler));
     }
 
@@ -144,7 +144,7 @@ impl ConsoleServer {
         self.on_set_text_color = None;
     }
 
-    pub fn on_move_text_cursor(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_move_text_cursor(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_move_text_cursor = Some(Box::new(handler));
     }
 
@@ -152,7 +152,7 @@ impl ConsoleServer {
         self.on_move_text_cursor = None;
     }
 
-    pub fn on_draw_image_patch(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_draw_image_patch(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_draw_image_patch = Some(Box::new(handler));
     }
 
@@ -160,7 +160,7 @@ impl ConsoleServer {
         self.on_draw_image_patch = None;
     }
 
-    pub fn on_write_text(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_write_text(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_write_text = Some(Box::new(handler));
     }
 
@@ -168,7 +168,7 @@ impl ConsoleServer {
         self.on_write_text = None;
     }
 
-    pub fn on_write_objects(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_write_objects(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_write_objects = Some(Box::new(handler));
     }
 

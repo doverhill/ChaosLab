@@ -16,13 +16,13 @@ use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
 
-pub struct StorageClient {
+pub struct StorageClient<'a> {
     channel_handle: ChannelHandle,
     channel: StorageChannel,
-    on_watched_object_changed: Option<Box<dyn Fn(ChannelHandle)>>,
+    on_watched_object_changed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl StorageClient {
+impl<'a> StorageClient<'a> {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("storage", None, None, None)?;
         let channel = unsafe { StorageChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
@@ -173,7 +173,7 @@ impl StorageClient {
         }
     }
 
-    pub fn on_watched_object_changed(&mut self, handler: impl Fn(ChannelHandle) + 'static) {
+    pub fn on_watched_object_changed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
         self.on_watched_object_changed = Some(Box::new(handler));
     }
 
