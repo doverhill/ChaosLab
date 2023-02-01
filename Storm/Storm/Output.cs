@@ -13,64 +13,101 @@ namespace Storm
         public static SyscallProcessEmitType KernelVerbosity = SyscallProcessEmitType.Debug;
         public static SyscallProcessEmitType ProcessVerbosity = SyscallProcessEmitType.Debug;
 
-        private static void WriteLineForced(SyscallProcessEmitType type, Process process, string format, object[] args = null)
+        private static Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>> HeadingColors =
+            new Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>>
+        {
+            // kernel
+            { true, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+                {
+                { SyscallProcessEmitType.Debug, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                { SyscallProcessEmitType.Information, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                { SyscallProcessEmitType.Warning, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                { SyscallProcessEmitType.Error, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                }
+            },
+            // process
+            { false, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+                {
+                { SyscallProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                { SyscallProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                { SyscallProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                { SyscallProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                }
+            }
+        };
+        private static Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>> TextColors =
+            new Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>>
+        {
+            // kernel
+            { true, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+                {
+                { SyscallProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.DarkGray) },
+                { SyscallProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.White) },
+                { SyscallProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Yellow) },
+                { SyscallProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Red) },
+                }
+            },
+            // process
+            { false, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+                {
+                { SyscallProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.DarkGray) },
+                { SyscallProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.White) },
+                { SyscallProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Yellow) },
+                { SyscallProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Red) },
+                }
+            }
+        };
+
+        private static void WriteLineForced(SyscallProcessEmitType type, Process process, bool isKernel, string format, object[] args = null)
         {
             lock (_lock)
             {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.BackgroundColor = ConsoleColor.Blue;
-                var prefix = DateTime.Now.ToString("HH:mm:ss.fff") + " " + type.ToString();
+                var headingColors = HeadingColors[isKernel][type];
+                Console.ForegroundColor = headingColors.Foreground;
+                Console.BackgroundColor = headingColors.Background;
+
+                var prefix = DateTime.Now.ToString("HH:mm:ss.fff") + " " + type.ToString().PadRight(11);
+                var identifier = "";
                 if (process != null)
                 {
                     if (!string.IsNullOrEmpty(process.Name))
                     {
-                        Console.Write($"[{prefix} {process.PID}/{process.Name}]");
+                        identifier = $"{process.PID}/{process.Name}";
                     }
                     else
                     {
-                        Console.Write($"[{prefix} {process.PID}]");
+                        identifier = $"{process.PID}";
                     }
                 }
                 else
                 {
-                    Console.Write($"[{prefix} KERNEL]");
+                    identifier = "STORM";
                 }
+                Console.Write($"[{prefix} {identifier.PadRight(25)}]");
                 Console.BackgroundColor = ConsoleColor.Black;
                 Console.Write(" ");
 
-                switch (type)
-                {
-                    case SyscallProcessEmitType.Information:
-                        Console.ForegroundColor = ConsoleColor.Gray;
-                        break;
+                var textColor = TextColors[isKernel][type];
+                Console.ForegroundColor = textColor.Foreground;
+                Console.BackgroundColor = textColor.Background;
 
-                    case SyscallProcessEmitType.Warning:
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        break;
+                Console.Write(format, args);
 
-                    case SyscallProcessEmitType.Debug:
-                        Console.ForegroundColor = ConsoleColor.DarkGray;
-                        break;
-
-                    case SyscallProcessEmitType.Error:
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        break;
-                }
-
-                Console.WriteLine(format, args);
+                Console.BackgroundColor = ConsoleColor.Black;
+                Console.WriteLine();
             }
         }
 
         public static void WriteLineKernel(SyscallProcessEmitType type, Process process, string format, object[] args = null)
         {
             if (type > KernelVerbosity) return;
-            WriteLineForced(type, process, format, args);
+            WriteLineForced(type, process, true, format, args);
         }
 
         public static void WriteLineProcess(SyscallProcessEmitType type, Process process, string format, object[] args = null)
         {
             if (type > ProcessVerbosity) return;
-            WriteLineForced(type, process, format, args);
+            WriteLineForced(type, process, false, format, args);
         }
     }
 }
