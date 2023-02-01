@@ -17,39 +17,42 @@ use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
 use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
 
-pub struct TornadoServer<'a> {
-    channels: BTreeMap<ChannelHandle, TornadoChannel>,
-    on_client_connected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_client_disconnected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_set_render_tree: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+pub enum TornadoServerRequest {
+    SetRenderTree(SetRenderTreeParameters),
 }
 
-impl<'a> TornadoServer<'a> {
+pub trait TornadoServerObserver {
+    fn handle_tornado_client_connected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_tornado_client_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_tornado_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: TornadoServerRequest);
+}
+
+pub struct TornadoServer<'a, T: TornadoServerObserver + PartialEq> {
+    service_handle: ServiceHandle,
+    channels: BTreeMap<ChannelHandle, TornadoChannel>,
+    observers: Vec<&'a T>,
+}
+
+impl<'a, T: TornadoServerObserver + PartialEq> TornadoServer<'a, T> {
     pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("tornado", vendor_name, device_name, device_id)?;
         Ok(Self {
+            service_handle: service_handle,
             channels: BTreeMap::new(),
-            on_client_connected: None,
-            on_client_disconnected: None,
-            on_set_render_tree: None,
+            observers: Vec::new(),
         })
     }
 
-    pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_client_connected = Some(Box::new(handler));
+    pub fn attach_observer(&mut self, observer: &'a T) {
+        self.observers.push(observer);
     }
 
-    pub fn clear_on_client_connected(&mut self) {
-        self.on_client_connected = None;
-    }
-
-    pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_client_disconnected = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_client_disconnected(&mut self) {
-        self.on_client_disconnected = None;
+    pub fn detach_observer(&mut self, observer: &'a T) {
+        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+            self.observers.remove(index);
+        }
     }
 
     pub fn component_clicked(&self, channel_handle: ChannelHandle, parameters: ComponentClickedParameters) {

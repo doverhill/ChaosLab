@@ -16,22 +16,41 @@ use crate::channel::{TornadoChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
+use alloc::vec::Vec;
 
-pub struct TornadoClient<'a> {
-    channel_handle: ChannelHandle,
-    channel: TornadoChannel,
-    on_component_clicked: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+pub enum TornadoClientEvent {
+    ComponentClicked(ComponentClickedParameters),
 }
 
-impl<'a> TornadoClient<'a> {
-    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
+pub trait TornadoClientObserver {
+    fn handle_tornado_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: TornadoClientEvent);
+}
+
+pub struct TornadoClient<'a, T: TornadoClientObserver + PartialEq> {
+    channel_handle: ChannelHandle,
+    channel: TornadoChannel,
+    observers: Vec<&'a T>,
+}
+
+impl<'a, T: TornadoClientObserver + PartialEq> TornadoClient<'a, T> {
+    pub fn connect_first(process: &mut StormProcess<Self, Self>) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("tornado", None, None, None)?;
         let channel = unsafe { TornadoChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
-            on_component_clicked: None,
+            observers: Vec::new(),
         })
+    }
+
+    pub fn attach_observer(&mut self, observer: &'a T) {
+        self.observers.push(observer);
+    }
+
+    pub fn detach_observer(&mut self, observer: &'a T) {
+        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+            self.observers.remove(index);
+        }
     }
 
     pub fn set_render_tree(&self, parameters: &SetRenderTreeParameters) {
@@ -42,14 +61,6 @@ impl<'a> TornadoClient<'a> {
             self.channel.commit_message(size);
             StormProcess::send_channel_message(self.channel_handle, MessageIds::SetRenderTreeParameters as u64);
         }
-    }
-
-    pub fn on_component_clicked(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_component_clicked = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_component_clicked(&mut self) {
-        self.on_component_clicked = None;
     }
 
 }

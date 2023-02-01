@@ -15,22 +15,41 @@ use crate::channel::{StorageChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
+use alloc::vec::Vec;
 
-pub struct StorageClient<'a> {
-    channel_handle: ChannelHandle,
-    channel: StorageChannel,
-    on_watched_object_changed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+pub enum StorageClientEvent {
+    WatchedObjectChanged(WatchedObjectChangedParameters),
 }
 
-impl<'a> StorageClient<'a> {
-    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
+pub trait StorageClientObserver {
+    fn handle_storage_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: StorageClientEvent);
+}
+
+pub struct StorageClient<'a, T: StorageClientObserver + PartialEq> {
+    channel_handle: ChannelHandle,
+    channel: StorageChannel,
+    observers: Vec<&'a T>,
+}
+
+impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
+    pub fn connect_first(process: &mut StormProcess<Self, Self>) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("storage", None, None, None)?;
         let channel = unsafe { StorageChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
-            on_watched_object_changed: None,
+            observers: Vec::new(),
         })
+    }
+
+    pub fn attach_observer(&mut self, observer: &'a T) {
+        self.observers.push(observer);
+    }
+
+    pub fn detach_observer(&mut self, observer: &'a T) {
+        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+            self.observers.remove(index);
+        }
     }
 
     pub fn get_capabilities(&self, process: &StormProcess) -> Result<FromChannel<&GetCapabilitiesReturns>, StormError> {
@@ -178,14 +197,6 @@ impl<'a> StorageClient<'a> {
             self.channel.commit_message(size);
             StormProcess::send_channel_message(self.channel_handle, MessageIds::UnwatchObjectParameters as u64);
         }
-    }
-
-    pub fn on_watched_object_changed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_watched_object_changed = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_watched_object_changed(&mut self) {
-        self.on_watched_object_changed = None;
     }
 
 }

@@ -16,32 +16,46 @@ use crate::channel::{ConsoleChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
+use alloc::vec::Vec;
 
-pub struct ConsoleClient<'a> {
-    channel_handle: ChannelHandle,
-    channel: ConsoleChannel,
-    on_key_pressed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_key_released: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_pointer_moved: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_pointer_pressed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_pointer_released: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_size_changed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+pub enum ConsoleClientEvent {
+    KeyPressed(KeyPressedParameters),
+    KeyReleased(KeyReleasedParameters),
+    PointerMoved(PointerMovedParameters),
+    PointerPressed(PointerPressedParameters),
+    PointerReleased(PointerReleasedParameters),
+    SizeChanged(SizeChangedParameters),
 }
 
-impl<'a> ConsoleClient<'a> {
-    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
+pub trait ConsoleClientObserver {
+    fn handle_console_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: ConsoleClientEvent);
+}
+
+pub struct ConsoleClient<'a, T: ConsoleClientObserver + PartialEq> {
+    channel_handle: ChannelHandle,
+    channel: ConsoleChannel,
+    observers: Vec<&'a T>,
+}
+
+impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
+    pub fn connect_first(process: &mut StormProcess<Self, Self>) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("console", None, None, None)?;
         let channel = unsafe { ConsoleChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
-            on_key_pressed: None,
-            on_key_released: None,
-            on_pointer_moved: None,
-            on_pointer_pressed: None,
-            on_pointer_released: None,
-            on_size_changed: None,
+            observers: Vec::new(),
         })
+    }
+
+    pub fn attach_observer(&mut self, observer: &'a T) {
+        self.observers.push(observer);
+    }
+
+    pub fn detach_observer(&mut self, observer: &'a T) {
+        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+            self.observers.remove(index);
+        }
     }
 
     pub fn get_capabilities(&self, process: &StormProcess) -> Result<FromChannel<&GetCapabilitiesReturns>, StormError> {
@@ -113,54 +127,6 @@ impl<'a> ConsoleClient<'a> {
             self.channel.commit_message(size);
             StormProcess::send_channel_message(self.channel_handle, MessageIds::WriteObjectsParameters as u64);
         }
-    }
-
-    pub fn on_key_pressed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_key_pressed = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_key_pressed(&mut self) {
-        self.on_key_pressed = None;
-    }
-
-    pub fn on_key_released(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_key_released = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_key_released(&mut self) {
-        self.on_key_released = None;
-    }
-
-    pub fn on_pointer_moved(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_pointer_moved = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_pointer_moved(&mut self) {
-        self.on_pointer_moved = None;
-    }
-
-    pub fn on_pointer_pressed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_pointer_pressed = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_pointer_pressed(&mut self) {
-        self.on_pointer_pressed = None;
-    }
-
-    pub fn on_pointer_released(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_pointer_released = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_pointer_released(&mut self) {
-        self.on_pointer_released = None;
-    }
-
-    pub fn on_size_changed(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_size_changed = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_size_changed(&mut self) {
-        self.on_size_changed = None;
     }
 
 }

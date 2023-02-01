@@ -1,5 +1,4 @@
-use crate::{ syscalls, ChannelHandle };
-use std::fmt;
+use crate::{ ChannelHandle, ChannelObserver };
 use ::winapi::{
     shared::ntdef::NULL,
     um::{
@@ -12,21 +11,29 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::iter::once;
 use std::ptr::null_mut;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::collections::HashMap;
-use std::mem;
-use std::slice;
 
-
-pub struct Channel<'a> {
+pub struct Channel<'a, CO: ChannelObserver + PartialEq> {
     map_handle: HANDLE,
     pub map_pointer: *mut u8,
-    pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64) + 'a>>,
-    pub on_destroyed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    pub observers: Vec<&'a CO>,
+    // pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64) + 'a>>,
+    // pub on_destroyed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl<'a> Channel<'a> {
+impl<'a, CO: ChannelObserver + PartialEq> Drop for Channel<'a, CO> {
+    fn drop(&mut self) {
+        println!("dropping channel");
+        if self.map_pointer as *mut _ != NULL {
+            unsafe { UnmapViewOfFile(self.map_pointer as *mut _) };
+        }
+
+        if self.map_handle as *mut _ != NULL {
+            unsafe { CloseHandle(self.map_handle) };
+        }
+    }
+}
+
+impl<'a, CO: ChannelObserver + PartialEq> Channel<'a, CO> {
     pub fn new(handle: ChannelHandle) -> Self {
         let memory_name = Self::get_map_name(handle);
         let (map_handle, map_pointer) = Self::create_shared_memory(&memory_name, 1024 * 1024);
@@ -35,8 +42,17 @@ impl<'a> Channel<'a> {
         Channel {
             map_handle: map_handle.unwrap(),
             map_pointer: map_pointer,
-            on_messaged: None,
-            on_destroyed: None,
+            observers: Vec::new(),
+        }
+    }
+
+    pub fn attach_observer(&mut self, observer: &'a CO) {
+        self.observers.push(observer);
+    }
+
+    pub fn detach_observer(&mut self, observer: &'a CO) {
+        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+            self.observers.remove(index);
         }
     }
 
@@ -67,18 +83,5 @@ impl<'a> Channel<'a> {
         let map_pointer = unsafe { MapViewOfFile(map_handle, FILE_MAP_ALL_ACCESS, 0, 0, 0) } as _;
 
         (Some(map_handle), map_pointer)
-    }
-}
-
-impl<'a> Drop for Channel<'a> {
-    fn drop(&mut self) {
-        println!("dropping channel");
-        if self.map_pointer as *mut _ != NULL {
-            unsafe { UnmapViewOfFile(self.map_pointer as *mut _) };
-        }
-
-        if self.map_handle as *mut _ != NULL {
-            unsafe { CloseHandle(self.map_handle) };
-        }
     }
 }

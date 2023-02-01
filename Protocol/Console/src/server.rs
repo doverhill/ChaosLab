@@ -17,49 +17,47 @@ use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
 use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
 
-pub struct ConsoleServer<'a> {
-    channels: BTreeMap<ChannelHandle, ConsoleChannel>,
-    on_client_connected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_client_disconnected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_get_capabilities: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_set_text_color: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_move_text_cursor: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_draw_image_patch: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_write_text: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_write_objects: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+pub enum ConsoleServerRequest {
+    GetCapabilities,
+    SetTextColor(SetTextColorParameters),
+    MoveTextCursor(MoveTextCursorParameters),
+    DrawImagePatch(DrawImagePatchParameters),
+    WriteText(WriteTextParameters),
+    WriteObjects(WriteObjectsParameters),
 }
 
-impl<'a> ConsoleServer<'a> {
+pub trait ConsoleServerObserver {
+    fn handle_console_client_connected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_console_client_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_console_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest);
+}
+
+pub struct ConsoleServer<'a, T: ConsoleServerObserver + PartialEq> {
+    service_handle: ServiceHandle,
+    channels: BTreeMap<ChannelHandle, ConsoleChannel>,
+    observers: Vec<&'a T>,
+}
+
+impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
     pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("console", vendor_name, device_name, device_id)?;
         Ok(Self {
+            service_handle: service_handle,
             channels: BTreeMap::new(),
-            on_client_connected: None,
-            on_client_disconnected: None,
-            on_get_capabilities: None,
-            on_set_text_color: None,
-            on_move_text_cursor: None,
-            on_draw_image_patch: None,
-            on_write_text: None,
-            on_write_objects: None,
+            observers: Vec::new(),
         })
     }
 
-    pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_client_connected = Some(Box::new(handler));
+    pub fn attach_observer(&mut self, observer: &'a T) {
+        self.observers.push(observer);
     }
 
-    pub fn clear_on_client_connected(&mut self) {
-        self.on_client_connected = None;
-    }
-
-    pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_client_disconnected = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_client_disconnected(&mut self) {
-        self.on_client_disconnected = None;
+    pub fn detach_observer(&mut self, observer: &'a T) {
+        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+            self.observers.remove(index);
+        }
     }
 
     pub fn key_pressed(&self, channel_handle: ChannelHandle, parameters: KeyPressedParameters) {

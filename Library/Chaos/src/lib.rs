@@ -14,6 +14,6 @@ mod process;
 pub use event::{StormAction, StormEvent};
 pub use process::StormProcess;
 pub use error::StormError;
-pub use handle::{ServiceHandle, ChannelHandle};
+pub use handle::{ServiceHandle, ServiceObserver, ChannelHandle, ChannelObserver};
 // pub use service_collection::ServiceCollection;
 // pub use channel_collection::ChannelCollection;

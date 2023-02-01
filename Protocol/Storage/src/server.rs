@@ -16,53 +16,49 @@ use crate::from_client::*;
 use crate::from_server::*;
 use crate::MessageIds;
 use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
 
-pub struct StorageServer<'a> {
-    channels: BTreeMap<ChannelHandle, StorageChannel>,
-    on_client_connected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_client_disconnected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_get_capabilities: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_list_objects: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_lock_object: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_unlock_object: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_read_object: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_write_object: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_watch_object: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
-    on_unwatch_object: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+pub enum StorageServerRequest {
+    GetCapabilities,
+    ListObjects(ListObjectsParameters),
+    LockObject(LockObjectParameters),
+    UnlockObject(UnlockObjectParameters),
+    ReadObject(ReadObjectParameters),
+    WriteObject(WriteObjectParameters),
+    WatchObject(WatchObjectParameters),
+    UnwatchObject(UnwatchObjectParameters),
 }
 
-impl<'a> StorageServer<'a> {
+pub trait StorageServerObserver {
+    fn handle_storage_client_connected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_storage_client_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_storage_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: StorageServerRequest);
+}
+
+pub struct StorageServer<'a, T: StorageServerObserver + PartialEq> {
+    service_handle: ServiceHandle,
+    channels: BTreeMap<ChannelHandle, StorageChannel>,
+    observers: Vec<&'a T>,
+}
+
+impl<'a, T: StorageServerObserver + PartialEq> StorageServer<'a, T> {
     pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("storage", vendor_name, device_name, device_id)?;
         Ok(Self {
+            service_handle: service_handle,
             channels: BTreeMap::new(),
-            on_client_connected: None,
-            on_client_disconnected: None,
-            on_get_capabilities: None,
-            on_list_objects: None,
-            on_lock_object: None,
-            on_unlock_object: None,
-            on_read_object: None,
-            on_write_object: None,
-            on_watch_object: None,
-            on_unwatch_object: None,
+            observers: Vec::new(),
         })
     }
 
-    pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_client_connected = Some(Box::new(handler));
+    pub fn attach_observer(&mut self, observer: &'a T) {
+        self.observers.push(observer);
     }
 
-    pub fn clear_on_client_connected(&mut self) {
-        self.on_client_connected = None;
-    }
-
-    pub fn on_client_disconnected(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_client_disconnected = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_client_disconnected(&mut self) {
-        self.on_client_disconnected = None;
+    pub fn detach_observer(&mut self, observer: &'a T) {
+        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+            self.observers.remove(index);
+        }
     }
 
     pub fn watched_object_changed(&self, channel_handle: ChannelHandle, parameters: WatchedObjectChangedParameters) {
