@@ -10,7 +10,7 @@ use crate::types::*;
 use crate::enums::*;
 
 use alloc::boxed::Box;
-use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};
+use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};
 use uuid::Uuid;
 use crate::channel::{ConsoleChannel, ChannelMessageHeader};
 use crate::from_client::*;
@@ -34,19 +34,23 @@ pub trait ConsoleServerObserver {
     fn handle_console_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest);
 }
 
-pub struct ConsoleServer<'a, T: ConsoleServerObserver + PartialEq> {
+pub struct ConsoleServer<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
     service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, ConsoleChannel>,
     observers: Vec<&'a T>,
+    so: Option<&'a SO>,
+    co: Option<&'a CO>,
 }
 
-impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
-    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
+impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> ConsoleServer<'a, T, SO, CO> {
+    pub fn create(process: &mut StormProcess<SO, CO>, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("console", vendor_name, device_name, device_id)?;
         Ok(Self {
             service_handle: service_handle,
             channels: BTreeMap::new(),
             observers: Vec::new(),
+            so: None,
+            co: None,
         })
     }
 
@@ -67,7 +71,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::KeyPressedParameters as u64);
+                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::KeyPressedParameters as u64);
             }
         }
     }
@@ -79,7 +83,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::KeyReleasedParameters as u64);
+                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::KeyReleasedParameters as u64);
             }
         }
     }
@@ -91,7 +95,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::PointerMovedParameters as u64);
+                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::PointerMovedParameters as u64);
             }
         }
     }
@@ -103,7 +107,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::PointerPressedParameters as u64);
+                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::PointerPressedParameters as u64);
             }
         }
     }
@@ -115,7 +119,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::PointerReleasedParameters as u64);
+                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::PointerReleasedParameters as u64);
             }
         }
     }
@@ -127,57 +131,9 @@ impl<'a, T: ConsoleServerObserver + PartialEq> ConsoleServer<'a, T> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::SizeChangedParameters as u64);
+                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::SizeChangedParameters as u64);
             }
         }
-    }
-
-    pub fn on_get_capabilities(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_get_capabilities = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_get_capabilities(&mut self) {
-        self.on_get_capabilities = None;
-    }
-
-    pub fn on_set_text_color(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_set_text_color = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_set_text_color(&mut self) {
-        self.on_set_text_color = None;
-    }
-
-    pub fn on_move_text_cursor(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_move_text_cursor = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_move_text_cursor(&mut self) {
-        self.on_move_text_cursor = None;
-    }
-
-    pub fn on_draw_image_patch(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_draw_image_patch = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_draw_image_patch(&mut self) {
-        self.on_draw_image_patch = None;
-    }
-
-    pub fn on_write_text(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_write_text = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_write_text(&mut self) {
-        self.on_write_text = None;
-    }
-
-    pub fn on_write_objects(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_write_objects = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_write_objects(&mut self) {
-        self.on_write_objects = None;
     }
 
 }

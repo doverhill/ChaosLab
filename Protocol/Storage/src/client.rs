@@ -9,7 +9,7 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 
 use alloc::boxed::Box;
-use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};
+use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};
 use uuid::Uuid;
 use crate::channel::{StorageChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
@@ -25,20 +25,24 @@ pub trait StorageClientObserver {
     fn handle_storage_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: StorageClientEvent);
 }
 
-pub struct StorageClient<'a, T: StorageClientObserver + PartialEq> {
+pub struct StorageClient<'a, T: StorageClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
     channel_handle: ChannelHandle,
     channel: StorageChannel,
     observers: Vec<&'a T>,
+    so: Option<&'a SO>,
+    co: Option<&'a CO>,
 }
 
-impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
-    pub fn connect_first(process: &mut StormProcess<Self, Self>) -> Result<Self, StormError> {
+impl<'a, T: StorageClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> StorageClient<'a, T, SO, CO> {
+    pub fn connect_first(process: &mut StormProcess<SO, CO>) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("storage", None, None, None)?;
         let channel = unsafe { StorageChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
             observers: Vec::new(),
+            so: None,
+            co: None,
         })
     }
 
@@ -52,7 +56,7 @@ impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
         }
     }
 
-    pub fn get_capabilities(&self, process: &StormProcess) -> Result<FromChannel<&GetCapabilitiesReturns>, StormError> {
+    pub fn get_capabilities(&self, process: &StormProcess<SO, CO>) -> Result<FromChannel<&GetCapabilitiesReturns>, StormError> {
         unsafe {
             let message = self.channel.prepare_message(MessageIds::GetCapabilitiesParameters as u64, false);
             self.channel.commit_message(0);
@@ -73,13 +77,13 @@ impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
         }
     }
 
-    pub fn list_objects(&self, process: &StormProcess, parameters: &ListObjectsParameters) -> Result<FromChannel<&ListObjectsReturns>, StormError> {
+    pub fn list_objects(&self, process: &StormProcess<SO, CO>, parameters: &ListObjectsParameters) -> Result<FromChannel<&ListObjectsReturns>, StormError> {
         unsafe {
             let message = self.channel.prepare_message(MessageIds::ListObjectsParameters as u64, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::ListObjectsParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::ListObjectsParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::ListObjectsReturns as u64, 1000)?;
@@ -97,13 +101,13 @@ impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
         }
     }
 
-    pub fn lock_object(&self, process: &StormProcess, parameters: &LockObjectParameters) -> Result<FromChannel<&LockObjectReturns>, StormError> {
+    pub fn lock_object(&self, process: &StormProcess<SO, CO>, parameters: &LockObjectParameters) -> Result<FromChannel<&LockObjectReturns>, StormError> {
         unsafe {
             let message = self.channel.prepare_message(MessageIds::LockObjectParameters as u64, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::LockObjectParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::LockObjectParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::LockObjectReturns as u64, 1000)?;
@@ -127,17 +131,17 @@ impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::UnlockObjectParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::UnlockObjectParameters as u64);
         }
     }
 
-    pub fn read_object(&self, process: &StormProcess, parameters: &ReadObjectParameters) -> Result<FromChannel<&ReadObjectReturns>, StormError> {
+    pub fn read_object(&self, process: &StormProcess<SO, CO>, parameters: &ReadObjectParameters) -> Result<FromChannel<&ReadObjectReturns>, StormError> {
         unsafe {
             let message = self.channel.prepare_message(MessageIds::ReadObjectParameters as u64, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::ReadObjectParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::ReadObjectParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::ReadObjectReturns as u64, 1000)?;
@@ -161,17 +165,17 @@ impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::WriteObjectParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::WriteObjectParameters as u64);
         }
     }
 
-    pub fn watch_object(&self, process: &StormProcess, parameters: &WatchObjectParameters) -> Result<FromChannel<&WatchObjectReturns>, StormError> {
+    pub fn watch_object(&self, process: &StormProcess<SO, CO>, parameters: &WatchObjectParameters) -> Result<FromChannel<&WatchObjectReturns>, StormError> {
         unsafe {
             let message = self.channel.prepare_message(MessageIds::WatchObjectParameters as u64, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::WatchObjectParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::WatchObjectParameters as u64);
         }
 
         process.wait_for_channel_message(self.channel_handle, MessageIds::WatchObjectReturns as u64, 1000)?;
@@ -195,7 +199,7 @@ impl<'a, T: StorageClientObserver + PartialEq> StorageClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::UnwatchObjectParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::UnwatchObjectParameters as u64);
         }
     }
 

@@ -3,6 +3,7 @@ use crate::{syscalls, ChannelHandle, ServiceHandle, StormAction, StormError, Sto
 use std::collections::HashMap;
 use uuid::Uuid;
 
+#[derive(PartialEq)]
 pub struct StormProcess<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
 // pub struct StormProcess<'a> {
     name: String,

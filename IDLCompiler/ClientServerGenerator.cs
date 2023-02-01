@@ -18,7 +18,7 @@ namespace IDLCompiler
             var channelName = protocolName.ToPascal() + "Channel";
 
             source.AddLine("use alloc::boxed::Box;");
-            source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};");
+            source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};");
             source.AddLine("use uuid::Uuid;");
             source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader};""");
             source.AddLine("use crate::from_client::*;");
@@ -44,10 +44,12 @@ namespace IDLCompiler
             observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: {structName}Request);");
             source.AddBlank();
 
-            var structBlock = source.AddBlock($"pub struct {structName}<'a, T: {structName}Observer + PartialEq>");
+            var structBlock = source.AddBlock($"pub struct {structName}<'a, T: {structName}Observer + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq>");
             structBlock.AddLine("service_handle: ServiceHandle,");
             structBlock.AddLine($"channels: BTreeMap<ChannelHandle, {channelName}>,");
             structBlock.AddLine("observers: Vec<&'a T>,");
+            structBlock.AddLine("so: Option<&'a SO>,");
+            structBlock.AddLine("co: Option<&'a CO>,");
             //structBlock.AddLine("on_client_connected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,");
             //structBlock.AddLine("on_client_disconnected: Option<Box<dyn Fn(ChannelHandle) + 'a>>,");
             //foreach (var call in from.Values)
@@ -57,9 +59,9 @@ namespace IDLCompiler
 
             source.AddBlank();
 
-            var implBlock = source.AddBlock($"impl<'a, T: {structName}Observer + PartialEq> {structName}<'a, T>");
+            var implBlock = source.AddBlock($"impl<'a, T: {structName}Observer + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {structName}<'a, T, SO, CO>");
 
-            var createBlock = implBlock.AddBlock("pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError>");
+            var createBlock = implBlock.AddBlock("pub fn create(process: &mut StormProcess<SO, CO>, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError>");
             createBlock.AddLine($"let service_handle = process.create_service(\"{idl.Protocol.Name}\", vendor_name, device_name, device_id)?;");
             //var connectHandler = createBlock.AddBlock("process.on_service_connected(service_handle, |_, channel_handle|");
             //connectHandler.Append = ");";
@@ -69,6 +71,8 @@ namespace IDLCompiler
             okBlock.AddLine("service_handle: service_handle,");
             okBlock.AddLine("channels: BTreeMap::new(),");
             okBlock.AddLine("observers: Vec::new(),");
+            okBlock.AddLine("so: None,");
+            okBlock.AddLine("co: None,");
             //okBlock.AddLine("on_client_connected: None,");
             //okBlock.AddLine("on_client_disconnected: None,");
             //foreach (var call in from.Values)
@@ -128,7 +132,7 @@ namespace IDLCompiler
                     unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("channel.commit_message(size);");
-                    unsafeBlock.AddLine($"StormProcess::send_channel_message(channel_handle, MessageIds::{parametersMessageName} as u64);");
+                    unsafeBlock.AddLine($"StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::{parametersMessageName} as u64);");
                 }
                 else
                 {
@@ -138,10 +142,10 @@ namespace IDLCompiler
                 implBlock.AddBlank();
             }
 
-            foreach (var call in from.Values)
-            {
-                GenerateEventSetter(implBlock, call);
-            }
+            //foreach (var call in from.Values)
+            //{
+            //    GenerateEventSetter(implBlock, call);
+            //}
 
         }
 
@@ -152,7 +156,7 @@ namespace IDLCompiler
             var channelName = protocolName.ToPascal() + "Channel";
 
             source.AddLine("use alloc::boxed::Box;");
-            source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};");
+            source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};");
             source.AddLine("use uuid::Uuid;");
             source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader, FromChannel};""");
             source.AddLine("use crate::from_client::*;");
@@ -175,10 +179,12 @@ namespace IDLCompiler
             observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: {structName}Event);");
             source.AddBlank();
 
-            var structBlock = source.AddBlock($"pub struct {structName}<'a, T: {structName}Observer + PartialEq>");
+            var structBlock = source.AddBlock($"pub struct {structName}<'a, T: {structName}Observer + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq>");
             structBlock.AddLine("channel_handle: ChannelHandle,");
             structBlock.AddLine($"channel: {channelName},");
             structBlock.AddLine("observers: Vec<&'a T>,");
+            structBlock.AddLine("so: Option<&'a SO>,");
+            structBlock.AddLine("co: Option<&'a CO>,");
             //structBlock.AddLine("channel_handle: ChannelHandle,");
             //structBlock.AddLine("channel_address: *mut u8,");
             //foreach (var call in from.Values)
@@ -188,9 +194,9 @@ namespace IDLCompiler
 
             source.AddBlank();
 
-            var implBlock = source.AddBlock($"impl<'a, T: {structName}Observer + PartialEq> {structName}<'a, T>");
+            var implBlock = source.AddBlock($"impl<'a, T: {structName}Observer + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {structName}<'a, T, SO, CO>");
 
-            var connectBlock = implBlock.AddBlock("pub fn connect_first(process: &mut StormProcess<Self, Self>) -> Result<Self, StormError>");
+            var connectBlock = implBlock.AddBlock("pub fn connect_first(process: &mut StormProcess<SO, CO>) -> Result<Self, StormError>");
             connectBlock.AddLine($"let channel_handle = process.connect_to_service(\"{idl.Protocol.Name}\", None, None, None)?;");
             connectBlock.AddLine($$"""let channel = unsafe { {{channelName}}::new(process.get_channel_address(channel_handle).unwrap(), false) };""");
             var okBlock = connectBlock.AddBlock("Ok(Self");
@@ -200,6 +206,8 @@ namespace IDLCompiler
             okBlock.AddLine("channel_handle: channel_handle,");
             okBlock.AddLine("channel: channel,");
             okBlock.AddLine("observers: Vec::new(),");
+            okBlock.AddLine("so: None,");
+            okBlock.AddLine("co: None,");
             //foreach (var call in from.Values)
             //{
             //    okBlock.AddLine($"on_{call.Name}: None,");
@@ -225,7 +233,7 @@ namespace IDLCompiler
                 if (returnsType != null)
                 {
                     returns = $" -> Result<FromChannel<&{returnsType.Name}>, StormError>";
-                    parameters = ", process: &StormProcess";
+                    parameters = ", process: &StormProcess<SO, CO>";
                 }
                 if (parametersType != null)
                 {
@@ -240,7 +248,7 @@ namespace IDLCompiler
                     unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("self.channel.commit_message(size);");
-                    unsafeBlock.AddLine($"StormProcess::send_channel_message(self.channel_handle, MessageIds::{parametersMessageName} as u64);");
+                    unsafeBlock.AddLine($"StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::{parametersMessageName} as u64);");
                 }
                 else
                 {
@@ -273,16 +281,16 @@ namespace IDLCompiler
 
         }
 
-        private static void GenerateEventSetter(SourceGenerator.SourceBlock implBlock, IDLCall call)
-        {
-            var extraParameters = "";
-            var fnBlock = implBlock.AddBlock($"pub fn on_{call.Name}(&mut self, handler: impl Fn(ChannelHandle{extraParameters}) + 'a)");
-            fnBlock.AddLine($"self.on_{call.Name} = Some(Box::new(handler));");
-            implBlock.AddBlank();
+        //private static void GenerateEventSetter(SourceGenerator.SourceBlock implBlock, IDLCall call)
+        //{
+        //    var extraParameters = "";
+        //    var fnBlock = implBlock.AddBlock($"pub fn on_{call.Name}(&mut self, handler: impl Fn(ChannelHandle{extraParameters}) + 'a)");
+        //    fnBlock.AddLine($"self.on_{call.Name} = Some(Box::new(handler));");
+        //    implBlock.AddBlank();
 
-            fnBlock = implBlock.AddBlock($"pub fn clear_on_{call.Name}(&mut self)");
-            fnBlock.AddLine($"self.on_{call.Name} = None;");
-            implBlock.AddBlank();
-        }
+        //    fnBlock = implBlock.AddBlock($"pub fn clear_on_{call.Name}(&mut self)");
+        //    fnBlock.AddLine($"self.on_{call.Name} = None;");
+        //    implBlock.AddBlank();
+        //}
     }
 }

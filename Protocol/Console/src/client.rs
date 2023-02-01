@@ -10,7 +10,7 @@ use crate::types::*;
 use crate::enums::*;
 
 use alloc::boxed::Box;
-use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};
+use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};
 use uuid::Uuid;
 use crate::channel::{ConsoleChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
@@ -31,20 +31,25 @@ pub trait ConsoleClientObserver {
     fn handle_console_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: ConsoleClientEvent);
 }
 
-pub struct ConsoleClient<'a, T: ConsoleClientObserver + PartialEq> {
+#[derive(PartialEq)]
+pub struct ConsoleClient<'a, T: ConsoleClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
     channel_handle: ChannelHandle,
     channel: ConsoleChannel,
     observers: Vec<&'a T>,
+    so: Option<&'a SO>,
+    co: Option<&'a CO>,
 }
 
-impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
-    pub fn connect_first(process: &mut StormProcess<Self, Self>) -> Result<Self, StormError> {
+impl<'a, T: ConsoleClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> ConsoleClient<'a, T, SO, CO> {
+    pub fn connect_first(process: &mut StormProcess<SO, CO>) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("console", None, None, None)?;
         let channel = unsafe { ConsoleChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
             observers: Vec::new(),
+            so: None,
+            co: None,
         })
     }
 
@@ -58,7 +63,7 @@ impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
         }
     }
 
-    pub fn get_capabilities(&self, process: &StormProcess) -> Result<FromChannel<&GetCapabilitiesReturns>, StormError> {
+    pub fn get_capabilities(&self, process: &StormProcess<SO, CO>) -> Result<FromChannel<&GetCapabilitiesReturns>, StormError> {
         unsafe {
             let message = self.channel.prepare_message(MessageIds::GetCapabilitiesParameters as u64, false);
             self.channel.commit_message(0);
@@ -85,7 +90,7 @@ impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::SetTextColorParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::SetTextColorParameters as u64);
         }
     }
 
@@ -95,7 +100,7 @@ impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::MoveTextCursorParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::MoveTextCursorParameters as u64);
         }
     }
 
@@ -105,7 +110,7 @@ impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::DrawImagePatchParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::DrawImagePatchParameters as u64);
         }
     }
 
@@ -115,7 +120,7 @@ impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::WriteTextParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::WriteTextParameters as u64);
         }
     }
 
@@ -125,7 +130,7 @@ impl<'a, T: ConsoleClientObserver + PartialEq> ConsoleClient<'a, T> {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::WriteObjectsParameters as u64);
+            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::WriteObjectsParameters as u64);
         }
     }
 

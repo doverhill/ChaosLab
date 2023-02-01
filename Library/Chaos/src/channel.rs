@@ -12,6 +12,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::iter::once;
 use std::ptr::null_mut;
 
+#[derive(PartialEq)]
 pub struct Channel<'a, CO: ChannelObserver + PartialEq> {
     map_handle: HANDLE,
     pub map_pointer: *mut u8,

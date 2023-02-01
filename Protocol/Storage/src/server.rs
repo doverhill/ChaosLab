@@ -9,7 +9,7 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 
 use alloc::boxed::Box;
-use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError};
+use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};
 use uuid::Uuid;
 use crate::channel::{StorageChannel, ChannelMessageHeader};
 use crate::from_client::*;
@@ -35,19 +35,23 @@ pub trait StorageServerObserver {
     fn handle_storage_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: StorageServerRequest);
 }
 
-pub struct StorageServer<'a, T: StorageServerObserver + PartialEq> {
+pub struct StorageServer<'a, T: StorageServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
     service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, StorageChannel>,
     observers: Vec<&'a T>,
+    so: Option<&'a SO>,
+    co: Option<&'a CO>,
 }
 
-impl<'a, T: StorageServerObserver + PartialEq> StorageServer<'a, T> {
-    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
+impl<'a, T: StorageServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> StorageServer<'a, T, SO, CO> {
+    pub fn create(process: &mut StormProcess<SO, CO>, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("storage", vendor_name, device_name, device_id)?;
         Ok(Self {
             service_handle: service_handle,
             channels: BTreeMap::new(),
             observers: Vec::new(),
+            so: None,
+            co: None,
         })
     }
 
@@ -68,73 +72,9 @@ impl<'a, T: StorageServerObserver + PartialEq> StorageServer<'a, T> {
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::WatchedObjectChangedParameters as u64);
+                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::WatchedObjectChangedParameters as u64);
             }
         }
-    }
-
-    pub fn on_get_capabilities(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_get_capabilities = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_get_capabilities(&mut self) {
-        self.on_get_capabilities = None;
-    }
-
-    pub fn on_list_objects(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_list_objects = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_list_objects(&mut self) {
-        self.on_list_objects = None;
-    }
-
-    pub fn on_lock_object(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_lock_object = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_lock_object(&mut self) {
-        self.on_lock_object = None;
-    }
-
-    pub fn on_unlock_object(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_unlock_object = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_unlock_object(&mut self) {
-        self.on_unlock_object = None;
-    }
-
-    pub fn on_read_object(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_read_object = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_read_object(&mut self) {
-        self.on_read_object = None;
-    }
-
-    pub fn on_write_object(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_write_object = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_write_object(&mut self) {
-        self.on_write_object = None;
-    }
-
-    pub fn on_watch_object(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_watch_object = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_watch_object(&mut self) {
-        self.on_watch_object = None;
-    }
-
-    pub fn on_unwatch_object(&mut self, handler: impl Fn(ChannelHandle) + 'a) {
-        self.on_unwatch_object = Some(Box::new(handler));
-    }
-
-    pub fn clear_on_unwatch_object(&mut self) {
-        self.on_unwatch_object = None;
     }
 
 }

@@ -1,5 +1,6 @@
 use crate::{ServiceObserver};
 
+#[derive(PartialEq)]
 pub struct Service<'a, SO: ServiceObserver> {
     // pub on_connected: Option<Box<dyn Fn(ServiceHandle, ChannelHandle) + 'a>>,
     pub observers: Vec<&'a SO>,

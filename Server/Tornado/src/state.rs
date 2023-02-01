@@ -1,6 +1,7 @@
 use library_chaos::{StormEvent, ChannelHandle, StormProcess};
 use alloc::collections::BTreeMap;
 
+#[derive(PartialEq)]
 struct ClientState {
 }
 
@@ -10,6 +11,7 @@ impl ClientState {
     }
 }
 
+#[derive(PartialEq)]
 pub struct ServerState {
     clients: BTreeMap<ChannelHandle, ClientState>,
 }
