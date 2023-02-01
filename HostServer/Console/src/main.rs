@@ -86,6 +86,10 @@ fn main() {
         state.borrow_mut().remove_client(channel_handle);
     });
 
+    console_server.on_write_text(|channel_handle, parameters| {
+        StormProcess::emit_information(parameters.text);
+    });
+
     // spawn storm thread
     let events = sdl_context.event().unwrap();
     events.register_custom_event::<StormEventWrapper>().unwrap();

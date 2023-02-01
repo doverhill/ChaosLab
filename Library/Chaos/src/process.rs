@@ -145,22 +145,31 @@ impl<'a> StormProcess<'a> {
 
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
+                Self::emit_debug("invoking handler for service connect");
                 if let Some(service) = self.services.get(&service_handle) {
+                    Self::emit_debug("found service");
                     if let Some(handler) = &service.on_connected {
+                        Self::emit_debug("calling handler for service connect");
                         handler(service_handle, channel_handle);
                     }
                 }
             },
             StormEvent::ChannelMessaged(channel_handle, message_id) => {
+                Self::emit_debug("invoking handler for channel message");
                 if let Some(channel) = self.channels.get(&channel_handle) {
+                    Self::emit_debug("found service");
                     if let Some(handler) = &channel.on_messaged {
+                        Self::emit_debug("invoking handler for channel message");
                         handler(channel_handle, message_id);
                     }
                 }
             },
             StormEvent::ChannelDestroyed(channel_handle) => {
+                Self::emit_debug("invoking handler for channel destroy");
                 if let Some(channel) = self.channels.get(&channel_handle) {
+                    Self::emit_debug("found service");
                     if let Some(handler) = &channel.on_destroyed {
+                        Self::emit_debug("invoking handler for channel destroy");
                         handler(channel_handle);
                     }
                 }
