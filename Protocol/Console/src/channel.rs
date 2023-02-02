@@ -84,7 +84,6 @@ impl Drop for ChannelLock {
     }
 }
 
-#[derive(PartialEq)]
 pub struct ConsoleChannel {
     channel_address: *mut u8,
 }

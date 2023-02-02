@@ -22,7 +22,7 @@ pub enum StorageClientEvent {
 }
 
 pub trait StorageClientObserver {
-    fn handle_storage_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: StorageClientEvent);
+    fn handle_storage_event(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: StorageClientEvent);
 }
 
 pub struct StorageClient<'a, T: StorageClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {

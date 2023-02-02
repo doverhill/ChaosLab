@@ -30,9 +30,9 @@ pub enum StorageServerRequest {
 }
 
 pub trait StorageServerObserver {
-    fn handle_storage_client_connected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_storage_client_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_storage_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: StorageServerRequest);
+    fn handle_storage_client_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_storage_client_disconnected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_storage_request(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: StorageServerRequest);
 }
 
 pub struct StorageServer<'a, T: StorageServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {

@@ -28,10 +28,9 @@ pub enum ConsoleClientEvent {
 }
 
 pub trait ConsoleClientObserver {
-    fn handle_console_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: ConsoleClientEvent);
+    fn handle_console_event(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: ConsoleClientEvent);
 }
 
-#[derive(PartialEq)]
 pub struct ConsoleClient<'a, T: ConsoleClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
     channel_handle: ChannelHandle,
     channel: ConsoleChannel,

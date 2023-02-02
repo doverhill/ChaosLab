@@ -1,6 +1,8 @@
-use library_chaos::{StormEvent, ChannelHandle, StormProcess};
+use library_chaos::{ServiceHandle, ChannelHandle, ServiceObserver, ChannelObserver, StormProcess};
+use protocol_console::{ConsoleServerRequest, ConsoleServerObserver};
 use std::collections::HashMap;
 
+#[derive(PartialEq)]
 struct ClientState {
 }
 
@@ -10,6 +12,7 @@ impl ClientState {
     }
 }
 
+#[derive(PartialEq)]
 pub struct ServerState {
     clients: HashMap<ChannelHandle, ClientState>,
 }
@@ -29,5 +32,35 @@ impl ServerState {
 
     pub fn get_first_client_handle(&self) -> Option<&ChannelHandle> {
         self.clients.keys().next()
+    }
+}
+
+impl<'a> ServiceObserver for ServerState {
+    fn handle_service_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle,) {
+        StormProcess::<Self, Self>::emit_debug("handle_service_connected");
+    }
+}
+
+impl<'a> ChannelObserver for ServerState {
+    fn handle_channel_messaged(&self, channel_handle: ChannelHandle, message_id: u64) {
+        StormProcess::<Self, Self>::emit_debug("handle_channel_messaged");
+    }
+
+    fn handle_channel_destroyed(&self, channel_handle: ChannelHandle) {
+        StormProcess::<Self, Self>::emit_debug("handle_channel_destroyed");
+    }
+}
+
+impl<'a> ConsoleServerObserver for ServerState {
+    fn handle_console_client_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
+        StormProcess::<Self, Self>::emit_debug("handle_console_client_connected");
+    }
+
+    fn handle_console_client_disconnected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
+        StormProcess::<Self, Self>::emit_debug("handle_console_client_disconnected");
+    }
+
+    fn handle_console_request(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest) {
+        StormProcess::<Self, Self>::emit_debug("handle_console_request");
     }
 }

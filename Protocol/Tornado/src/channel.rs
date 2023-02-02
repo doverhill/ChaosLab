@@ -84,7 +84,6 @@ impl Drop for ChannelLock {
     }
 }
 
-#[derive(PartialEq)]
 pub struct TornadoChannel {
     channel_address: *mut u8,
 }

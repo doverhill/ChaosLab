@@ -39,9 +39,9 @@ namespace IDLCompiler
             source.AddBlank();
 
             var observerTrait = source.AddBlock($"pub trait {structName}Observer");
-            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_client_connected(service_handle: ServiceHandle, channel_handle: ChannelHandle);");
-            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_client_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);");
-            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: {structName}Request);");
+            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_client_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);");
+            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_client_disconnected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);");
+            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_request(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: {structName}Request);");
             source.AddBlank();
 
             var structBlock = source.AddBlock($"pub struct {structName}<'a, T: {structName}Observer + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq>");
@@ -176,7 +176,7 @@ namespace IDLCompiler
             source.AddBlank();
 
             var observerTrait = source.AddBlock($"pub trait {structName}Observer");
-            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: {structName}Event);");
+            observerTrait.AddLine($"fn handle_{idl.Protocol.Name}_event(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: {structName}Event);");
             source.AddBlank();
 
             var structBlock = source.AddBlock($"pub struct {structName}<'a, T: {structName}Observer + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq>");

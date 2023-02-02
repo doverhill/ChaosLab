@@ -24,12 +24,11 @@ pub enum TornadoServerRequest {
 }
 
 pub trait TornadoServerObserver {
-    fn handle_tornado_client_connected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_tornado_client_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_tornado_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: TornadoServerRequest);
+    fn handle_tornado_client_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_tornado_client_disconnected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_tornado_request(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: TornadoServerRequest);
 }
 
-#[derive(PartialEq)]
 pub struct TornadoServer<'a, T: TornadoServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
     service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, TornadoChannel>,

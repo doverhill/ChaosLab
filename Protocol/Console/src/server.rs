@@ -29,9 +29,9 @@ pub enum ConsoleServerRequest {
 }
 
 pub trait ConsoleServerObserver {
-    fn handle_console_client_connected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_console_client_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_console_request(service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest);
+    fn handle_console_client_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_console_client_disconnected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_console_request(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest);
 }
 
 pub struct ConsoleServer<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {

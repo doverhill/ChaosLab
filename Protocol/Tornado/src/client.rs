@@ -23,7 +23,7 @@ pub enum TornadoClientEvent {
 }
 
 pub trait TornadoClientObserver {
-    fn handle_tornado_event(service_handle: ServiceHandle, channel_handle: ChannelHandle, event: TornadoClientEvent);
+    fn handle_tornado_event(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: TornadoClientEvent);
 }
 
 pub struct TornadoClient<'a, T: TornadoClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
