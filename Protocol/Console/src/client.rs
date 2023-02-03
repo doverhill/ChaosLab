@@ -28,27 +28,34 @@ pub enum ConsoleClientEvent {
 }
 
 pub trait ConsoleClientObserver {
-    fn handle_console_event(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: ConsoleClientEvent);
+    fn handle_console_event(&mut self, channel_handle: ChannelHandle, event: ConsoleClientEvent);
 }
 
-pub struct ConsoleClient<'a, T: ConsoleClientObserver> {
+pub struct ConsoleClient {
     channel_handle: ChannelHandle,
     channel: ConsoleChannel,
-    observers: Vec<&'a mut T>,
 }
 
-impl<'a, T: ConsoleClientObserver> ConsoleClient<'a, T> {
+impl ConsoleClient {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("console", None, None, None)?;
         let channel = unsafe { ConsoleChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
-            observers: Vec::new(),
         })
     }
 
     pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &impl ConsoleClientObserver) {
+        match event {
+            StormEvent::ChannelMessaged(channel_handle, message_id) => {
+                if channel_handle == self.channel_handle {
+                    StormProcess::emit_debug("ConsoleClient: got event");
+                    // observer.handle_console_event(channel_handle, event);
+                }
+            },
+            _ => {},
+        }
     }
 
     pub fn get_capabilities(&self, process: &StormProcess) -> Result<FromChannel<&GetCapabilitiesReturns>, StormError> {

@@ -73,7 +73,7 @@ fn main() {
     // StormProcess::<ServerState, ServerState>::emit_error(StormError::NotFound, "console: error");
 
     // set up service
-    let mut console_server = ConsoleServer::<ServerState>::create(
+    let mut console_server = ConsoleServer::create(
         &mut process,
         "Chaos",
         "SDL console host server",
@@ -106,7 +106,7 @@ fn main() {
         if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
             println!("got storm event");
             // StormProcess::<ServerState, ServerState>::emit_information("console: got storm event in sdl loop");
-            console_server.process_event(&process, wrapper.event, &state);
+            console_server.process_event(&process, wrapper.event, &mut state);
             // process.handle_event(wrapper.event);
             // tx.send(());
         } 

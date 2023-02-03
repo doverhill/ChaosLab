@@ -34,34 +34,39 @@ pub trait ConsoleServerObserver {
     fn handle_console_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest);
 }
 
-pub struct ConsoleServer<'a, T: ConsoleServerObserver> {
+pub struct ConsoleServer {
     service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, ConsoleChannel>,
-    observers: Vec<&'a mut T>,
 }
 
-impl<'a, T: ConsoleServerObserver> ConsoleServer<'a, T> {
+impl ConsoleServer {
     pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("console", vendor_name, device_name, device_id)?;
         Ok(Self {
             service_handle: service_handle,
             channels: BTreeMap::new(),
-            observers: Vec::new(),
         })
     }
 
-    pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &impl ConsoleServerObserver) {
+    pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &mut impl ConsoleServerObserver) {
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
                 if service_handle == self.service_handle {
-
+                    StormProcess::emit_debug("ConsoleServer: client connected");
+                    observer.handle_console_client_connected(service_handle, channel_handle);
                 }
             },
             StormEvent::ChannelMessaged(channel_handle, message_id) => {
-
+                if let Some(_) = self.channels.get(&channel_handle) {
+                    StormProcess::emit_debug("ConsoleServer: client request");
+                    // observer.handle_console_request(self.service_handle, channel_handle, request);
+                }
             },
             StormEvent::ChannelDestroyed(channel_handle) => {
-                
+                if let Some(_) = self.channels.get(&channel_handle) {
+                    StormProcess::emit_debug("ConsoleServer: client disconnected");
+                    observer.handle_console_client_disconnected(self.service_handle, channel_handle);
+                }
             }
         }
     }
