@@ -135,7 +135,7 @@ pub fn event_wait(handle: Option<u64>, action: Option<StormAction>, message: Opt
             })
         },
         error => {
-            println!("syscall: event_wait: got success");
+            println!("syscall: event_wait: got error");
             Err(error)
         },
     }

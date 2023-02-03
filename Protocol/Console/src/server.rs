@@ -10,7 +10,7 @@ use crate::types::*;
 use crate::enums::*;
 
 use alloc::boxed::Box;
-use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};
+use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
 use crate::channel::{ConsoleChannel, ChannelMessageHeader};
 use crate::from_client::*;
@@ -34,34 +34,23 @@ pub trait ConsoleServerObserver {
     fn handle_console_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest);
 }
 
-pub struct ConsoleServer<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
+pub struct ConsoleServer<'a, T: ConsoleServerObserver> {
     service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, ConsoleChannel>,
-    observers: Vec<&'a T>,
-    so: Option<&'a SO>,
-    co: Option<&'a CO>,
+    observers: Vec<&'a mut T>,
 }
 
-impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> ConsoleServer<'a, T, SO, CO> {
-    pub fn create(process: &mut StormProcess<SO, CO>, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
+impl<'a, T: ConsoleServerObserver> ConsoleServer<'a, T> {
+    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
         let service_handle = process.create_service("console", vendor_name, device_name, device_id)?;
         Ok(Self {
             service_handle: service_handle,
             channels: BTreeMap::new(),
             observers: Vec::new(),
-            so: None,
-            co: None,
         })
     }
 
-    pub fn attach_observer(&mut self, observer: &'a T) {
-        self.observers.push(observer);
-    }
-
-    pub fn detach_observer(&mut self, observer: &'a T) {
-        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
-            self.observers.remove(index);
-        }
+    pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &impl ConsoleServerObserver) {
     }
 
     pub fn key_pressed(&self, channel_handle: ChannelHandle, parameters: KeyPressedParameters) {
@@ -71,7 +60,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, 
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::KeyPressedParameters as u64);
+                StormProcess::send_channel_message(channel_handle, MessageIds::KeyPressedParameters as u64);
             }
         }
     }
@@ -83,7 +72,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, 
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::KeyReleasedParameters as u64);
+                StormProcess::send_channel_message(channel_handle, MessageIds::KeyReleasedParameters as u64);
             }
         }
     }
@@ -95,7 +84,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, 
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::PointerMovedParameters as u64);
+                StormProcess::send_channel_message(channel_handle, MessageIds::PointerMovedParameters as u64);
             }
         }
     }
@@ -107,7 +96,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, 
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::PointerPressedParameters as u64);
+                StormProcess::send_channel_message(channel_handle, MessageIds::PointerPressedParameters as u64);
             }
         }
     }
@@ -119,7 +108,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, 
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::PointerReleasedParameters as u64);
+                StormProcess::send_channel_message(channel_handle, MessageIds::PointerReleasedParameters as u64);
             }
         }
     }
@@ -131,7 +120,7 @@ impl<'a, T: ConsoleServerObserver + PartialEq, SO: ServiceObserver + PartialEq, 
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::<SO, CO>::send_channel_message(channel_handle, MessageIds::SizeChangedParameters as u64);
+                StormProcess::send_channel_message(channel_handle, MessageIds::SizeChangedParameters as u64);
             }
         }
     }

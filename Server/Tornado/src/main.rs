@@ -17,7 +17,6 @@ fn main() {
     let state = ServerState::new();
 
     let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();
-    console_client.attach_observer(&state);
 
     let mut tornado_server = TornadoServer::create(
         &mut process, 
@@ -25,7 +24,12 @@ fn main() {
         "Tornado server", 
         Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()
     ).unwrap();
-    tornado_server.attach_observer(&state);
+
+    loop {
+        let event = process.wait_for_event().unwrap();
+        console_client.process_event(process, event, state);
+        tornado_server.process_event(process, event, state);
+    }
 
     process.run();
 }

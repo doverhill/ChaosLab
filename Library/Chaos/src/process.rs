@@ -1,26 +1,25 @@
-use crate::{syscalls, ChannelHandle, ServiceHandle, StormAction, StormError, StormEvent, channel::Channel, service::Service, ServiceObserver, ChannelObserver};
+use crate::{syscalls, ChannelHandle, ServiceHandle, StormAction, StormError, StormEvent, channel::Channel, service::Service};
 
 use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(PartialEq)]
-pub struct StormProcess<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
+pub struct StormProcess {
 // pub struct StormProcess<'a> {
     name: String,
-    services: HashMap<ServiceHandle, Service<'a, SO>>,
-    channels: HashMap<ChannelHandle, Channel<'a, CO>>,
+    services: HashMap<ServiceHandle, Service>,
+    channels: HashMap<ChannelHandle, Channel>,
     // service_observers: Vec<&'a SO>,
     // channel_observers: Vec<&'a CO>,
 }
 
-impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Drop for StormProcess<'a, SO, CO> {
+impl Drop for StormProcess {
 // impl<'a> Drop for StormProcess<'a> {
     fn drop(&mut self) {
         self.end();
     }
 }
 
-impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> StormProcess<'a, SO, CO> {
+impl StormProcess {
 // impl<'a> StormProcess<'a> {
     pub fn new(name: &str) -> Result<Self, StormError> {
         syscalls::process_set_info(name)?;
@@ -51,29 +50,29 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
         syscalls::service_destroy(handle)
     }
 
-    pub fn attach_service_observer(&mut self, handle: ServiceHandle, observer: &'a mut SO) {
-        if let Some(service) = self.services.get_mut(&handle) {
-            service.attach_observer(observer);
-        }
-    }
+    // pub fn attach_service_observer(&mut self, handle: ServiceHandle, observer: &'a mut SO) {
+    //     if let Some(service) = self.services.get_mut(&handle) {
+    //         service.attach_observer(observer);
+    //     }
+    // }
 
-    pub fn detach_service_observer(&mut self, handle: ServiceHandle, observer: &'a SO) {
-        if let Some(service) = self.services.get_mut(&handle) {
-            service.detach_observer(observer);
-        }
-    }
+    // pub fn detach_service_observer(&mut self, handle: ServiceHandle, observer: &'a mut SO) {
+    //     if let Some(service) = self.services.get_mut(&handle) {
+    //         service.detach_observer(observer);
+    //     }
+    // }
 
-    pub fn attach_channel_observer(&mut self, handle: ChannelHandle, observer: &'a mut CO) {
-        if let Some(channel) = self.channels.get_mut(&handle) {
-            channel.attach_observer(observer);
-        }
-    }
+    // pub fn attach_channel_observer(&mut self, handle: ChannelHandle, observer: &'a mut CO) {
+    //     if let Some(channel) = self.channels.get_mut(&handle) {
+    //         channel.attach_observer(observer);
+    //     }
+    // }
 
-    pub fn detach_channel_observer(&mut self, handle: ChannelHandle, observer: &'a CO) {
-        if let Some(channel) = self.channels.get_mut(&handle) {
-            channel.detach_observer(observer);
-        }
-    }
+    // pub fn detach_channel_observer(&mut self, handle: ChannelHandle, observer: &'a mut CO) {
+    //     if let Some(channel) = self.channels.get_mut(&handle) {
+    //         channel.detach_observer(observer);
+    //     }
+    // }
 
     // pub fn on_service_connected(
     //     &mut self,
@@ -173,59 +172,54 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
         syscalls::event_wait(None, None, None, -1)
     }
 
-    pub fn handle_event(&mut self, event: StormEvent) {
-        Self::emit_debug("handling event");
+    // pub fn handle_event(&mut self, event: StormEvent) {
+    //     match event {
+    //         StormEvent::ServiceConnected(service_handle, channel_handle) => {
+    //             println!("received ServiceConnectedEvent");
+    //             if let Some(service) = self.services.get_mut(&service_handle) {
+    //                 println!("found service");
+    //                 for handler in service.observers.iter_mut() {
+    //                     println!("calling handler");
+    //                     handler.handle_service_connected(service_handle, channel_handle);
+    //                 }
+    //                 // if let Some(handler) = &service.on_connected {
+    //                 //     Self::emit_debug("calling handler for service connect");
+    //                 //     handler(service_handle, channel_handle);
+    //                 // }
+    //             }
+    //         },
+    //         StormEvent::ChannelMessaged(channel_handle, message_id) => {
+    //             if let Some(channel) = self.channels.get_mut(&channel_handle) {
+    //                 for handler in channel.observers.iter_mut() {
+    //                     handler.handle_channel_messaged(channel_handle, message_id);
+    //                 }
+    //                 // if let Some(handler) = &channel.on_messaged {
+    //                 //     Self::emit_debug("invoking handler for channel message");
+    //                 //     handler(channel_handle, message_id);
+    //                 // }
+    //             }
+    //         },
+    //         StormEvent::ChannelDestroyed(channel_handle) => {
+    //             if let Some(channel) = self.channels.get_mut(&channel_handle) {
+    //                 for handler in channel.observers.iter_mut() {
+    //                     handler.handle_channel_destroyed(channel_handle);
+    //                 }
+    //                 // if let Some(handler) = &channel.on_destroyed {
+    //                 //     Self::emit_debug("invoking handler for channel destroy");
+    //                 //     handler(channel_handle);
+    //                 // }
+    //             }
+    //         }
+    //     }
+    // }
 
-        match event {
-            StormEvent::ServiceConnected(service_handle, channel_handle) => {
-                Self::emit_debug("invoking handler for service connect");
-                if let Some(service) = self.services.get_mut(&service_handle) {
-                    Self::emit_debug("found service");
-                    for handler in service.observers.iter_mut() {
-                        handler.handle_service_connected(service_handle, channel_handle);
-                    }
-                    // if let Some(handler) = &service.on_connected {
-                    //     Self::emit_debug("calling handler for service connect");
-                    //     handler(service_handle, channel_handle);
-                    // }
-                }
-            },
-            StormEvent::ChannelMessaged(channel_handle, message_id) => {
-                Self::emit_debug("invoking handler for channel message");
-                if let Some(channel) = self.channels.get_mut(&channel_handle) {
-                    Self::emit_debug("found service");
-                    for handler in channel.observers.iter_mut() {
-                        handler.handle_channel_messaged(channel_handle, message_id);
-                    }
-                    // if let Some(handler) = &channel.on_messaged {
-                    //     Self::emit_debug("invoking handler for channel message");
-                    //     handler(channel_handle, message_id);
-                    // }
-                }
-            },
-            StormEvent::ChannelDestroyed(channel_handle) => {
-                Self::emit_debug("invoking handler for channel destroy");
-                if let Some(channel) = self.channels.get_mut(&channel_handle) {
-                    Self::emit_debug("found service");
-                    for handler in channel.observers.iter_mut() {
-                        handler.handle_channel_destroyed(channel_handle);
-                    }
-                    // if let Some(handler) = &channel.on_destroyed {
-                    //     Self::emit_debug("invoking handler for channel destroy");
-                    //     handler(channel_handle);
-                    // }
-                }
-            }
-        }
-    }
-
-    pub fn run(&mut self) -> Result<(), StormError> {
-        // this is the main event loop of an application
-        loop {
-            let event = syscalls::event_wait(None, None, None, -1)?;
-            self.handle_event(event);
-        }
-    }
+    // pub fn run(&mut self) -> Result<(), StormError> {
+    //     // this is the main event loop of an application
+    //     loop {
+    //         let event = syscalls::event_wait(None, None, None, -1)?;
+    //         self.handle_event(event);
+    //     }
+    // }
 
     pub fn end(&self) -> ! {
         syscalls::process_destroy().unwrap();

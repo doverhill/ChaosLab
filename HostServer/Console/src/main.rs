@@ -66,39 +66,38 @@ fn main() {
     // spawn thread doing storm event wait - posting events to sdl event queue
     // on main thread, loop on sdl event queue and handle incoming events from both sources
 
-    let mut process = StormProcess::<ServerState, ServerState>::new("HostServer.Console").unwrap();
+    let mut process = StormProcess::new("HostServer.Console").unwrap();
     let mut state = ServerState::new();
-    StormProcess::<ServerState, ServerState>::emit_information("console: started");
-    StormProcess::<ServerState, ServerState>::emit_warning("console: warning");
-    StormProcess::<ServerState, ServerState>::emit_error(StormError::NotFound, "console: error");
+    // StormProcess::<ServerState, ServerState>::emit_information("console: started");
+    // StormProcess::<ServerState, ServerState>::emit_warning("console: warning");
+    // StormProcess::<ServerState, ServerState>::emit_error(StormError::NotFound, "console: error");
 
     // set up service
-    let mut console_server = ConsoleServer::create(
+    let mut console_server = ConsoleServer::<ServerState>::create(
         &mut process,
         "Chaos",
         "SDL console host server",
         Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
     ).unwrap();
-    console_server.attach_observer(&state);
+    // console_server.attach_observer(&state);
 
     // spawn storm thread
     let events = sdl_context.event().unwrap();
     events.register_custom_event::<StormEventWrapper>().unwrap();
     let sender = events.event_sender();
-    let (tx, rx) = channel::<()>();
+    // let (tx, rx) = channel::<()>();
     thread::spawn(move || loop {
         // StormProcess::<ServerState, ServerState>::emit_information("console: waiting for storm event");
         // thread::sleep(Duration::from_secs(10));
-        let event = StormProcess::<ServerState, ServerState>::wait_for_event().unwrap();
+        let event = StormProcess::wait_for_event().unwrap();
         // StormProcess::<ServerState, ServerState>::emit_information("console: got event in thread");
         sender.push_custom_event(StormEventWrapper { event: event, quit: false });
 
         // wait for event to be handled
-        rx.recv().unwrap();
+        // rx.recv().unwrap();
     });
 
     // main loop
-    StormProcess::<ServerState, ServerState>::emit_information("console: running sdl loop");
     let mut pump = sdl_context.event_pump().unwrap();
     'main_loop: loop {
         // StormProcess::<ServerState, ServerState>::emit_information("console: waiting for sdl event");
@@ -107,15 +106,18 @@ fn main() {
         if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
             println!("got storm event");
             // StormProcess::<ServerState, ServerState>::emit_information("console: got storm event in sdl loop");
-            process.handle_event(wrapper.event);
-            tx.send(());
+            console_server.process_event(&process, wrapper.event, &state);
+            // process.handle_event(wrapper.event);
+            // tx.send(());
         } 
         else {
             // StormProcess::<ServerState, ServerState>::emit_information("console: got other event in sdl loop");
             match event {
                 Event::MouseMotion { x, y, .. } => {
                     // StormProcess::<ServerState, ServerState>::emit_information("console: got mouse event in sdl loop");
+              //      println!("pointer moved, trying to call active client");
                     if let Some(channel_handle) = state.get_first_client_handle() {
+                        println!("found client, sending");
                         console_server.pointer_moved(*channel_handle, PointerMovedParameters { position: Point { x: x as i64, y: y as i64 } });
                     }
                 },

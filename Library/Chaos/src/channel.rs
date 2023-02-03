@@ -1,4 +1,4 @@
-use crate::{ ChannelHandle, ChannelObserver };
+use crate::ChannelHandle;
 use ::winapi::{
     shared::ntdef::NULL,
     um::{
@@ -12,16 +12,15 @@ use std::os::windows::ffi::OsStrExt;
 use std::iter::once;
 use std::ptr::null_mut;
 
-#[derive(PartialEq)]
-pub struct Channel<'a, CO: ChannelObserver + PartialEq> {
+pub struct Channel {
     map_handle: HANDLE,
     pub map_pointer: *mut u8,
-    pub observers: Vec<&'a mut CO>,
+    // pub observers: Vec<&'a mut CO>,
     // pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64) + 'a>>,
     // pub on_destroyed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
 
-impl<'a, CO: ChannelObserver + PartialEq> Drop for Channel<'a, CO> {
+impl Drop for Channel {
     fn drop(&mut self) {
         println!("dropping channel");
         if self.map_pointer as *mut _ != NULL {
@@ -34,7 +33,7 @@ impl<'a, CO: ChannelObserver + PartialEq> Drop for Channel<'a, CO> {
     }
 }
 
-impl<'a, CO: ChannelObserver + PartialEq> Channel<'a, CO> {
+impl Channel {
     pub fn new(handle: ChannelHandle) -> Self {
         let memory_name = Self::get_map_name(handle);
         let (map_handle, map_pointer) = Self::create_shared_memory(&memory_name, 1024 * 1024);
@@ -43,19 +42,19 @@ impl<'a, CO: ChannelObserver + PartialEq> Channel<'a, CO> {
         Channel {
             map_handle: map_handle.unwrap(),
             map_pointer: map_pointer,
-            observers: Vec::new(),
+            // observers: Vec::new(),
         }
     }
 
-    pub fn attach_observer(&mut self, observer: &'a mut CO) {
-        self.observers.push(observer);
-    }
+    // pub fn attach_observer(&mut self, observer: &'a mut CO) {
+    //     self.observers.push(observer);
+    // }
 
-    pub fn detach_observer(&mut self, observer: &'a CO) {
-        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
-            self.observers.remove(index);
-        }
-    }
+    // pub fn detach_observer(&mut self, observer: &'a mut CO) {
+    //     if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+    //         self.observers.remove(index);
+    //     }
+    // }
 
     fn get_map_name(handle: ChannelHandle) -> String {
         return format!("Local\\__chaos_channel_{}", handle.raw_handle());

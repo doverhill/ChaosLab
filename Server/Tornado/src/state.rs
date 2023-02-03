@@ -3,7 +3,6 @@ use protocol_console::{ConsoleClientEvent, ConsoleClientObserver};
 use protocol_tornado::{TornadoServerRequest, TornadoServerObserver};
 use alloc::collections::BTreeMap;
 
-#[derive(PartialEq)]
 struct ClientState {
 }
 
@@ -13,7 +12,6 @@ impl ClientState {
     }
 }
 
-#[derive(PartialEq)]
 pub struct ServerState {
     clients: BTreeMap<ChannelHandle, ClientState>,
 }
@@ -32,38 +30,22 @@ impl ServerState {
     }
 }
 
-impl<'a> ServiceObserver for ServerState {
-    fn handle_service_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle,) {
-        StormProcess::<Self, Self>::emit_debug("handle_service_connected");
-    }
-}
-
-impl<'a> ChannelObserver for ServerState {
-    fn handle_channel_messaged(&mut self, channel_handle: ChannelHandle, message_id: u64) {
-        StormProcess::<Self, Self>::emit_debug("handle_channel_messaged");
-    }
-
-    fn handle_channel_destroyed(&mut self, channel_handle: ChannelHandle) {
-        StormProcess::<Self, Self>::emit_debug("handle_channel_destroyed");
-    }
-}
-
 impl<'a> ConsoleClientObserver for ServerState {
     fn handle_console_event(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: ConsoleClientEvent) {
-        StormProcess::<Self, Self>::emit_debug("handle_console_event");
+        println!("handle_console_event");
     }
 }
 
 impl<'a> TornadoServerObserver for ServerState {
     fn handle_tornado_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
-        StormProcess::<Self, Self>::emit_debug("handle_tornado_client_connected");
+        println!("handle_tornado_client_connected");
     }
 
     fn handle_tornado_client_disconnected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
-        StormProcess::<Self, Self>::emit_debug("handle_tornado_client_disconnected");
+        println!("handle_tornado_client_disconnected");
     }
 
     fn handle_tornado_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: TornadoServerRequest) {
-        StormProcess::<Self, Self>::emit_debug("handle_tornado_request");
+        println!("handle_tornado_request");
     }
 }

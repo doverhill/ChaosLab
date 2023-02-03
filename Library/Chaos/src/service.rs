@@ -1,25 +1,21 @@
-use crate::{ServiceObserver};
-
-#[derive(PartialEq)]
-pub struct Service<'a, SO: ServiceObserver> {
+pub struct Service {
     // pub on_connected: Option<Box<dyn Fn(ServiceHandle, ChannelHandle) + 'a>>,
-    pub observers: Vec<&'a mut SO>,
+    // pub observers: Vec<&'a mut SO>,
 }
 
-impl<'a, SO: ServiceObserver + PartialEq> Service<'a, SO> {
+impl Service {
     pub fn new() -> Self {
         Service {
-            observers: Vec::new(),
         }
     }
 
-    pub fn attach_observer(&mut self, observer: &'a mut SO) {
-        self.observers.push(observer);
-    }
+    // pub fn attach_observer(&mut self, observer: &'a mut SO) {
+    //     self.observers.push(observer);
+    // }
 
-    pub fn detach_observer(&mut self, observer: &'a SO) {
-        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
-            self.observers.remove(index);
-        }
-    }
+    // pub fn detach_observer(&mut self, observer: &'a mut SO) {
+    //     if let Some(index) = self.observers.iter().position(|x| *x == observer) {
+    //         self.observers.remove(index);
+    //     }
+    // }
 }
