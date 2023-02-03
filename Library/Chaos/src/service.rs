@@ -3,7 +3,7 @@ use crate::{ServiceObserver};
 #[derive(PartialEq)]
 pub struct Service<'a, SO: ServiceObserver> {
     // pub on_connected: Option<Box<dyn Fn(ServiceHandle, ChannelHandle) + 'a>>,
-    pub observers: Vec<&'a SO>,
+    pub observers: Vec<&'a mut SO>,
 }
 
 impl<'a, SO: ServiceObserver + PartialEq> Service<'a, SO> {
@@ -13,7 +13,7 @@ impl<'a, SO: ServiceObserver + PartialEq> Service<'a, SO> {
         }
     }
 
-    pub fn attach_observer(&mut self, observer: &'a SO) {
+    pub fn attach_observer(&mut self, observer: &'a mut SO) {
         self.observers.push(observer);
     }
 

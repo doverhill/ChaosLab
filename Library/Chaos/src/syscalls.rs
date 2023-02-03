@@ -106,12 +106,14 @@ pub fn channel_message(handle: ChannelHandle, message: u64) -> Result<(), StormE
 }
 
 pub fn event_wait(handle: Option<u64>, action: Option<StormAction>, message: Option<u64>, timeout_milliseconds: i32) -> Result<StormEvent, StormError> {
+    println!("syscall: event_wait");
     let send_action = match action {
         Some(action) => Some(action.to_i32()),
         None => None,
     };
 
     let connection = &*KERNEL_CONNECTION.lock().unwrap();
+    println!("got connection");
     write_i32(connection, SyscallNumber::EventWait as i32);
     write_optional_u64(connection, handle);
     write_optional_i32(connection, send_action);
@@ -120,6 +122,8 @@ pub fn event_wait(handle: Option<u64>, action: Option<StormAction>, message: Opt
 
     match StormError::from_i32(read_i32(connection)) {
         StormError::None => {
+            println!("syscall: event_wait: got success");
+
             let target_handle = read_u64(connection);
             let argument_handle = read_u64(connection);
             let action = StormAction::from_i32(read_i32(connection));
@@ -130,7 +134,10 @@ pub fn event_wait(handle: Option<u64>, action: Option<StormAction>, message: Opt
                 StormAction::ChannelDestroyed => StormEvent::ChannelDestroyed(ChannelHandle(target_handle)),
             })
         },
-        error => Err(error),
+        error => {
+            println!("syscall: event_wait: got success");
+            Err(error)
+        },
     }
 }
 

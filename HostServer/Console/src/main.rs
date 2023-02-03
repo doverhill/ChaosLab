@@ -12,9 +12,11 @@ use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::{EventPump, EventSubsystem};
 use std::thread;
+use std::time::Duration;
 use uuid::Uuid;
 use std::sync::Arc;
 use core::cell::RefCell;
+use std::sync::mpsc::channel;
 
 struct StormEventWrapper {
     event: StormEvent,
@@ -83,38 +85,46 @@ fn main() {
     let events = sdl_context.event().unwrap();
     events.register_custom_event::<StormEventWrapper>().unwrap();
     let sender = events.event_sender();
+    let (tx, rx) = channel::<()>();
     thread::spawn(move || loop {
+        // StormProcess::<ServerState, ServerState>::emit_information("console: waiting for storm event");
+        // thread::sleep(Duration::from_secs(10));
         let event = StormProcess::<ServerState, ServerState>::wait_for_event().unwrap();
-        StormProcess::<ServerState, ServerState>::emit_information("console: got event in thread");
+        // StormProcess::<ServerState, ServerState>::emit_information("console: got event in thread");
         sender.push_custom_event(StormEventWrapper { event: event, quit: false });
+
+        // wait for event to be handled
+        rx.recv().unwrap();
     });
 
     // main loop
     StormProcess::<ServerState, ServerState>::emit_information("console: running sdl loop");
     let mut pump = sdl_context.event_pump().unwrap();
     'main_loop: loop {
-        StormProcess::<ServerState, ServerState>::emit_information("console: waiting for sdl event");
+        // StormProcess::<ServerState, ServerState>::emit_information("console: waiting for sdl event");
         let event = pump.wait_event();
-        StormProcess::<ServerState, ServerState>::emit_information("console: got sdl event");
+        // StormProcess::<ServerState, ServerState>::emit_information("console: got sdl event");
         if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
-            StormProcess::<ServerState, ServerState>::emit_information("console: got storm event in sdl loop");
+            println!("got storm event");
+            // StormProcess::<ServerState, ServerState>::emit_information("console: got storm event in sdl loop");
             process.handle_event(wrapper.event);
+            tx.send(());
         } 
         else {
-            StormProcess::<ServerState, ServerState>::emit_information("console: got other event in sdl loop");
+            // StormProcess::<ServerState, ServerState>::emit_information("console: got other event in sdl loop");
             match event {
                 Event::MouseMotion { x, y, .. } => {
-                    StormProcess::<ServerState, ServerState>::emit_information("console: got mouse event in sdl loop");
+                    // StormProcess::<ServerState, ServerState>::emit_information("console: got mouse event in sdl loop");
                     if let Some(channel_handle) = state.get_first_client_handle() {
                         console_server.pointer_moved(*channel_handle, PointerMovedParameters { position: Point { x: x as i64, y: y as i64 } });
                     }
                 },
                 Event::Quit { .. } => {
-                    StormProcess::<ServerState, ServerState>::emit_information("console: got quit event in sdl loop");
+                    // StormProcess::<ServerState, ServerState>::emit_information("console: got quit event in sdl loop");
                     break 'main_loop;
                 },
                 _ => {
-                    StormProcess::<ServerState, ServerState>::emit_information("console: got some other event in sdl loop");
+                    // StormProcess::<ServerState, ServerState>::emit_information("console: got some other event in sdl loop");
                 },
             };
         }

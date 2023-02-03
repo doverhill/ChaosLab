@@ -16,7 +16,7 @@ use std::ptr::null_mut;
 pub struct Channel<'a, CO: ChannelObserver + PartialEq> {
     map_handle: HANDLE,
     pub map_pointer: *mut u8,
-    pub observers: Vec<&'a CO>,
+    pub observers: Vec<&'a mut CO>,
     // pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64) + 'a>>,
     // pub on_destroyed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
 }
@@ -47,7 +47,7 @@ impl<'a, CO: ChannelObserver + PartialEq> Channel<'a, CO> {
         }
     }
 
-    pub fn attach_observer(&mut self, observer: &'a CO) {
+    pub fn attach_observer(&mut self, observer: &'a mut CO) {
         self.observers.push(observer);
     }
 

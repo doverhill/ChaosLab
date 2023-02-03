@@ -17,11 +17,11 @@ impl ChannelHandle {
 }
 
 pub trait ServiceObserver {
-    fn handle_service_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_service_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
     // fn handle_service_disconnected(service_handle: ServiceHandle, channel_handle: ChannelHandle);
 }
 
 pub trait ChannelObserver {
-    fn handle_channel_messaged(&self, channel_handle: ChannelHandle, message_id: u64);
-    fn handle_channel_destroyed(&self, channel_handle: ChannelHandle);
+    fn handle_channel_messaged(&mut self, channel_handle: ChannelHandle, message_id: u64);
+    fn handle_channel_destroyed(&mut self, channel_handle: ChannelHandle);
 }

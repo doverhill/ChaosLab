@@ -36,31 +36,33 @@ impl ServerState {
 }
 
 impl<'a> ServiceObserver for ServerState {
-    fn handle_service_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle,) {
+    fn handle_service_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle,) {
         StormProcess::<Self, Self>::emit_debug("handle_service_connected");
     }
 }
 
 impl<'a> ChannelObserver for ServerState {
-    fn handle_channel_messaged(&self, channel_handle: ChannelHandle, message_id: u64) {
+    fn handle_channel_messaged(&mut self, channel_handle: ChannelHandle, message_id: u64) {
         StormProcess::<Self, Self>::emit_debug("handle_channel_messaged");
     }
 
-    fn handle_channel_destroyed(&self, channel_handle: ChannelHandle) {
+    fn handle_channel_destroyed(&mut self, channel_handle: ChannelHandle) {
         StormProcess::<Self, Self>::emit_debug("handle_channel_destroyed");
     }
 }
 
 impl<'a> ConsoleServerObserver for ServerState {
-    fn handle_console_client_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
+    fn handle_console_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
         StormProcess::<Self, Self>::emit_debug("handle_console_client_connected");
+        self.add_client(channel_handle);
     }
 
-    fn handle_console_client_disconnected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
+    fn handle_console_client_disconnected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
         StormProcess::<Self, Self>::emit_debug("handle_console_client_disconnected");
+        self.remove_client(channel_handle);
     }
 
-    fn handle_console_request(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest) {
+    fn handle_console_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest) {
         StormProcess::<Self, Self>::emit_debug("handle_console_request");
     }
 }

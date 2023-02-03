@@ -24,9 +24,9 @@ pub enum TornadoServerRequest {
 }
 
 pub trait TornadoServerObserver {
-    fn handle_tornado_client_connected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_tornado_client_disconnected(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_tornado_request(&self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: TornadoServerRequest);
+    fn handle_tornado_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_tornado_client_disconnected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
+    fn handle_tornado_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: TornadoServerRequest);
 }
 
 pub struct TornadoServer<'a, T: TornadoServerObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {

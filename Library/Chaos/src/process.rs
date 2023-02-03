@@ -51,7 +51,7 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
         syscalls::service_destroy(handle)
     }
 
-    pub fn attach_service_observer(&mut self, handle: ServiceHandle, observer: &'a SO) {
+    pub fn attach_service_observer(&mut self, handle: ServiceHandle, observer: &'a mut SO) {
         if let Some(service) = self.services.get_mut(&handle) {
             service.attach_observer(observer);
         }
@@ -63,7 +63,7 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
         }
     }
 
-    pub fn attach_channel_observer(&mut self, handle: ChannelHandle, observer: &'a CO) {
+    pub fn attach_channel_observer(&mut self, handle: ChannelHandle, observer: &'a mut CO) {
         if let Some(channel) = self.channels.get_mut(&handle) {
             channel.attach_observer(observer);
         }
@@ -161,6 +161,7 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
     }
 
     pub fn send_channel_message(handle: ChannelHandle, message_id: u64) -> Result<(), StormError> {
+        println!("attempting to send channel message");
         syscalls::channel_message(handle, message_id)
     }
 
@@ -172,15 +173,15 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
         syscalls::event_wait(None, None, None, -1)
     }
 
-    pub fn handle_event(&self, event: StormEvent) {
+    pub fn handle_event(&mut self, event: StormEvent) {
         Self::emit_debug("handling event");
 
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
                 Self::emit_debug("invoking handler for service connect");
-                if let Some(service) = self.services.get(&service_handle) {
+                if let Some(service) = self.services.get_mut(&service_handle) {
                     Self::emit_debug("found service");
-                    for handler in service.observers.iter() {
+                    for handler in service.observers.iter_mut() {
                         handler.handle_service_connected(service_handle, channel_handle);
                     }
                     // if let Some(handler) = &service.on_connected {
@@ -191,9 +192,9 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
             },
             StormEvent::ChannelMessaged(channel_handle, message_id) => {
                 Self::emit_debug("invoking handler for channel message");
-                if let Some(channel) = self.channels.get(&channel_handle) {
+                if let Some(channel) = self.channels.get_mut(&channel_handle) {
                     Self::emit_debug("found service");
-                    for handler in channel.observers.iter() {
+                    for handler in channel.observers.iter_mut() {
                         handler.handle_channel_messaged(channel_handle, message_id);
                     }
                     // if let Some(handler) = &channel.on_messaged {
@@ -204,9 +205,9 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
             },
             StormEvent::ChannelDestroyed(channel_handle) => {
                 Self::emit_debug("invoking handler for channel destroy");
-                if let Some(channel) = self.channels.get(&channel_handle) {
+                if let Some(channel) = self.channels.get_mut(&channel_handle) {
                     Self::emit_debug("found service");
-                    for handler in channel.observers.iter() {
+                    for handler in channel.observers.iter_mut() {
                         handler.handle_channel_destroyed(channel_handle);
                     }
                     // if let Some(handler) = &channel.on_destroyed {
@@ -218,7 +219,7 @@ impl<'a, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> Storm
         }
     }
 
-    pub fn run(&self) -> Result<(), StormError> {
+    pub fn run(&mut self) -> Result<(), StormError> {
         // this is the main event loop of an application
         loop {
             let event = syscalls::event_wait(None, None, None, -1)?;
