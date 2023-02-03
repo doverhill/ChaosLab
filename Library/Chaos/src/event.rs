@@ -29,6 +29,7 @@ impl StormAction {
     }
 }
 
+#[derive(Debug)]
 pub enum StormEvent {
     ServiceConnected(ServiceHandle, ChannelHandle),
     ChannelMessaged(ChannelHandle, u64),

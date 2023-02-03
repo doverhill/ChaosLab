@@ -46,15 +46,15 @@ impl ConsoleClient {
         })
     }
 
-    pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &impl ConsoleClientObserver) {
+    pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl ConsoleClientObserver) {
         match event {
             StormEvent::ChannelMessaged(channel_handle, message_id) => {
-                if channel_handle == self.channel_handle {
-                    StormProcess::emit_debug("ConsoleClient: got event");
-                    // observer.handle_console_event(channel_handle, event);
+                if *channel_handle == self.channel_handle {
+                    println!("ConsoleClient: got event");
+                    // observer.handle_console_event(*channel_handle, event);
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 

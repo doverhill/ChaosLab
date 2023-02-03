@@ -48,31 +48,36 @@ impl ConsoleServer {
         })
     }
 
-    pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &mut impl ConsoleServerObserver) {
+    pub fn process_event(&mut self, process: &StormProcess, event: &StormEvent, observer: &mut impl ConsoleServerObserver) {
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
-                if service_handle == self.service_handle {
-                    StormProcess::emit_debug("ConsoleServer: client connected");
-                    observer.handle_console_client_connected(service_handle, channel_handle);
+                println!("{:?} == {:?}?", *service_handle, self.service_handle);
+                if *service_handle == self.service_handle {
+                    println!("ConsoleServer: client connected");
+                    let channel = unsafe { ConsoleChannel::new(process.get_channel_address(*channel_handle).unwrap(), true) };
+                    self.channels.insert(*channel_handle, channel);
+                    observer.handle_console_client_connected(*service_handle, *channel_handle);
                 }
-            },
+            }
             StormEvent::ChannelMessaged(channel_handle, message_id) => {
                 if let Some(_) = self.channels.get(&channel_handle) {
-                    StormProcess::emit_debug("ConsoleServer: client request");
+                    println!("ConsoleServer: client request");
                     // observer.handle_console_request(self.service_handle, channel_handle, request);
                 }
-            },
+            }
             StormEvent::ChannelDestroyed(channel_handle) => {
                 if let Some(_) = self.channels.get(&channel_handle) {
-                    StormProcess::emit_debug("ConsoleServer: client disconnected");
-                    observer.handle_console_client_disconnected(self.service_handle, channel_handle);
+                    println!("ConsoleServer: client disconnected");
+                    observer.handle_console_client_disconnected(self.service_handle, *channel_handle);
                 }
             }
         }
     }
 
     pub fn key_pressed(&self, channel_handle: ChannelHandle, parameters: KeyPressedParameters) {
+        println!("ConsoleServer::key_pressed");
         if let Some(channel) = self.channels.get(&channel_handle) {
+            println!("found channel");
             unsafe {
                 let message = channel.prepare_message(MessageIds::KeyPressedParameters as u64, false);
                 let payload = ChannelMessageHeader::get_payload_address(message);
@@ -84,7 +89,9 @@ impl ConsoleServer {
     }
 
     pub fn key_released(&self, channel_handle: ChannelHandle, parameters: KeyReleasedParameters) {
+        println!("ConsoleServer::key_released");
         if let Some(channel) = self.channels.get(&channel_handle) {
+            println!("found channel");
             unsafe {
                 let message = channel.prepare_message(MessageIds::KeyReleasedParameters as u64, false);
                 let payload = ChannelMessageHeader::get_payload_address(message);
@@ -96,7 +103,9 @@ impl ConsoleServer {
     }
 
     pub fn pointer_moved(&self, channel_handle: ChannelHandle, parameters: PointerMovedParameters) {
+        println!("ConsoleServer::pointer_moved");
         if let Some(channel) = self.channels.get(&channel_handle) {
+            println!("found channel");
             unsafe {
                 let message = channel.prepare_message(MessageIds::PointerMovedParameters as u64, true);
                 let payload = ChannelMessageHeader::get_payload_address(message);
@@ -108,7 +117,9 @@ impl ConsoleServer {
     }
 
     pub fn pointer_pressed(&self, channel_handle: ChannelHandle, parameters: PointerPressedParameters) {
+        println!("ConsoleServer::pointer_pressed");
         if let Some(channel) = self.channels.get(&channel_handle) {
+            println!("found channel");
             unsafe {
                 let message = channel.prepare_message(MessageIds::PointerPressedParameters as u64, false);
                 let payload = ChannelMessageHeader::get_payload_address(message);
@@ -120,7 +131,9 @@ impl ConsoleServer {
     }
 
     pub fn pointer_released(&self, channel_handle: ChannelHandle, parameters: PointerReleasedParameters) {
+        println!("ConsoleServer::pointer_released");
         if let Some(channel) = self.channels.get(&channel_handle) {
+            println!("found channel");
             unsafe {
                 let message = channel.prepare_message(MessageIds::PointerReleasedParameters as u64, false);
                 let payload = ChannelMessageHeader::get_payload_address(message);
@@ -132,7 +145,9 @@ impl ConsoleServer {
     }
 
     pub fn size_changed(&self, channel_handle: ChannelHandle, parameters: SizeChangedParameters) {
+        println!("ConsoleServer::size_changed");
         if let Some(channel) = self.channels.get(&channel_handle) {
+            println!("found channel");
             unsafe {
                 let message = channel.prepare_message(MessageIds::SizeChangedParameters as u64, false);
                 let payload = ChannelMessageHeader::get_payload_address(message);

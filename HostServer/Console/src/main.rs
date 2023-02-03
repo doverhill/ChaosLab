@@ -104,9 +104,10 @@ fn main() {
         let event = pump.wait_event();
         // StormProcess::<ServerState, ServerState>::emit_information("console: got sdl event");
         if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
-            println!("got storm event");
+            // println!("got storm event");
             // StormProcess::<ServerState, ServerState>::emit_information("console: got storm event in sdl loop");
-            console_server.process_event(&process, wrapper.event, &mut state);
+            println!("console: got event {:?}", wrapper.event);
+            console_server.process_event(&process, &wrapper.event, &mut state);
             // process.handle_event(wrapper.event);
             // tx.send(());
         } 
@@ -115,9 +116,9 @@ fn main() {
             match event {
                 Event::MouseMotion { x, y, .. } => {
                     // StormProcess::<ServerState, ServerState>::emit_information("console: got mouse event in sdl loop");
-              //      println!("pointer moved, trying to call active client");
+                    // println!("pointer moved, trying to call active client");
                     if let Some(channel_handle) = state.get_first_client_handle() {
-                        println!("found client, sending");
+                        // println!("found client, sending mouse event");
                         console_server.pointer_moved(*channel_handle, PointerMovedParameters { position: Point { x: x as i64, y: y as i64 } });
                     }
                 },

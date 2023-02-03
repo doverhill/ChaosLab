@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub struct ServiceHandle(pub u64);
 
 impl ServiceHandle {
@@ -7,7 +7,7 @@ impl ServiceHandle {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub struct ChannelHandle(pub u64);
 
 impl ChannelHandle {

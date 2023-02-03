@@ -291,7 +291,7 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(false);
 
-                source.AddLine("#![no_std]");
+                //source.AddLine("#![no_std]");
                 source.AddLine("extern crate alloc;");
                 source.AddLine("extern crate library_chaos;");
                 source.AddBlank();

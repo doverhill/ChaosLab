@@ -1,4 +1,4 @@
-use library_chaos::{ServiceHandle, ChannelHandle, ServiceObserver, ChannelObserver, StormProcess};
+use library_chaos::{ServiceHandle, ChannelHandle, StormProcess};
 use protocol_console::{ConsoleClientEvent, ConsoleClientObserver};
 use protocol_tornado::{TornadoServerRequest, TornadoServerObserver};
 use alloc::collections::BTreeMap;
@@ -30,13 +30,13 @@ impl ServerState {
     }
 }
 
-impl<'a> ConsoleClientObserver for ServerState {
-    fn handle_console_event(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: ConsoleClientEvent) {
+impl ConsoleClientObserver for ServerState {
+    fn handle_console_event(&mut self, channel_handle: ChannelHandle, event: ConsoleClientEvent) {
         println!("handle_console_event");
     }
 }
 
-impl<'a> TornadoServerObserver for ServerState {
+impl TornadoServerObserver for ServerState {
     fn handle_tornado_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
         println!("handle_tornado_client_connected");
     }

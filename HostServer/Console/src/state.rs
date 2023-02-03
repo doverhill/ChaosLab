@@ -33,7 +33,7 @@ impl ServerState {
     }
 }
 
-impl<'a> ConsoleServerObserver for ServerState {
+impl ConsoleServerObserver for ServerState {
     fn handle_console_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
         println!("handle_console_client_connected");
         self.add_client(channel_handle);

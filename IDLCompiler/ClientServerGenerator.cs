@@ -62,7 +62,7 @@ namespace IDLCompiler
             createBlock.AddLine($"let service_handle = process.create_service(\"{idl.Protocol.Name}\", vendor_name, device_name, device_id)?;");
             //var connectHandler = createBlock.AddBlock("process.on_service_connected(service_handle, |_, channel_handle|");
             //connectHandler.Append = ");";
-            //connectHandler.AddLine("StormProcess::emit_debug(\"X\");");
+            //connectHandler.AddLine("println!(\"X\");");
             var okBlock = createBlock.AddBlock("Ok(Self");
             okBlock.Append = ")";
             okBlock.AddLine("service_handle: service_handle,");
@@ -75,20 +75,23 @@ namespace IDLCompiler
             //}
             implBlock.AddBlank();
 
-            var processBlock = implBlock.AddBlock($"pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &mut impl {structName}Observer)");
+            var processBlock = implBlock.AddBlock($"pub fn process_event(&mut self, process: &StormProcess, event: &StormEvent, observer: &mut impl {structName}Observer)");
             var matchBlock = processBlock.AddBlock("match event");
-            var connectBlock = matchBlock.AddBlock("StorEvent::ServiceConnected(service_handle, channel_handle) =>");
-            var ifBlock = connectBlock.AddBlock("if service_handle == self.service_handle");
-            ifBlock.AddLine($"StormProcess::emit_debug(\"{structName}: client connected\");");
-            ifBlock.AddLine($"observer.handle_{idl.Protocol.Name}_client_connected(service_handle, channel_handle);");
+            var connectBlock = matchBlock.AddBlock("StormEvent::ServiceConnected(service_handle, channel_handle) =>");
+            connectBlock.AddLine("println!(\"{:?} == {:?}?\", *service_handle, self.service_handle);");
+            var ifBlock = connectBlock.AddBlock("if *service_handle == self.service_handle");
+            ifBlock.AddLine($"println!(\"{structName}: client connected\");");
+            ifBlock.AddLine($$"""let channel = unsafe { {{channelName}}::new(process.get_channel_address(*channel_handle).unwrap(), true) };""");
+            ifBlock.AddLine("self.channels.insert(*channel_handle, channel);");
+            ifBlock.AddLine($"observer.handle_{idl.Protocol.Name}_client_connected(*service_handle, *channel_handle);");
             var messageBlock = matchBlock.AddBlock("StormEvent::ChannelMessaged(channel_handle, message_id) =>");
             ifBlock = messageBlock.AddBlock("if let Some(_) = self.channels.get(&channel_handle)");
-            ifBlock.AddLine($"StormProcess::emit_debug(\"{structName}: client request\");");
+            ifBlock.AddLine($"println!(\"{structName}: client request\");");
             ifBlock.AddLine($"// observer.handle_{idl.Protocol.Name}_request(self.service_handle, channel_handle, request);");
-            var destroyBlock = matchBlock.AddBlock("StormEvent::ChannelDestroyed(channel_handle)");
+            var destroyBlock = matchBlock.AddBlock("StormEvent::ChannelDestroyed(channel_handle) =>");
             ifBlock = destroyBlock.AddBlock("if let Some(_) = self.channels.get(&channel_handle)");
-            ifBlock.AddLine($"StormProcess::emit_debug(\"{structName}: client disconnected\");");
-            ifBlock.AddLine($"observer.handle_{idl.Protocol.Name}_client_disconnected(self.service_handle, channel_handle);");
+            ifBlock.AddLine($"println!(\"{structName}: client disconnected\");");
+            ifBlock.AddLine($"observer.handle_{idl.Protocol.Name}_client_disconnected(self.service_handle, *channel_handle);");
             implBlock.AddBlank();
 
             //var onConnect = implBlock.AddBlock("pub fn on_client_connected(&mut self, handler: impl Fn(ChannelHandle) + 'a)");
@@ -134,7 +137,9 @@ namespace IDLCompiler
                 }
 
                 var fnBlock = implBlock.AddBlock($"pub fn {call.Name}(&self, channel_handle: ChannelHandle{parameters}){returns}");
+                fnBlock.AddLine($"println!(\"{structName}::{call.Name}\");");
                 ifBlock = fnBlock.AddBlock("if let Some(channel) = self.channels.get(&channel_handle)");
+                ifBlock.AddLine("println!(\"found channel\");");
                 var unsafeBlock = ifBlock.AddBlock("unsafe");
                 unsafeBlock.AddLine($"let message = channel.prepare_message(MessageIds::{parametersMessageName} as u64, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
                 if (parametersType != null)
@@ -219,12 +224,12 @@ namespace IDLCompiler
             //}
             implBlock.AddBlank();
 
-            var processBlock = implBlock.AddBlock($"pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &mut impl {structName}Observer)");
+            var processBlock = implBlock.AddBlock($"pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl {structName}Observer)");
             var matchBlock = processBlock.AddBlock("match event");
             var messageBlock = matchBlock.AddBlock("StormEvent::ChannelMessaged(channel_handle, message_id) =>");
-            var ifBlock = messageBlock.AddBlock("if channel_handle == self.channel_handle");
-            ifBlock.AddLine($"StormProcess::emit_debug(\"{structName}: got event\");");
-            ifBlock.AddLine($"// observer.handle_{idl.Protocol.Name}_event(channel_handle, event);");
+            var ifBlock = messageBlock.AddBlock("if *channel_handle == self.channel_handle");
+            ifBlock.AddLine($"println!(\"{structName}: got event\");");
+            ifBlock.AddLine($"// observer.handle_{idl.Protocol.Name}_event(*channel_handle, event);");
             matchBlock.AddLine("_ => {}");
             implBlock.AddBlank();
 

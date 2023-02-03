@@ -10,7 +10,7 @@ use crate::types::*;
 use crate::enums::*;
 
 use alloc::boxed::Box;
-use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, ServiceObserver, ChannelObserver};
+use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
 use crate::channel::{TornadoChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
@@ -23,37 +23,33 @@ pub enum TornadoClientEvent {
 }
 
 pub trait TornadoClientObserver {
-    fn handle_tornado_event(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, event: TornadoClientEvent);
+    fn handle_tornado_event(&mut self, channel_handle: ChannelHandle, event: TornadoClientEvent);
 }
 
-pub struct TornadoClient<'a, T: TornadoClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> {
+pub struct TornadoClient {
     channel_handle: ChannelHandle,
     channel: TornadoChannel,
-    observers: Vec<&'a T>,
-    so: Option<&'a SO>,
-    co: Option<&'a CO>,
 }
 
-impl<'a, T: TornadoClientObserver + PartialEq, SO: ServiceObserver + PartialEq, CO: ChannelObserver + PartialEq> TornadoClient<'a, T, SO, CO> {
-    pub fn connect_first(process: &mut StormProcess<SO, CO>) -> Result<Self, StormError> {
+impl TornadoClient {
+    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("tornado", None, None, None)?;
         let channel = unsafe { TornadoChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
-            observers: Vec::new(),
-            so: None,
-            co: None,
         })
     }
 
-    pub fn attach_observer(&mut self, observer: &'a T) {
-        self.observers.push(observer);
-    }
-
-    pub fn detach_observer(&mut self, observer: &'a T) {
-        if let Some(index) = self.observers.iter().position(|x| *x == observer) {
-            self.observers.remove(index);
+    pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl TornadoClientObserver) {
+        match event {
+            StormEvent::ChannelMessaged(channel_handle, message_id) => {
+                if *channel_handle == self.channel_handle {
+                    println!("TornadoClient: got event");
+                    // observer.handle_tornado_event(*channel_handle, event);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -63,7 +59,7 @@ impl<'a, T: TornadoClientObserver + PartialEq, SO: ServiceObserver + PartialEq, 
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::<SO, CO>::send_channel_message(self.channel_handle, MessageIds::SetRenderTreeParameters as u64);
+            StormProcess::send_channel_message(self.channel_handle, MessageIds::SetRenderTreeParameters as u64);
         }
     }
 
