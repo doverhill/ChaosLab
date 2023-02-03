@@ -51,6 +51,19 @@ impl<'a, T: ConsoleServerObserver> ConsoleServer<'a, T> {
     }
 
     pub fn process_event(&self, process: &StormProcess, event: StormEvent, observer: &impl ConsoleServerObserver) {
+        match event {
+            StormEvent::ServiceConnected(service_handle, channel_handle) => {
+                if service_handle == self.service_handle {
+
+                }
+            },
+            StormEvent::ChannelMessaged(channel_handle, message_id) => {
+
+            },
+            StormEvent::ChannelDestroyed(channel_handle) => {
+                
+            }
+        }
     }
 
     pub fn key_pressed(&self, channel_handle: ChannelHandle, parameters: KeyPressedParameters) {
