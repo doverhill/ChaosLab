@@ -14,11 +14,11 @@ namespace IDLCompiler
         [JsonPropertyName("types")]
         public Dictionary<string, IDLType> Types;
         [JsonPropertyName("from_client_size")]
-        public int FromClientSize;
+        public int FromClientSize = 4096;
         [JsonPropertyName("from_client")]
         public Dictionary<string, IDLCall> FromClient;
         [JsonPropertyName("from_server_size")]
-        public int FromServerSize;
+        public int FromServerSize = 4096;
         [JsonPropertyName("from_server")]
         public Dictionary<string, IDLCall> FromServer;
 
@@ -55,11 +55,15 @@ namespace IDLCompiler
                 type.Value.Validate(type.Key, enums, Types);
             }
 
+            //if (FromClientSize == 0) FromClientSize = 4096;
+
             if (FromClient == null) FromClient = new();
             foreach (var call in FromClient)
             {
                 call.Value.Validate(call.Key, enums, Types);
             }
+
+            //if (FromServerSize == 0) FromServerSize = 4096;
 
             if (FromServer == null) FromServer = new();
             foreach (var call in FromServer)

@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::channel::{TornadoChannel, ChannelMessageHeader};
 use crate::from_client::*;
 use crate::from_server::*;
-use crate::MessageIds;
+use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
@@ -43,18 +43,19 @@ impl TornadoServer {
         })
     }
 
-    pub fn process_event(&mut self, process: &StormProcess, event: &StormEvent, observer: &mut impl TornadoServerObserver) {
+    pub fn process_event(&mut self, process: &mut StormProcess, event: &StormEvent, observer: &mut impl TornadoServerObserver) {
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
                 println!("{:?} == {:?}?", *service_handle, self.service_handle);
                 if *service_handle == self.service_handle {
                     println!("TornadoServer: client connected");
+                    process.initialize_channel(*channel_handle, 4096);
                     let channel = unsafe { TornadoChannel::new(process.get_channel_address(*channel_handle).unwrap(), true) };
                     self.channels.insert(*channel_handle, channel);
                     observer.handle_tornado_client_connected(*service_handle, *channel_handle);
                 }
             }
-            StormEvent::ChannelMessaged(channel_handle, message_id) => {
+            StormEvent::ChannelSignalled(channel_handle) => {
                 if let Some(_) = self.channels.get(&channel_handle) {
                     println!("TornadoServer: client request");
                     // observer.handle_tornado_request(self.service_handle, channel_handle, request);
@@ -74,11 +75,11 @@ impl TornadoServer {
         if let Some(channel) = self.channels.get(&channel_handle) {
             println!("found channel");
             unsafe {
-                let message = channel.prepare_message(MessageIds::ComponentClickedParameters as u64, false);
+                let message = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, false);
                 let payload = ChannelMessageHeader::get_payload_address(message);
                 let size = parameters.write_at(payload);
                 channel.commit_message(size);
-                StormProcess::send_channel_message(channel_handle, MessageIds::ComponentClickedParameters as u64);
+                StormProcess::signal_channel(channel_handle);
             }
         }
     }

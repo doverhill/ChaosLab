@@ -83,7 +83,7 @@ namespace Storm
                 {
                     identifier = "STORM";
                 }
-                Console.Write($"[{prefix} {identifier.PadRight(25)}]");
+                Console.Write($"[{prefix} {identifier.PadRight(30)}]");
                 Console.BackgroundColor = ConsoleColor.Black;
                 Console.Write(" ");
 

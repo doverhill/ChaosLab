@@ -18,6 +18,8 @@ fn main() {
 
     let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();
 
+    console_client.write_text(&WriteTextParameters { text: "hello console".to_string() });
+
     let mut tornado_server = TornadoServer::create(
         &mut process, 
         "Chaos", 
@@ -28,8 +30,9 @@ fn main() {
     loop {
         let event = StormProcess::wait_for_event().unwrap();
         println!("tornado: got event {:?}", event);
+        // process.process_event(&wrapper.event);
         console_client.process_event(&process, &event, &mut state);
-        tornado_server.process_event(&process, &event, &mut state);
+        tornado_server.process_event(&mut process, &event, &mut state);
     }
 
     process.end();

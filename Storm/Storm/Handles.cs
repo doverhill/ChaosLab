@@ -40,7 +40,7 @@ namespace Storm
             {
                 var process = Process.FindProcess(otherProcessId);
                 var stormEvent = new Event(otherProcessId, Error.None, Id, Handle.None, HandleAction.ChannelDestroyed);
-                process.FireEvent(stormEvent);
+                Process.FireEvent(stormEvent);
             }
         }
 

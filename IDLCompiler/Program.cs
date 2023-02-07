@@ -250,7 +250,7 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(true);
 
-                ClientServerGenerator.GenerateServer(source, idl, idl.FromClient, idl.FromServer);
+                ClientServerGenerator.GenerateServer(source, idl, idl.FromClient, idl.FromServer, idl.FromClientSize, idl.FromServerSize);
                 using (var writer = new StreamWriter(output, leaveOpen: true))
                 {
                     writer.WriteLine(source.GetSource(hasTypes, hasEnums));
@@ -274,10 +274,11 @@ namespace IDLCompiler
             {
                 var source = new SourceGenerator(false);
 
-                var enumBlock = source.AddBlock("pub enum MessageIds");
+                //var enumBlock = source.AddBlock("pub enum MessageIds");
+                var messageId = 1;
                 foreach (var message in messageIds)
                 {
-                    enumBlock.AddLine(message + ",");
+                    source.AddLine($"pub const {message}: u64 = {messageId++};");
                 }
 
                 using (var writer = new StreamWriter(output, leaveOpen: true))
@@ -318,7 +319,7 @@ namespace IDLCompiler
                 }
 
                 source.AddLine("mod message_ids;");
-                source.AddLine("pub use message_ids::MessageIds;");
+                source.AddLine("pub use message_ids::*;");
 
                 source.AddLine("mod channel;");
                 source.AddLine("pub use channel::*;");

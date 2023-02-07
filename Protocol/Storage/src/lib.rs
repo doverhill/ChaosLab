@@ -8,7 +8,7 @@ pub use from_client::*;
 mod from_server;
 pub use from_server::*;
 mod message_ids;
-pub use message_ids::MessageIds;
+pub use message_ids::*;
 mod channel;
 pub use channel::*;
 mod server;

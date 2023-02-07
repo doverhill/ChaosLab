@@ -11,7 +11,7 @@ namespace IDLCompiler
 {
     internal static class ClientServerGenerator
     {
-        public static void GenerateServer(SourceGenerator source, IDL idl, Dictionary<string, IDLCall> from, Dictionary<string, IDLCall> to)
+        public static void GenerateServer(SourceGenerator source, IDL idl, Dictionary<string, IDLCall> from, Dictionary<string, IDLCall> to, int initialFromSize, int intialToSize)
         {
             var protocolName = CasedString.FromSnake(idl.Protocol.Name);
             var structName = protocolName.ToPascal() + "Server";
@@ -23,7 +23,7 @@ namespace IDLCompiler
             source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader};""");
             source.AddLine("use crate::from_client::*;");
             source.AddLine("use crate::from_server::*;");
-            source.AddLine("use crate::MessageIds;");
+            source.AddLine("use crate::message_ids::*;");
             source.AddLine("use alloc::collections::BTreeMap;");
             source.AddLine("use alloc::vec::Vec;");
             source.AddBlank();
@@ -75,16 +75,17 @@ namespace IDLCompiler
             //}
             implBlock.AddBlank();
 
-            var processBlock = implBlock.AddBlock($"pub fn process_event(&mut self, process: &StormProcess, event: &StormEvent, observer: &mut impl {structName}Observer)");
+            var processBlock = implBlock.AddBlock($"pub fn process_event(&mut self, process: &mut StormProcess, event: &StormEvent, observer: &mut impl {structName}Observer)");
             var matchBlock = processBlock.AddBlock("match event");
             var connectBlock = matchBlock.AddBlock("StormEvent::ServiceConnected(service_handle, channel_handle) =>");
             connectBlock.AddLine("println!(\"{:?} == {:?}?\", *service_handle, self.service_handle);");
             var ifBlock = connectBlock.AddBlock("if *service_handle == self.service_handle");
             ifBlock.AddLine($"println!(\"{structName}: client connected\");");
+            ifBlock.AddLine($"process.initialize_channel(*channel_handle, {initialFromSize});");
             ifBlock.AddLine($$"""let channel = unsafe { {{channelName}}::new(process.get_channel_address(*channel_handle).unwrap(), true) };""");
             ifBlock.AddLine("self.channels.insert(*channel_handle, channel);");
             ifBlock.AddLine($"observer.handle_{idl.Protocol.Name}_client_connected(*service_handle, *channel_handle);");
-            var messageBlock = matchBlock.AddBlock("StormEvent::ChannelMessaged(channel_handle, message_id) =>");
+            var messageBlock = matchBlock.AddBlock("StormEvent::ChannelSignalled(channel_handle) =>");
             ifBlock = messageBlock.AddBlock("if let Some(_) = self.channels.get(&channel_handle)");
             ifBlock.AddLine($"println!(\"{structName}: client request\");");
             ifBlock.AddLine($"// observer.handle_{idl.Protocol.Name}_request(self.service_handle, channel_handle, request);");
@@ -141,13 +142,13 @@ namespace IDLCompiler
                 ifBlock = fnBlock.AddBlock("if let Some(channel) = self.channels.get(&channel_handle)");
                 ifBlock.AddLine("println!(\"found channel\");");
                 var unsafeBlock = ifBlock.AddBlock("unsafe");
-                unsafeBlock.AddLine($"let message = channel.prepare_message(MessageIds::{parametersMessageName} as u64, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
+                unsafeBlock.AddLine($"let message = channel.prepare_message({parametersMessageName}, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
                 if (parametersType != null)
                 {
                     unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("channel.commit_message(size);");
-                    unsafeBlock.AddLine($"StormProcess::send_channel_message(channel_handle, MessageIds::{parametersMessageName} as u64);");
+                    unsafeBlock.AddLine($"StormProcess::signal_channel(channel_handle);");
                 }
                 else
                 {
@@ -176,7 +177,7 @@ namespace IDLCompiler
             source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader, FromChannel};""");
             source.AddLine("use crate::from_client::*;");
             source.AddLine("use crate::from_server::*;");
-            source.AddLine("use crate::MessageIds;");
+            source.AddLine("use crate::message_ids::*;");
             source.AddLine("use alloc::vec::Vec;");
             source.AddBlank();
 
@@ -226,7 +227,7 @@ namespace IDLCompiler
 
             var processBlock = implBlock.AddBlock($"pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl {structName}Observer)");
             var matchBlock = processBlock.AddBlock("match event");
-            var messageBlock = matchBlock.AddBlock("StormEvent::ChannelMessaged(channel_handle, message_id) =>");
+            var messageBlock = matchBlock.AddBlock("StormEvent::ChannelSignalled(channel_handle) =>");
             var ifBlock = messageBlock.AddBlock("if *channel_handle == self.channel_handle");
             ifBlock.AddLine($"println!(\"{structName}: got event\");");
             ifBlock.AddLine($"// observer.handle_{idl.Protocol.Name}_event(*channel_handle, event);");
@@ -262,13 +263,13 @@ namespace IDLCompiler
 
                 var fnBlock = implBlock.AddBlock($"pub fn {call.Name}(&self{parameters}){returns}");
                 var unsafeBlock = fnBlock.AddBlock("unsafe");
-                unsafeBlock.AddLine($"let message = self.channel.prepare_message(MessageIds::{parametersMessageName} as u64, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
+                unsafeBlock.AddLine($"let message = self.channel.prepare_message({parametersMessageName}, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
                 if (parametersType != null)
                 {
                     unsafeBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     unsafeBlock.AddLine("let size = parameters.write_at(payload);");
                     unsafeBlock.AddLine("self.channel.commit_message(size);");
-                    unsafeBlock.AddLine($"StormProcess::send_channel_message(self.channel_handle, MessageIds::{parametersMessageName} as u64);");
+                    unsafeBlock.AddLine($"StormProcess::signal_channel(self.channel_handle);");
                 }
                 else
                 {
@@ -278,11 +279,11 @@ namespace IDLCompiler
                 if (returnsType != null)
                 {
                     fnBlock.AddBlank();
-                    fnBlock.AddLine($"process.wait_for_channel_message(self.channel_handle, MessageIds::{returnsMessageName} as u64, 1000)?;");
+                    fnBlock.AddLine($"process.wait_for_channel_signal(self.channel_handle, 1000)?;");
                     fnBlock.AddBlank();
 
                     unsafeBlock = fnBlock.AddBlock("unsafe");
-                    ifBlock = unsafeBlock.AddBlock($"if let Some(message) = self.channel.find_specific_message(MessageIds::{returnsMessageName} as u64)");
+                    ifBlock = unsafeBlock.AddBlock($"if let Some(message) = self.channel.find_specific_message({returnsMessageName})");
                     ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     ifBlock.AddLine($"{returnsType.Name}::reconstruct_at_inline(payload);");
                     ifBlock.AddLine($"let payload = payload as *mut {returnsType.Name};");

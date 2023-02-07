@@ -78,12 +78,15 @@ namespace Storm
             }
         }
 
-        public void FireEvent(Event stormEvent)
+        public static void FireEvent(Event stormEvent)
         {
-            _eventQueue.Add(stormEvent);
+            if (_processes.TryGetValue(stormEvent.TargetPID, out var process))
+            {
+                process.QueueEvent(stormEvent);
+            }
         }
 
-        public void PutBackEvent(Event stormEvent)
+        public void QueueEvent(Event stormEvent)
         {
             _eventQueue.Add(stormEvent);
         }

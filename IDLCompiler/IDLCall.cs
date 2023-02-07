@@ -55,8 +55,9 @@ namespace IDLCompiler
 
         public (IDLType, string) ToParametersType()
         {
-            var name = CasedString.FromSnake(Name).ToPascal() + "Parameters";
-            var messageName = name;
+            var casedString = CasedString.FromSnake(Name);
+            var name = casedString.ToPascal() + "Parameters";
+            var messageName = casedString.ToScreamingSnake() + "_PARAMETERS";
 
             if (Parameters.Count > 0)
             {
@@ -77,8 +78,9 @@ namespace IDLCompiler
                 if (ReturnValues.Count > 0) throw new Exception($"{Name}: Return values not allowed in server->client events");
             }
 
-            var name = CasedString.FromSnake(Name).ToPascal() + "Returns";
-            var messageName = name;
+            var casedString = CasedString.FromSnake(Name);
+            var name = casedString.ToPascal() + "Returns";
+            var messageName = casedString.ToScreamingSnake() + "_RETURNS";
 
             if (ReturnValues.Count > 0)
             {

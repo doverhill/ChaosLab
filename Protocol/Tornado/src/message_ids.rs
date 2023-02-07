@@ -1,6 +1,4 @@
-pub enum MessageIds {
-    SetRenderTreeParameters,
-    ComponentClickedParameters,
-}
+pub const SET_RENDER_TREE_PARAMETERS: u64 = 1;
+pub const COMPONENT_CLICKED_PARAMETERS: u64 = 2;
 
 

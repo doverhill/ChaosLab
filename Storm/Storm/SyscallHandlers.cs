@@ -59,7 +59,7 @@ namespace Storm
             else
             {
                 var channelHandleId = Handles.Create(process.ProcessId, service.OwningPID, HandleType.Channel);
-                process.FireEvent(new Event(service.OwningPID, Error.None, service.HandleId, channelHandleId, HandleAction.ServiceConnected));
+                Process.FireEvent(new Event(service.OwningPID, Error.None, service.HandleId, channelHandleId, HandleAction.ServiceConnected));
 
                 writer.Write((int)Error.None);
                 writer.Write(channelHandleId);
@@ -93,7 +93,7 @@ namespace Storm
             if (handle != null)
             {
                 var receivingPID = handle.GetOtherProcessId(process.ProcessId);
-                process.FireEvent(new Event(receivingPID, Error.None, handle.Id, Handle.None, HandleAction.ChannelSignalled));
+                Process.FireEvent(new Event(receivingPID, Error.None, handle.Id, Handle.None, HandleAction.ChannelSignalled));
 
                 writer.Write((int)Error.None);
             }

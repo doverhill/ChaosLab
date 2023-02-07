@@ -83,7 +83,7 @@ namespace Storm
                     {
                         foreach (var putback in eventsToPutBack)
                         {
-                            process.PutBackEvent(putback);
+                            process.QueueEvent(putback);
                         }
                         return e;
                     }

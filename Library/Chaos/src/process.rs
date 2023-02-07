@@ -110,9 +110,15 @@ impl StormProcess {
         initial_size: usize,
     ) -> Result<ChannelHandle, StormError> {
         let handle = syscalls::service_connect(protocol_name, vendor_name, device_name, device_id)?;
+        self.initialize_channel(handle, initial_size);
+        // let channel = Channel::new(handle, initial_size);
+        // self.channels.insert(handle, channel);
+        Ok(handle)
+    }
+
+    pub fn initialize_channel(&mut self, handle: ChannelHandle, initial_size: usize) {
         let channel = Channel::new(handle, initial_size);
         self.channels.insert(handle, channel);
-        Ok(handle)
     }
 
     pub fn get_channel_address(&self, handle: ChannelHandle) -> Result<*mut u8, StormError> {
@@ -173,21 +179,14 @@ impl StormProcess {
         syscalls::event_wait(None, None, -1)
     }
 
-    // pub fn handle_event(&mut self, event: StormEvent) {
+
+
+    // pub fn process_event(&mut self, event: StormEvent) {
     //     match event {
     //         StormEvent::ServiceConnected(service_handle, channel_handle) => {
-    //             println!("received ServiceConnectedEvent");
-    //             if let Some(service) = self.services.get_mut(&service_handle) {
-    //                 println!("found service");
-    //                 for handler in service.observers.iter_mut() {
-    //                     println!("calling handler");
-    //                     handler.handle_service_connected(service_handle, channel_handle);
-    //                 }
-    //                 // if let Some(handler) = &service.on_connected {
-    //                 //     Self::emit_debug("calling handler for service connect");
-    //                 //     handler(service_handle, channel_handle);
-    //                 // }
-    //             }
+    //             let channel = Channel::new(channel_handle, initial_size);
+    //             self.channels.insert(handle, channel);
+        
     //         },
     //         StormEvent::ChannelMessaged(channel_handle, message_id) => {
     //             if let Some(channel) = self.channels.get_mut(&channel_handle) {

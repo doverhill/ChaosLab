@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::channel::{TornadoChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
 use crate::from_server::*;
-use crate::MessageIds;
+use crate::message_ids::*;
 use alloc::vec::Vec;
 
 pub enum TornadoClientEvent {
@@ -33,7 +33,7 @@ pub struct TornadoClient {
 
 impl TornadoClient {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
-        let channel_handle = process.connect_to_service("tornado", None, None, None, 0)?;
+        let channel_handle = process.connect_to_service("tornado", None, None, None, 4096)?;
         let channel = unsafe { TornadoChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,
@@ -43,7 +43,7 @@ impl TornadoClient {
 
     pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl TornadoClientObserver) {
         match event {
-            StormEvent::ChannelMessaged(channel_handle, message_id) => {
+            StormEvent::ChannelSignalled(channel_handle) => {
                 if *channel_handle == self.channel_handle {
                     println!("TornadoClient: got event");
                     // observer.handle_tornado_event(*channel_handle, event);
@@ -55,11 +55,11 @@ impl TornadoClient {
 
     pub fn set_render_tree(&self, parameters: &SetRenderTreeParameters) {
         unsafe {
-            let message = self.channel.prepare_message(MessageIds::SetRenderTreeParameters as u64, false);
+            let message = self.channel.prepare_message(SET_RENDER_TREE_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = parameters.write_at(payload);
             self.channel.commit_message(size);
-            StormProcess::send_channel_message(self.channel_handle, MessageIds::SetRenderTreeParameters as u64);
+            StormProcess::signal_channel(self.channel_handle);
         }
     }
 

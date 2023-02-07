@@ -107,7 +107,8 @@ fn main() {
             // println!("got storm event");
             // StormProcess::<ServerState, ServerState>::emit_information("console: got storm event in sdl loop");
             println!("console: got event {:?}", wrapper.event);
-            console_server.process_event(&process, &wrapper.event, &mut state);
+            // process.process_event(&wrapper.event);
+            console_server.process_event(&mut process, &wrapper.event, &mut state);
             // process.handle_event(wrapper.event);
             // tx.send(());
         } 
