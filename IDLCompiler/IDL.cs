@@ -13,8 +13,12 @@ namespace IDLCompiler
         public Dictionary<string, List<string>> Enums;
         [JsonPropertyName("types")]
         public Dictionary<string, IDLType> Types;
+        [JsonPropertyName("from_client_size")]
+        public int FromClientSize;
         [JsonPropertyName("from_client")]
         public Dictionary<string, IDLCall> FromClient;
+        [JsonPropertyName("from_server_size")]
+        public int FromServerSize;
         [JsonPropertyName("from_server")]
         public Dictionary<string, IDLCall> FromServer;
 

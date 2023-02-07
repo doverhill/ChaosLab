@@ -32,7 +32,7 @@ pub struct StorageClient {
 
 impl StorageClient {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
-        let channel_handle = process.connect_to_service("storage", None, None, None)?;
+        let channel_handle = process.connect_to_service("storage", None, None, None, 0)?;
         let channel = unsafe { StorageChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,

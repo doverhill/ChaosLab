@@ -164,7 +164,7 @@ namespace IDLCompiler
 
         }
 
-        public static void GenerateClient(SourceGenerator source, IDL idl, Dictionary<string, IDLCall> from, Dictionary<string, IDLCall> to)
+        public static void GenerateClient(SourceGenerator source, IDL idl, Dictionary<string, IDLCall> from, Dictionary<string, IDLCall> to, int initialFromSize, int intialToSize)
         {
             var protocolName = CasedString.FromSnake(idl.Protocol.Name);
             var structName = protocolName.ToPascal() + "Client";
@@ -210,7 +210,7 @@ namespace IDLCompiler
             var implBlock = source.AddBlock($"impl {structName}");
 
             var connectBlock = implBlock.AddBlock("pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError>");
-            connectBlock.AddLine($"let channel_handle = process.connect_to_service(\"{idl.Protocol.Name}\", None, None, None)?;");
+            connectBlock.AddLine($"let channel_handle = process.connect_to_service(\"{idl.Protocol.Name}\", None, None, None, {initialFromSize})?;");
             connectBlock.AddLine($$"""let channel = unsafe { {{channelName}}::new(process.get_channel_address(channel_handle).unwrap(), false) };""");
             var okBlock = connectBlock.AddBlock("Ok(Self");
             okBlock.Append = ")";

@@ -107,9 +107,10 @@ impl StormProcess {
         vendor_name: Option<&str>,
         device_name: Option<&str>,
         device_id: Option<Uuid>,
+        initial_size: usize,
     ) -> Result<ChannelHandle, StormError> {
         let handle = syscalls::service_connect(protocol_name, vendor_name, device_name, device_id)?;
-        let channel = Channel::new(handle);
+        let channel = Channel::new(handle, initial_size);
         self.channels.insert(handle, channel);
         Ok(handle)
     }

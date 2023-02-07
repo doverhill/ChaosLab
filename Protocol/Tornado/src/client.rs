@@ -33,7 +33,7 @@ pub struct TornadoClient {
 
 impl TornadoClient {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
-        let channel_handle = process.connect_to_service("tornado", None, None, None)?;
+        let channel_handle = process.connect_to_service("tornado", None, None, None, 0)?;
         let channel = unsafe { TornadoChannel::new(process.get_channel_address(channel_handle).unwrap(), false) };
         Ok(Self {
             channel_handle: channel_handle,

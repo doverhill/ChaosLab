@@ -34,9 +34,9 @@ impl Drop for Channel {
 }
 
 impl Channel {
-    pub fn new(handle: ChannelHandle) -> Self {
+    pub fn new(handle: ChannelHandle, initial_size: usize) -> Self {
         let memory_name = Self::get_map_name(handle);
-        let (map_handle, map_pointer) = Self::create_shared_memory(&memory_name, 1024 * 1024);
+        let (map_handle, map_pointer) = Self::create_shared_memory(&memory_name, initial_size);
         map_handle.expect("Failed to create shared memory");
 
         Channel {
