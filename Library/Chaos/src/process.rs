@@ -160,17 +160,17 @@ impl StormProcess {
         syscalls::process_emit(syscalls::EmitType::Error, error, Some(information_text))
     }
 
-    pub fn send_channel_message(handle: ChannelHandle, message_id: u64) -> Result<(), StormError> {
+    pub fn signal_channel(handle: ChannelHandle) -> Result<(), StormError> {
         println!("attempting to send channel message");
-        syscalls::channel_message(handle, message_id)
+        syscalls::channel_signal(handle)
     }
 
-    pub fn wait_for_channel_message(&self, handle: ChannelHandle, message_id: u64, timeout_milliseconds: i32) -> Result<StormEvent, StormError> {
-        syscalls::event_wait(Some(handle.raw_handle()), Some(StormAction::ChannelMessaged), Some(message_id), timeout_milliseconds)
+    pub fn wait_for_channel_signal(&self, handle: ChannelHandle, timeout_milliseconds: i32) -> Result<StormEvent, StormError> {
+        syscalls::event_wait(Some(handle.raw_handle()), Some(StormAction::ChannelSignalled), timeout_milliseconds)
     }
 
     pub fn wait_for_event() -> Result<StormEvent, StormError> {
-        syscalls::event_wait(None, None, None, -1)
+        syscalls::event_wait(None, None, -1)
     }
 
     // pub fn handle_event(&mut self, event: StormEvent) {

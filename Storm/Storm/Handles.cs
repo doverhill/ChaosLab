@@ -33,11 +33,23 @@ namespace Storm
             Type = type;
         }
 
-        public ulong GetOtherPID(ulong PID)
+        public void Close(ulong processId)
         {
-            if (OwningPIDs.Contains(PID) && OwningPIDs.Count == 2)
+            var otherProcessId = GetOtherProcessId(processId);
+            if (otherProcessId != Handle.None)
             {
-                return OwningPIDs.Where(p => PID != p).First();
+                var process = Process.FindProcess(otherProcessId);
+                var stormEvent = new Event(otherProcessId, Error.None, Id, Handle.None, HandleAction.ChannelDestroyed);
+                process.FireEvent(stormEvent);
+            }
+        }
+
+        public ulong GetOtherProcessId(ulong processId)
+        {
+            if (OwningPIDs.Contains(processId) && OwningPIDs.Count == 2)
+            {
+                var otherProcessId = OwningPIDs.Where(p => processId != p).First();
+                return otherProcessId;
             }
             return Handle.None;
         }
@@ -46,16 +58,16 @@ namespace Storm
     internal static class Handles
     {
         private static object _lock = new object();
-        private static ulong nextHandleId = 1;
-        private static Dictionary<ulong, KernelHandle> kernelHandles = new Dictionary<ulong, KernelHandle>();
+        private static ulong _nextHandleId = 1;
+        private static Dictionary<ulong, KernelHandle> _kernelHandles = new Dictionary<ulong, KernelHandle>();
 
         public static ulong Create(ulong PID, HandleType type)
         {
             lock (_lock)
             {
-                var id = nextHandleId++;
+                var id = _nextHandleId++;
                 var handle = new KernelHandle(id, PID, type);
-                kernelHandles.Add(id, handle);
+                _kernelHandles.Add(id, handle);
                 return handle.Id;
             }
         }
@@ -64,9 +76,9 @@ namespace Storm
         {
             lock (_lock)
             {
-                var id = nextHandleId++;
+                var id = _nextHandleId++;
                 var handle = new KernelHandle(id, PID, additionalPID, type);
-                kernelHandles.Add(id, handle);
+                _kernelHandles.Add(id, handle);
                 return handle.Id;
             }
         }
@@ -75,11 +87,11 @@ namespace Storm
         {
             lock (_lock)
             {
-                if (kernelHandles.TryGetValue(handleId, out var handle))
+                if (_kernelHandles.TryGetValue(handleId, out var handle))
                 {
                     if (handle.OwningPIDs.Contains(PID))
                     {
-                        kernelHandles.Remove(handleId);
+                        _kernelHandles.Remove(handleId);
                     }
                 }
                 return false;
@@ -90,7 +102,7 @@ namespace Storm
         {
             lock (_lock)
             {
-                if (kernelHandles.TryGetValue(handleId, out var handle))
+                if (_kernelHandles.TryGetValue(handleId, out var handle))
                 {
                     if (handle.OwningPIDs.Contains(senderPID) && handle.Type == HandleType.Channel)
                     {
@@ -101,15 +113,15 @@ namespace Storm
             }
         }
 
-        public static void CleanupAfterProcess(ulong PID)
+        public static void Cleanup(Process process)
         {
             lock (_lock)
             {
-                foreach (var handle in kernelHandles.Values)
+                foreach (var handle in _kernelHandles.Values)
                 {
-                    if (handle.OwningPIDs.Contains(PID)) handle.OwningPIDs.Remove(PID);
+                    if (handle.OwningPIDs.Contains(process.ProcessId)) handle.Close(process.ProcessId);
                 }
-                kernelHandles = kernelHandles.Where(h => h.Value.OwningPIDs.Count > 0).ToDictionary(h => h.Key, h => h.Value);
+                _kernelHandles = _kernelHandles.Where(h => h.Value.OwningPIDs.Count > 0).ToDictionary(h => h.Key, h => h.Value);
             }
         }
     }

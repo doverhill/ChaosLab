@@ -58,7 +58,7 @@ namespace Storm
             }
         };
 
-        private static void WriteLineForced(SyscallProcessEmitType type, Process process, bool isKernel, string format, object[] args = null)
+        private static void WriteLineForced(SyscallProcessEmitType type, Process process, Process.Thread thread, bool isKernel, string format, object[] args = null)
         {
             lock (_lock)
             {
@@ -72,11 +72,11 @@ namespace Storm
                 {
                     if (!string.IsNullOrEmpty(process.Name))
                     {
-                        identifier = $"{process.PID}/{process.Name}";
+                        identifier = $"{process.ProcessId}:{thread.ThreadId}/{process.Name}";
                     }
                     else
                     {
-                        identifier = $"{process.PID}";
+                        identifier = $"{process.ProcessId}:{thread.ThreadId}";
                     }
                 }
                 else
@@ -98,16 +98,16 @@ namespace Storm
             }
         }
 
-        public static void WriteLineKernel(SyscallProcessEmitType type, Process process, string format, object[] args = null)
+        public static void WriteLineKernel(SyscallProcessEmitType type, Process process, Process.Thread thread, string format, object[] args = null)
         {
             if (type > KernelVerbosity) return;
-            WriteLineForced(type, process, true, format, args);
+            WriteLineForced(type, process, thread, true, format, args);
         }
 
-        public static void WriteLineProcess(SyscallProcessEmitType type, Process process, string format, object[] args = null)
+        public static void WriteLineProcess(SyscallProcessEmitType type, Process process, Process.Thread thread, string format, object[] args = null)
         {
             if (type > ProcessVerbosity) return;
-            WriteLineForced(type, process, false, format, args);
+            WriteLineForced(type, process, thread, false, format, args);
         }
     }
 }

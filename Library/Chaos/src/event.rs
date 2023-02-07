@@ -4,7 +4,7 @@ use crate::{ServiceHandle, ChannelHandle};
 pub enum StormAction {
     // None = 0,
     ServiceConnected = 1,
-    ChannelMessaged = 2,
+    ChannelSignalled = 2,
     ChannelDestroyed = 3
 }
 
@@ -13,7 +13,7 @@ impl StormAction {
         match self {
             // Self::None => 0,
             Self::ServiceConnected => 1,
-            Self::ChannelMessaged => 2,
+            Self::ChannelSignalled => 2,
             Self::ChannelDestroyed => 3
         }
     }
@@ -22,7 +22,7 @@ impl StormAction {
         match value {
             // 0 => Self::None,
             1 => Self::ServiceConnected,
-            2 => Self::ChannelMessaged,
+            2 => Self::ChannelSignalled,
             3 => Self::ChannelDestroyed,
             _ => panic!("Unknown action")
         }
@@ -32,6 +32,6 @@ impl StormAction {
 #[derive(Debug)]
 pub enum StormEvent {
     ServiceConnected(ServiceHandle, ChannelHandle),
-    ChannelMessaged(ChannelHandle, u64),
+    ChannelSignalled(ChannelHandle),
     ChannelDestroyed(ChannelHandle)
 }

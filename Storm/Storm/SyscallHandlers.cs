@@ -11,26 +11,26 @@ namespace Storm
 {
     internal static class SyscallHandlers
     {
-        public static void ServiceCreate(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ServiceCreate(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var protocol = SyscallHelpers.ReadText(reader);
             var vendor = SyscallHelpers.ReadText(reader);
             var deviceName = SyscallHelpers.ReadText(reader);
             var deviceId = SyscallHelpers.ReadUuid(reader);
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ServiceCreate: protocol='" + protocol + "', vendor='" + vendor + "', deviceName='" + deviceName + "', deviceId=" + deviceId);
-            var handle = Services.Create(process.PID, protocol, vendor, deviceName, deviceId);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ServiceCreate: protocol='" + protocol + "', vendor='" + vendor + "', deviceName='" + deviceName + "', deviceId=" + deviceId);
+            var handle = Services.Create(process.ProcessId, protocol, vendor, deviceName, deviceId);
 
             writer.Write((int)Error.None);
             writer.Write(handle);
         }
 
-        public static void ServiceDestroy(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ServiceDestroy(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var serviceHandleId = reader.ReadUInt64();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ServiceDestroy: handleId=" + serviceHandleId);
-            var success = Services.Destroy(process.PID, serviceHandleId);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ServiceDestroy: handleId=" + serviceHandleId);
+            var success = Services.Destroy(process.ProcessId, serviceHandleId);
 
             if (success)
             {
@@ -42,14 +42,14 @@ namespace Storm
             }
         }
 
-        public static void ServiceConnect(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ServiceConnect(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var protocol = SyscallHelpers.ReadText(reader);
             var vendor = SyscallHelpers.ReadText(reader);
             var deviceName = SyscallHelpers.ReadText(reader);
             var deviceId = SyscallHelpers.ReadUuid(reader);
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ServiceConnect: protocol='" + protocol + "', vendor='" + vendor + "', deviceName='" + deviceName + "', deviceId=" + deviceId);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ServiceConnect: protocol='" + protocol + "', vendor='" + vendor + "', deviceName='" + deviceName + "', deviceId=" + deviceId);
             var service = Services.Lookup(protocol, vendor, deviceName, deviceId);
 
             if (service == null)
@@ -58,20 +58,20 @@ namespace Storm
             }
             else
             {
-                var channelHandleId = Handles.Create(process.PID, service.OwningPID, HandleType.Channel);
-                Events.Fire(new Event(service.OwningPID, Error.None, service.HandleId, channelHandleId, HandleAction.ServiceConnected, 0));
+                var channelHandleId = Handles.Create(process.ProcessId, service.OwningPID, HandleType.Channel);
+                process.FireEvent(new Event(service.OwningPID, Error.None, service.HandleId, channelHandleId, HandleAction.ServiceConnected));
 
                 writer.Write((int)Error.None);
                 writer.Write(channelHandleId);
             }
         }
 
-        public static void ChannelDestroy(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ChannelDestroy(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var channelHandleId = reader.ReadUInt64();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ChannelDestroy: handleId=" + channelHandleId);
-            var success = Handles.Destroy(process.PID, channelHandleId);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ChannelDestroy: handleId=" + channelHandleId);
+            var success = Handles.Destroy(process.ProcessId, channelHandleId);
 
             if (success)
             {
@@ -83,18 +83,17 @@ namespace Storm
             }
         }
 
-        public static void ChannelMessage(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ChannelSignal(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var channelHandleId = reader.ReadUInt64();
-            var message = reader.ReadUInt64();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ChannelSignal: handleId=" + channelHandleId + ", message=" + message);
-            var handle = Handles.GetChannelHandleForSignal(channelHandleId, process.PID);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ChannelSignal: handleId=" + channelHandleId);
+            var handle = Handles.GetChannelHandleForSignal(channelHandleId, process.ProcessId);
 
             if (handle != null)
             {
-                var receivingPID = handle.GetOtherPID(process.PID);
-                Events.Fire(new Event(receivingPID, Error.None, handle.Id, Handle.None, HandleAction.ChannelMessaged, message));
+                var receivingPID = handle.GetOtherProcessId(process.ProcessId);
+                process.FireEvent(new Event(receivingPID, Error.None, handle.Id, Handle.None, HandleAction.ChannelSignalled));
 
                 writer.Write((int)Error.None);
             }
@@ -104,15 +103,14 @@ namespace Storm
             }
         }
 
-        public static void EventWait(Socket socket, BinaryReader reader, BinaryWriter writer, Process process)
+        public static void EventWait(Socket socket, BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var handle = SyscallHelpers.ReadOptionalU64(reader);
             var action = (HandleAction?)SyscallHelpers.ReadOptionalI32(reader);
-            var message = SyscallHelpers.ReadOptionalU64(reader);
             var timeoutMilliseconds = reader.ReadInt32();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL EventWait: handle=" + (handle.HasValue ? handle.Value : "any") + ", action=" + (action.HasValue ? action.ToString() : "any") + ", message=" + (message.HasValue ? message.Value : "any") + ", timeout=" + timeoutMilliseconds);
-            var e = Events.Wait(socket, process.PID, handle, action, message, timeoutMilliseconds);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL EventWait: handle=" + (handle.HasValue ? handle.Value : "any") + ", action=" + (action.HasValue ? action.ToString() : "any") + ", timeout=" + timeoutMilliseconds);
+            var e = Events.Wait(socket, process, handle, action, timeoutMilliseconds);
 
             writer.Write((int)e.Error);
             if (e.Error == Error.None)
@@ -120,34 +118,33 @@ namespace Storm
                 writer.Write(e.TargetHandle);
                 writer.Write(e.ChannelHandle);
                 writer.Write((int)e.Action);
-                writer.Write(e.Message);
             }
         }
 
-        public static void ProcessSetInfo(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ProcessSetInfo(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var name = SyscallHelpers.ReadText(reader);
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ProcessSetInfo: name='" + name + "'");
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ProcessSetInfo: name='" + name + "'");
             process.Name = name;
 
             writer.Write((int)Error.None);
         }
 
-        public static void ProcessEmit(BinaryReader reader, BinaryWriter writer, Process process)
+        public static void ProcessEmit(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread)
         {
             var emitType = (SyscallProcessEmitType)reader.ReadInt32();
             var error = (Error)reader.ReadInt32();
             var text = SyscallHelpers.ReadText(reader);
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "SYSCALL ProcessEmit: type=" + emitType.ToString() + ", error=" + error + ", text='" + text + "'");
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ProcessEmit: type=" + emitType.ToString() + ", error=" + error + ", text='" + text + "'");
             if (emitType == SyscallProcessEmitType.Error)
             {
-                Output.WriteLineProcess(emitType, process, text + ": " + error.ToString());
+                Output.WriteLineProcess(emitType, process, thread, text + ": " + error.ToString());
             }
             else
             {
-                Output.WriteLineProcess(emitType, process, text);
+                Output.WriteLineProcess(emitType, process, thread, text);
             }
 
             writer.Write((int)Error.None);

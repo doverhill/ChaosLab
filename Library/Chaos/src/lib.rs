@@ -1,3 +1,6 @@
+#![feature(thread_id_value)]
+#![feature(local_key_cell_methods)]
+
 #[macro_use]
 extern crate lazy_static;
 

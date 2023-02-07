@@ -9,13 +9,13 @@ namespace Storm
 {
     public class Kernel
     {
-        private object _lock = new object();
-        private ulong nextPid = 1;
+        //private object _lock = new object();
+        //private ulong nextPid = 1;
 
         public void Start(List<StartupCommand> startupList)
         {
-            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, "Starting Storm kernel...");
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, $"{startupList.Count} startup commands");
+            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, "Starting Storm kernel...");
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, null, $"{startupList.Count} startup commands");
 
             var threadStart = new ParameterizedThreadStart(HandleStartup);
             var startupThread = new Thread(threadStart);
@@ -34,7 +34,7 @@ namespace Storm
             {
                 var path = Path.Combine(Environment.CurrentDirectory, item.Path);
                 var exePath = Path.Combine(path, item.Executable);
-                Output.WriteLineKernel(SyscallProcessEmitType.Information, null, $"Starting {exePath} in {path} with delay {item.DelayMs}...");
+                Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, $"Starting {exePath} in {path} with delay {item.DelayMs}...");
 
                 var startInfo = new ProcessStartInfo(exePath);
                 startInfo.WorkingDirectory = path;
@@ -49,7 +49,7 @@ namespace Storm
             var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             serverSocket.Bind(ipEndpoint);
             serverSocket.Listen();
-            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, "Storm started. Listening on " + ipEndpoint.ToString());
+            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, "Storm started. Listening on " + ipEndpoint.ToString());
 
             do
             {
@@ -60,23 +60,27 @@ namespace Storm
             } while (true);
         }
 
-        private ulong AllocatePID()
-        {
-            lock (_lock)
-            {
-                return nextPid++;
-            }
-        }
+        //private ulong AllocatePID()
+        //{
+        //    lock (_lock)
+        //    {
+        //        return nextPid++;
+        //    }
+        //}
 
         private void HandleClient(object? socket)
         {
             var clientSocket = (Socket)socket;
-            var process = new Process(AllocatePID(), null);
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "Application connected");
 
             using var clientStream = new NetworkStream(clientSocket);
             using var reader = new BinaryReader(clientStream);
             using var writer = new BinaryWriter(clientStream);
+
+            var processId = reader.ReadUInt64();
+            var threadId = reader.ReadUInt64();
+
+            var (process, thread) = Process.GetProcess(processId, threadId);
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "New connection");
 
             try
             {
@@ -89,29 +93,29 @@ namespace Storm
                     {
                         // Service
                         case SyscallNumber.ServiceCreate:
-                            SyscallHandlers.ServiceCreate(reader, writer, process);
+                            SyscallHandlers.ServiceCreate(reader, writer, process, thread);
                             break;
 
                         case SyscallNumber.ServiceDestroy:
-                            SyscallHandlers.ServiceDestroy(reader, writer, process);
+                            SyscallHandlers.ServiceDestroy(reader, writer, process, thread);
                             break;
 
                         case SyscallNumber.ServiceConnect:
-                            SyscallHandlers.ServiceConnect(reader, writer, process);
+                            SyscallHandlers.ServiceConnect(reader, writer, process, thread);
                             break;
 
                         // Channel
                         case SyscallNumber.ChannelDestroy:
-                            SyscallHandlers.ChannelDestroy(reader, writer, process);
+                            SyscallHandlers.ChannelDestroy(reader, writer, process, thread);
                             break;
 
                         case SyscallNumber.ChannelMessage:
-                            SyscallHandlers.ChannelMessage(reader, writer, process);
+                            SyscallHandlers.ChannelSignal(reader, writer, process, thread);
                             break;
 
                         // Event
                         case SyscallNumber.EventWait:
-                            SyscallHandlers.EventWait(clientSocket, reader, writer, process);
+                            SyscallHandlers.EventWait(clientSocket, reader, writer, process, thread);
                             break;
 
                         // Process
@@ -121,16 +125,16 @@ namespace Storm
                             break;
 
                         case SyscallNumber.ProcessSetInfo:
-                            SyscallHandlers.ProcessSetInfo(reader, writer, process);
+                            SyscallHandlers.ProcessSetInfo(reader, writer, process, thread);
                             break;
 
                         case SyscallNumber.ProcessEmit:
-                            SyscallHandlers.ProcessEmit(reader, writer, process);
+                            SyscallHandlers.ProcessEmit(reader, writer, process, thread);
                             break;
 
                         // Unknown
                         default:
-                            Output.WriteLineKernel(SyscallProcessEmitType.Error, process, "Unknown syscall: " + syscallNumber.ToString());
+                            Output.WriteLineKernel(SyscallProcessEmitType.Error, process, thread, "Unknown syscall: " + syscallNumber.ToString());
                             writer.Write((int)Error.NotImplemented);
                             break;
                     }
@@ -138,14 +142,21 @@ namespace Storm
             }
             catch (Exception e)
             {
-                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "Application error: " + e.Message);
+                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "Application error: " + e.Message);
                 clientSocket.Close();
             }
 
-            Events.CleanupAfterProcess(process.PID);
-            Handles.CleanupAfterProcess(process.PID);
-            Services.CleanupAfterProcess(process.PID);
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, "Application disconnected");
+            var processDeleted = Process.Cleanup(process, thread);
+            if (processDeleted)
+            {
+                Handles.Cleanup(process);
+                Services.Cleanup(process);
+                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "Process exit");
+            }
+            else
+            {
+                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "Thread exit");
+            }
         }
     }
 }

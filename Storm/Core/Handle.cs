@@ -6,7 +6,7 @@ namespace Core
     {
         None = 0,
         ServiceConnected = 1,
-        ChannelMessaged = 2,
+        ChannelSignalled = 2,
         ChannelDestroyed = 3
     }
 

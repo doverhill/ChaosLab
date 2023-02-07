@@ -86,13 +86,13 @@ namespace Storm
             }
         }
 
-        public static void CleanupAfterProcess(ulong PID)
+        public static void Cleanup(Process process)
         {
             lock (_lock)
             {
                 foreach (var serviceList in services.Values)
                 {
-                    serviceList.RemoveAll(s => s.OwningPID == PID);
+                    serviceList.RemoveAll(s => s.OwningPID == process.ProcessId);
                 }
             }
         }
