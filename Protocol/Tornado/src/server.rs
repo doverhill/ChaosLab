@@ -50,14 +50,16 @@ impl TornadoServer {
                 if *service_handle == self.service_handle {
                     println!("TornadoServer: client connected");
                     process.initialize_channel(*channel_handle, 4096);
-                    let channel = unsafe { TornadoChannel::new(process.get_channel_address(*channel_handle).unwrap(), true) };
+                    let channel = TornadoChannel::new(process.get_channel_address(*channel_handle).unwrap(), true);
                     self.channels.insert(*channel_handle, channel);
                     observer.handle_tornado_client_connected(*service_handle, *channel_handle);
                 }
             }
             StormEvent::ChannelSignalled(channel_handle) => {
-                if let Some(_) = self.channels.get(&channel_handle) {
+                if let Some(channel) = self.channels.get(&channel_handle) {
                     println!("TornadoServer: client request");
+                    while let Some(message) = channel.find_message() {
+                    }
                     // observer.handle_tornado_request(self.service_handle, channel_handle, request);
                 }
             }
@@ -74,13 +76,11 @@ impl TornadoServer {
         println!("TornadoServer::component_clicked");
         if let Some(channel) = self.channels.get(&channel_handle) {
             println!("found channel");
-            unsafe {
-                let message = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, false);
-                let payload = ChannelMessageHeader::get_payload_address(message);
-                let size = parameters.write_at(payload);
-                channel.commit_message(size);
-                StormProcess::signal_channel(channel_handle);
-            }
+            let message = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, false);
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = parameters.write_at(payload);
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
         }
     }
 

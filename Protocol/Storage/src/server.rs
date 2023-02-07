@@ -56,14 +56,16 @@ impl StorageServer {
                 if *service_handle == self.service_handle {
                     println!("StorageServer: client connected");
                     process.initialize_channel(*channel_handle, 4096);
-                    let channel = unsafe { StorageChannel::new(process.get_channel_address(*channel_handle).unwrap(), true) };
+                    let channel = StorageChannel::new(process.get_channel_address(*channel_handle).unwrap(), true);
                     self.channels.insert(*channel_handle, channel);
                     observer.handle_storage_client_connected(*service_handle, *channel_handle);
                 }
             }
             StormEvent::ChannelSignalled(channel_handle) => {
-                if let Some(_) = self.channels.get(&channel_handle) {
+                if let Some(channel) = self.channels.get(&channel_handle) {
                     println!("StorageServer: client request");
+                    while let Some(message) = channel.find_message() {
+                    }
                     // observer.handle_storage_request(self.service_handle, channel_handle, request);
                 }
             }
@@ -80,13 +82,11 @@ impl StorageServer {
         println!("StorageServer::watched_object_changed");
         if let Some(channel) = self.channels.get(&channel_handle) {
             println!("found channel");
-            unsafe {
-                let message = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, false);
-                let payload = ChannelMessageHeader::get_payload_address(message);
-                let size = parameters.write_at(payload);
-                channel.commit_message(size);
-                StormProcess::signal_channel(channel_handle);
-            }
+            let message = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, false);
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = parameters.write_at(payload);
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
         }
     }
 
