@@ -64,6 +64,36 @@ impl ConsoleServer {
                 if let Some(channel) = self.channels.get(&channel_handle) {
                     println!("ConsoleServer: client request");
                     while let Some(message) = channel.find_message() {
+                        println!("found channel message");
+                        unsafe {
+                            match (*message).message_id {
+                                GET_CAPABILITIES_PARAMETERS =>  {
+                                    println!("got GET_CAPABILITIES_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                SET_TEXT_COLOR_PARAMETERS =>  {
+                                    println!("got SET_TEXT_COLOR_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                MOVE_TEXT_CURSOR_PARAMETERS =>  {
+                                    println!("got MOVE_TEXT_CURSOR_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                DRAW_IMAGE_PATCH_PARAMETERS =>  {
+                                    println!("got DRAW_IMAGE_PATCH_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                WRITE_TEXT_PARAMETERS =>  {
+                                    println!("got WRITE_TEXT_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                WRITE_OBJECTS_PARAMETERS =>  {
+                                    println!("got WRITE_OBJECTS_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                     // observer.handle_console_request(self.service_handle, channel_handle, request);
                 }
@@ -83,7 +113,7 @@ impl ConsoleServer {
             println!("found channel");
             let message = channel.prepare_message(KEY_PRESSED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }
@@ -95,7 +125,7 @@ impl ConsoleServer {
             println!("found channel");
             let message = channel.prepare_message(KEY_RELEASED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }
@@ -107,7 +137,7 @@ impl ConsoleServer {
             println!("found channel");
             let message = channel.prepare_message(POINTER_MOVED_PARAMETERS, true);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }
@@ -119,7 +149,7 @@ impl ConsoleServer {
             println!("found channel");
             let message = channel.prepare_message(POINTER_PRESSED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }
@@ -131,7 +161,7 @@ impl ConsoleServer {
             println!("found channel");
             let message = channel.prepare_message(POINTER_RELEASED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }
@@ -143,7 +173,7 @@ impl ConsoleServer {
             println!("found channel");
             let message = channel.prepare_message(SIZE_CHANGED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }

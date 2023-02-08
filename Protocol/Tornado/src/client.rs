@@ -56,7 +56,7 @@ impl TornadoClient {
     pub fn set_render_tree(&self, parameters: &SetRenderTreeParameters) {
         let message = self.channel.prepare_message(SET_RENDER_TREE_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = parameters.write_at(payload);
+        let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
         StormProcess::signal_channel(self.channel_handle);
     }

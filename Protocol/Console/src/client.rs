@@ -66,9 +66,9 @@ impl ConsoleClient {
 
         if let Some(message) = self.channel.find_specific_message(GET_CAPABILITIES_RETURNS) {
             let payload = ChannelMessageHeader::get_payload_address(message);
-            GetCapabilitiesReturns::reconstruct_at_inline(payload);
+            unsafe { GetCapabilitiesReturns::reconstruct_at_inline(payload); }
             let payload = payload as *mut GetCapabilitiesReturns;
-            Ok(FromChannel::new(payload.as_ref().unwrap()))
+            Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))
         }
         else {
             Err(StormError::NotFound)
@@ -78,7 +78,7 @@ impl ConsoleClient {
     pub fn set_text_color(&self, parameters: &SetTextColorParameters) {
         let message = self.channel.prepare_message(SET_TEXT_COLOR_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = parameters.write_at(payload);
+        let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
         StormProcess::signal_channel(self.channel_handle);
     }
@@ -86,7 +86,7 @@ impl ConsoleClient {
     pub fn move_text_cursor(&self, parameters: &MoveTextCursorParameters) {
         let message = self.channel.prepare_message(MOVE_TEXT_CURSOR_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = parameters.write_at(payload);
+        let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
         StormProcess::signal_channel(self.channel_handle);
     }
@@ -94,7 +94,7 @@ impl ConsoleClient {
     pub fn draw_image_patch(&self, parameters: &DrawImagePatchParameters) {
         let message = self.channel.prepare_message(DRAW_IMAGE_PATCH_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = parameters.write_at(payload);
+        let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
         StormProcess::signal_channel(self.channel_handle);
     }
@@ -102,7 +102,7 @@ impl ConsoleClient {
     pub fn write_text(&self, parameters: &WriteTextParameters) {
         let message = self.channel.prepare_message(WRITE_TEXT_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = parameters.write_at(payload);
+        let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
         StormProcess::signal_channel(self.channel_handle);
     }
@@ -110,7 +110,7 @@ impl ConsoleClient {
     pub fn write_objects(&self, parameters: &WriteObjectsParameters) {
         let message = self.channel.prepare_message(WRITE_OBJECTS_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = parameters.write_at(payload);
+        let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
         StormProcess::signal_channel(self.channel_handle);
     }

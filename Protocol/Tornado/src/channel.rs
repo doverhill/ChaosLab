@@ -47,7 +47,7 @@ impl ChannelHeader {
 
 pub struct ChannelMessageHeader {
     message_magic: u64,
-    message_id: u64,
+    pub message_id: u64,
     message_length: usize,
     previous_message_offset: usize,
     next_message_offset: usize,
@@ -202,7 +202,7 @@ impl TornadoChannel {
         }
     }
 
-    pub unsafe fn find_message(&self) -> Option<*mut ChannelMessageHeader> {
+    pub fn find_message(&self) -> Option<*mut ChannelMessageHeader> {
         unsafe {
             let channel_header = self.channel_address as *mut ChannelHeader;
             let lock = ChannelLock::get(self);

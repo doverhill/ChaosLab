@@ -65,6 +65,44 @@ impl StorageServer {
                 if let Some(channel) = self.channels.get(&channel_handle) {
                     println!("StorageServer: client request");
                     while let Some(message) = channel.find_message() {
+                        println!("found channel message");
+                        unsafe {
+                            match (*message).message_id {
+                                GET_CAPABILITIES_PARAMETERS =>  {
+                                    println!("got GET_CAPABILITIES_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                LIST_OBJECTS_PARAMETERS =>  {
+                                    println!("got LIST_OBJECTS_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                LOCK_OBJECT_PARAMETERS =>  {
+                                    println!("got LOCK_OBJECT_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                UNLOCK_OBJECT_PARAMETERS =>  {
+                                    println!("got UNLOCK_OBJECT_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                READ_OBJECT_PARAMETERS =>  {
+                                    println!("got READ_OBJECT_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                WRITE_OBJECT_PARAMETERS =>  {
+                                    println!("got WRITE_OBJECT_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                WATCH_OBJECT_PARAMETERS =>  {
+                                    println!("got WATCH_OBJECT_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                UNWATCH_OBJECT_PARAMETERS =>  {
+                                    println!("got UNWATCH_OBJECT_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                     // observer.handle_storage_request(self.service_handle, channel_handle, request);
                 }
@@ -84,7 +122,7 @@ impl StorageServer {
             println!("found channel");
             let message = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }

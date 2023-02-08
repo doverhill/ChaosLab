@@ -59,6 +59,16 @@ impl TornadoServer {
                 if let Some(channel) = self.channels.get(&channel_handle) {
                     println!("TornadoServer: client request");
                     while let Some(message) = channel.find_message() {
+                        println!("found channel message");
+                        unsafe {
+                            match (*message).message_id {
+                                SET_RENDER_TREE_PARAMETERS =>  {
+                                    println!("got SET_RENDER_TREE_PARAMETERS message");
+                                    channel.unlink_message(message, false);
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                     // observer.handle_tornado_request(self.service_handle, channel_handle, request);
                 }
@@ -78,7 +88,7 @@ impl TornadoServer {
             println!("found channel");
             let message = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = parameters.write_at(payload);
+            let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
             StormProcess::signal_channel(channel_handle);
         }

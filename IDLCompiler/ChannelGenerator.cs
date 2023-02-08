@@ -53,7 +53,7 @@ namespace IDLCompiler
 
             var messageHeader = source.AddBlock("pub struct ChannelMessageHeader");
             messageHeader.AddLine("message_magic: u64,");
-            messageHeader.AddLine("message_id: u64,");
+            messageHeader.AddLine("pub message_id: u64,");
             messageHeader.AddLine("message_length: usize,");
             messageHeader.AddLine("previous_message_offset: usize,");
             messageHeader.AddLine("next_message_offset: usize,");
@@ -212,7 +212,7 @@ namespace IDLCompiler
             channelImpl.AddBlank();
 
 
-            findFunctionBlock = channelImpl.AddBlock("pub unsafe fn find_message(&self) -> Option<*mut ChannelMessageHeader>");
+            findFunctionBlock = channelImpl.AddBlock("pub fn find_message(&self) -> Option<*mut ChannelMessageHeader>");
             unsafeBlock = findFunctionBlock.AddBlock("unsafe");
             unsafeBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
             unsafeBlock.AddLine("let lock = ChannelLock::get(self);");
