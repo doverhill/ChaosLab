@@ -22,6 +22,7 @@ impl<T> FromChannel<T> {
         }
     }
 }
+
 struct ProtocolVersion {
     major: u16,
     minor: u16,

@@ -46,5 +46,12 @@ impl ConsoleServerObserver for ServerState {
 
     fn handle_console_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest) {
         println!("handle_console_request");
+
+        match request {
+            ConsoleServerRequest::WriteText(parameters) => {
+                println!("drawing {} to console", parameters.text);
+            },
+            _ => {}
+        }
     }
 }

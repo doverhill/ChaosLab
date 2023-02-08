@@ -48,17 +48,19 @@ fn main() {
         .unwrap();
     let mut canvas = window.into_canvas().build().unwrap();
 
-    canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 128, 255));
-    canvas.clear();
+    // canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 128, 255));
+    // canvas.clear();
 
-    canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
-    let r = Rect::new(
-        0i32,
-        0i32,
-        (glyph_width * scale_factor) as u32,
-        (glyph_height * scale_factor) as u32,
-    );
-    canvas.draw_rect(r);
+    // canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
+    // let r = Rect::new(
+    //     0i32,
+    //     0i32,
+    //     (glyph_width * scale_factor) as u32,
+    //     (glyph_height * scale_factor) as u32,
+    // );
+    // canvas.draw_rect(r);
+
+    // canvas.with_texture_canvas(texture, f)
 
     canvas.present();
 

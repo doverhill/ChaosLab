@@ -21,10 +21,10 @@ use alloc::vec::Vec;
 
 pub enum ConsoleServerRequest {
     GetCapabilities,
-    SetTextColor(SetTextColorParameters),
+    SetTextColor(&'static SetTextColorParameters),
     MoveTextCursor(MoveTextCursorParameters),
     DrawImagePatch(DrawImagePatchParameters),
-    WriteText(WriteTextParameters),
+    WriteText(&'static WriteTextParameters),
     WriteObjects(WriteObjectsParameters),
 }
 
@@ -85,6 +85,10 @@ impl ConsoleServer {
                                 }
                                 WRITE_TEXT_PARAMETERS =>  {
                                     println!("got WRITE_TEXT_PARAMETERS message");
+                                    let payload = ChannelMessageHeader::get_payload_address(message);
+                                    WriteTextParameters::reconstruct_at_inline(payload);
+                                    let parameters = (payload as *const WriteTextParameters).as_ref().unwrap();
+                                    observer.handle_console_request(self.service_handle, *channel_handle, ConsoleServerRequest::WriteText(parameters));
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_OBJECTS_PARAMETERS =>  {
