@@ -2,7 +2,7 @@
 1500 HostServer\Console target\debug\hostserver_console.exe
 
 # Chaos servers
-#1500 Server\Tornado target\debug\server_tornado.exe
+1500 Server\Tornado target\debug\server_tornado.exe
 
 # Applications
 
