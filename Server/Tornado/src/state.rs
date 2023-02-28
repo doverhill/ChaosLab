@@ -39,13 +39,22 @@ impl ConsoleClientObserver for ServerState {
 impl TornadoServerObserver for ServerState {
     fn handle_tornado_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
         println!("handle_tornado_client_connected");
+        self.add_client(channel_handle);
     }
 
     fn handle_tornado_client_disconnected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle) {
         println!("handle_tornado_client_disconnected");
+        self.remove_client(channel_handle);
     }
 
     fn handle_tornado_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: TornadoServerRequest) {
         println!("handle_tornado_request");
+
+        match request {
+            TornadoServerRequest::SetRenderTree(parameters) => {
+                println!("setting render tree");
+            },
+            _ => {}
+        }
     }
 }

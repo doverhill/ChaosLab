@@ -22,7 +22,6 @@ impl<T> FromChannel<T> {
         }
     }
 }
-
 struct ProtocolVersion {
     major: u16,
     minor: u16,
@@ -49,6 +48,7 @@ impl ChannelHeader {
 pub struct ChannelMessageHeader {
     message_magic: u64,
     pub message_id: u64,
+    pub call_id: u64,
     message_length: usize,
     previous_message_offset: usize,
     next_message_offset: usize,
@@ -68,8 +68,8 @@ struct ChannelLock {
 }
 
 impl ChannelLock {
-    pub unsafe fn get(channel: &ConsoleChannel) -> Self {
-        let channel_header = channel.channel_address as *const ChannelHeader;
+    pub unsafe fn get(channel_address: *mut u8) -> Self {
+        let channel_header = channel_address as *const ChannelHeader;
         while (*channel_header).lock.swap(true, Ordering::Acquire) {}
         Self {
             channel_header: channel_header
@@ -86,53 +86,74 @@ impl Drop for ChannelLock {
 }
 
 pub struct ConsoleChannel {
-    channel_address: *mut u8,
+    rx_channel_address: *mut u8,
+    tx_channel_address: *mut u8,
+    call_id: u64,
 }
 
 impl ConsoleChannel {
-    pub fn new(channel_address: *mut u8, is_server: bool) -> Self {
+    pub fn new(channel_address_0: *mut u8, channel_address_1: *mut u8, is_server: bool) -> Self {
         unsafe {
-            if !is_server {
-                let channel_header = channel_address as *mut ChannelHeader;
-                (*channel_header).lock.store(false, Ordering::Relaxed);
-                (*channel_header).channel_magic = ChannelHeader::MAGIC;
-                (*channel_header).protocol_name[0] = 7;
-                (*channel_header).protocol_name[1] = 'c' as u8;
-                (*channel_header).protocol_name[2] = 'o' as u8;
-                (*channel_header).protocol_name[3] = 'n' as u8;
-                (*channel_header).protocol_name[4] = 's' as u8;
-                (*channel_header).protocol_name[5] = 'o' as u8;
-                (*channel_header).protocol_name[6] = 'l' as u8;
-                (*channel_header).protocol_name[7] = 'e' as u8;
-                (*channel_header).protocol_version = ProtocolVersion {
-                    major: 1,
-                    minor: 0,
-                    patch: 0,
-                    is_preview: false,
-                    preview_version: 0,
-                };
-                (*channel_header).first_message_offset = 0;
-                (*channel_header).last_message_offset = 0;
-                (*channel_header).number_of_messages = 0;
-                (*channel_header).is_writing = false;
+            if is_server {
+                ConsoleChannel {
+                    rx_channel_address: channel_address_0,
+                    tx_channel_address: channel_address_1,
+                    call_id: 1,
+                }
             }
-            ConsoleChannel {
-                channel_address: channel_address,
+            else {
+                Self::initialize(channel_address_0);
+                Self::initialize(channel_address_1);
+                ConsoleChannel {
+                    rx_channel_address: channel_address_1,
+                    tx_channel_address: channel_address_0,
+                    call_id: 1,
+                }
             }
         }
+    }
+
+    unsafe fn initialize(channel_address: *mut u8) {
+        let channel_header = channel_address as *mut ChannelHeader;
+        (*channel_header).lock.store(false, Ordering::Relaxed);
+        (*channel_header).channel_magic = ChannelHeader::MAGIC;
+        (*channel_header).protocol_name[0] = 7;
+        (*channel_header).protocol_name[1] = 'c' as u8;
+        (*channel_header).protocol_name[2] = 'o' as u8;
+        (*channel_header).protocol_name[3] = 'n' as u8;
+        (*channel_header).protocol_name[4] = 's' as u8;
+        (*channel_header).protocol_name[5] = 'o' as u8;
+        (*channel_header).protocol_name[6] = 'l' as u8;
+        (*channel_header).protocol_name[7] = 'e' as u8;
+        (*channel_header).protocol_version = ProtocolVersion {
+            major: 1,
+            minor: 0,
+            patch: 0,
+            is_preview: false,
+            preview_version: 0,
+        };
+        (*channel_header).first_message_offset = 0;
+        (*channel_header).last_message_offset = 0;
+        (*channel_header).number_of_messages = 0;
+        (*channel_header).is_writing = false;
     }
 
     pub fn check_compatible(&self) -> bool {
         unsafe {
-            let channel_header = self.channel_address as *mut ChannelHeader;
-            (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 'c' as u8 && (*channel_header).protocol_name[2] == 'o' as u8 && (*channel_header).protocol_name[3] == 'n' as u8 && (*channel_header).protocol_name[4] == 's' as u8 && (*channel_header).protocol_name[5] == 'o' as u8 && (*channel_header).protocol_name[6] == 'l' as u8 && (*channel_header).protocol_name[7] == 'e' as u8
+            let channel_header = self.rx_channel_address as *mut ChannelHeader;
+            let rx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 'c' as u8 && (*channel_header).protocol_name[2] == 'o' as u8 && (*channel_header).protocol_name[3] == 'n' as u8 && (*channel_header).protocol_name[4] == 's' as u8 && (*channel_header).protocol_name[5] == 'o' as u8 && (*channel_header).protocol_name[6] == 'l' as u8 && (*channel_header).protocol_name[7] == 'e' as u8;
+            let channel_header = self.tx_channel_address as *mut ChannelHeader;
+            let tx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 'c' as u8 && (*channel_header).protocol_name[2] == 'o' as u8 && (*channel_header).protocol_name[3] == 'n' as u8 && (*channel_header).protocol_name[4] == 's' as u8 && (*channel_header).protocol_name[5] == 'o' as u8 && (*channel_header).protocol_name[6] == 'l' as u8 && (*channel_header).protocol_name[7] == 'e' as u8;
+            rx_compatible && tx_compatible
         }
     }
 
-    pub fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut ChannelMessageHeader {
+    pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader) {
+        let call_id = self.call_id;
+        self.call_id += 1;
         unsafe {
-            let channel_header = self.channel_address as *mut ChannelHeader;
-            let lock = ChannelLock::get(self);
+            let channel_header = self.tx_channel_address as *mut ChannelHeader;
+            let lock = ChannelLock::get(self.tx_channel_address);
             #[cfg(debug)]
             assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
             assert!(!(*channel_header).is_writing);
@@ -140,31 +161,32 @@ impl ConsoleChannel {
             if (*channel_header).number_of_messages == 0 {
                 (*channel_header).first_message_offset = mem::size_of::<ChannelHeader>();
                 (*channel_header).last_message_offset = mem::size_of::<ChannelHeader>();
-                message = self.channel_address.offset(mem::size_of::<ChannelHeader>() as isize) as *mut ChannelMessageHeader;
+                message = self.tx_channel_address.offset(mem::size_of::<ChannelHeader>() as isize) as *mut ChannelMessageHeader;
                 (*message).previous_message_offset = 0;
             }
             else {
                 let last_message_offset = (*channel_header).last_message_offset;
-                let last_message = self.channel_address.offset(last_message_offset as isize) as *mut ChannelMessageHeader;
+                let last_message = self.tx_channel_address.offset(last_message_offset as isize) as *mut ChannelMessageHeader;
                 (*last_message).next_message_offset = (*channel_header).last_message_offset + (*last_message).message_length;
-                message = self.channel_address.offset((*last_message).next_message_offset as isize) as *mut ChannelMessageHeader;
+                message = self.tx_channel_address.offset((*last_message).next_message_offset as isize) as *mut ChannelMessageHeader;
                 (*message).previous_message_offset = last_message_offset;
             }
             (*channel_header).is_writing = true;
             (*message).message_magic = ChannelMessageHeader::MAGIC;
             (*message).message_id = message_id;
+            (*message).call_id = call_id;
             (*message).replace_pending = replace_pending;
             (*message).message_length = 0;
             (*message).next_message_offset = 0;
-            message
+            (call_id, message)
         }
     }
 
     pub fn commit_message(&self, message_payload_size: usize) {
         unsafe {
-            let channel_header = self.channel_address as *mut ChannelHeader;
-            let lock = ChannelLock::get(self);
-            let last_message = self.channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;
+            let channel_header = self.tx_channel_address as *mut ChannelHeader;
+            let lock = ChannelLock::get(self.tx_channel_address);
+            let last_message = self.tx_channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;
             #[cfg(debug)]
             assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
             assert!((*channel_header).is_writing);
@@ -176,24 +198,24 @@ impl ConsoleChannel {
         }
     }
 
-    pub fn find_specific_message(&self, message_id: u64) -> Option<*mut ChannelMessageHeader> {
+    pub fn find_specific_message(&self, call_id: u64) -> Option<*mut ChannelMessageHeader> {
         unsafe {
-            let channel_header = self.channel_address as *mut ChannelHeader;
-            let lock = ChannelLock::get(self);
+            let channel_header = self.rx_channel_address as *mut ChannelHeader;
+            let lock = ChannelLock::get(self.rx_channel_address);
             #[cfg(debug)]
             assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
             if (*channel_header).number_of_messages == 0 {
                 None
             }
             else {
-                let first_message = self.channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
+                let first_message = self.rx_channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
                 #[cfg(debug)]
                 assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
                 let iter = first_message;
-                while (*iter).message_id != message_id && (*iter).next_message_offset != 0 {
-                    let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+                while (*iter).call_id != call_id && (*iter).next_message_offset != 0 {
+                    let iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
                 }
-                if (*iter).message_id == message_id {
+                if (*iter).call_id == call_id {
                     Some(iter)
                 }
                 else {
@@ -205,15 +227,15 @@ impl ConsoleChannel {
 
     pub fn find_message(&self) -> Option<*mut ChannelMessageHeader> {
         unsafe {
-            let channel_header = self.channel_address as *mut ChannelHeader;
-            let lock = ChannelLock::get(self);
+            let channel_header = self.rx_channel_address as *mut ChannelHeader;
+            let lock = ChannelLock::get(self.rx_channel_address);
             #[cfg(debug)]
             assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
             if (*channel_header).number_of_messages == 0 {
                 None
             }
             else {
-                let first_message = self.channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
+                let first_message = self.rx_channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
                 #[cfg(debug)]
                 assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
                 if !(*first_message).replace_pending {
@@ -223,7 +245,7 @@ impl ConsoleChannel {
                     let mut last_of_kind = first_message;
                     let iter = first_message;
                     while (*iter).next_message_offset != 0 {
-                        let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+                        let iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
                         if (*iter).message_id == (*first_message).message_id {
                             last_of_kind = iter;
                         }
@@ -234,7 +256,7 @@ impl ConsoleChannel {
                             assert!((*channel_header).number_of_messages > 1);
                             self.unlink_message(iter, true);
                         }
-                        let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+                        let iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
                     }
                     Some(last_of_kind)
                 }
@@ -244,8 +266,8 @@ impl ConsoleChannel {
 
     pub fn unlink_message(&self, message: *mut ChannelMessageHeader, lock_held: bool) {
         unsafe {
-            let channel_header = self.channel_address as *mut ChannelHeader;
-            let lock = if lock_held { None } else { Some(ChannelLock::get(self)) };
+            let channel_header = self.rx_channel_address as *mut ChannelHeader;
+            let lock = if lock_held { None } else { Some(ChannelLock::get(self.rx_channel_address)) };
             #[cfg(debug)]
             assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);
             #[cfg(debug)]
@@ -254,14 +276,14 @@ impl ConsoleChannel {
                 (*channel_header).first_message_offset = (*message).next_message_offset;
             }
             else {
-                let previous_message = self.channel_address.offset((*message).previous_message_offset as isize) as *mut ChannelMessageHeader;
+                let previous_message = self.rx_channel_address.offset((*message).previous_message_offset as isize) as *mut ChannelMessageHeader;
                 (*previous_message).next_message_offset = (*message).next_message_offset;
             }
             if (*message).next_message_offset == 0 {
                 (*channel_header).last_message_offset = (*message).previous_message_offset;
             }
             else {
-                let next_message = self.channel_address.offset((*message).next_message_offset as isize) as *mut ChannelMessageHeader;
+                let next_message = self.rx_channel_address.offset((*message).next_message_offset as isize) as *mut ChannelMessageHeader;
                 (*next_message).previous_message_offset = (*message).previous_message_offset;
             }
             (*channel_header).number_of_messages = (*channel_header).number_of_messages - 1;

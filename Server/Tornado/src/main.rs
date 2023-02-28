@@ -13,13 +13,15 @@ use protocol_tornado::*;
 use uuid::Uuid;
 
 fn main() {
+    // set up process and server state
     let mut process = StormProcess::new("Server.Tornado").unwrap();
     let mut state = ServerState::new();
 
+    // connect to console service
     let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();
-
     console_client.write_text(&WriteTextParameters { text: "hello console".to_string() });
 
+    // create tornado service
     let mut tornado_server = TornadoServer::create(
         &mut process, 
         "Chaos", 
@@ -27,10 +29,9 @@ fn main() {
         Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()
     ).unwrap();
 
+    // main event loop
     loop {
         let event = StormProcess::wait_for_event().unwrap();
-        println!("tornado: got event {:?}", event);
-        // process.process_event(&wrapper.event);
         console_client.process_event(&process, &event, &mut state);
         tornado_server.process_event(&mut process, &event, &mut state);
     }

@@ -46,20 +46,17 @@ impl TornadoServer {
     pub fn process_event(&mut self, process: &mut StormProcess, event: &StormEvent, observer: &mut impl TornadoServerObserver) {
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
-                println!("{:?} == {:?}?", *service_handle, self.service_handle);
                 if *service_handle == self.service_handle {
                     println!("TornadoServer: client connected");
                     process.initialize_channel(*channel_handle, 4096);
-                    let channel = TornadoChannel::new(process.get_channel_address(*channel_handle).unwrap(), true);
+                    let channel = TornadoChannel::new(process.get_channel_address(*channel_handle, 0).unwrap(), process.get_channel_address(*channel_handle, 1).unwrap(), true);
                     self.channels.insert(*channel_handle, channel);
                     observer.handle_tornado_client_connected(*service_handle, *channel_handle);
                 }
             }
             StormEvent::ChannelSignalled(channel_handle) => {
                 if let Some(channel) = self.channels.get(&channel_handle) {
-                    println!("TornadoServer: client request");
                     while let Some(message) = channel.find_message() {
-                        println!("found channel message");
                         unsafe {
                             match (*message).message_id {
                                 SET_RENDER_TREE_PARAMETERS =>  {
@@ -82,11 +79,9 @@ impl TornadoServer {
         }
     }
 
-    pub fn component_clicked(&self, channel_handle: ChannelHandle, parameters: ComponentClickedParameters) {
-        println!("TornadoServer::component_clicked");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, false);
+    pub fn component_clicked(&mut self, channel_handle: ChannelHandle, parameters: ComponentClickedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);

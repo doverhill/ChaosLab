@@ -2,6 +2,7 @@ use crate::{syscalls, ChannelHandle, ServiceHandle, StormAction, StormError, Sto
 
 use std::collections::HashMap;
 use uuid::Uuid;
+use winapi::shared::ktmtypes::ENLISTMENT_SUPERIOR;
 
 pub struct StormProcess {
 // pub struct StormProcess<'a> {
@@ -121,9 +122,19 @@ impl StormProcess {
         self.channels.insert(handle, channel);
     }
 
-    pub fn get_channel_address(&self, handle: ChannelHandle) -> Result<*mut u8, StormError> {
+    pub fn get_channel_address(&self, handle: ChannelHandle, id: usize) -> Result<*mut u8, StormError> {
         match self.channels.get(&handle) {
-            Some(channel) => Ok(channel.map_pointer),
+            Some(channel) => {
+                if id == 0 {
+                    Ok(channel.map_pointer_0)
+                }
+                else if id == 1 {
+                    Ok(channel.map_pointer_1)
+                }
+                else {
+                    Err(StormError::NotFound)
+                }
+            },
             None => Err(StormError::NotFound),
         }
     }
@@ -167,7 +178,6 @@ impl StormProcess {
     }
 
     pub fn signal_channel(handle: ChannelHandle) -> Result<(), StormError> {
-        println!("attempting to send channel message");
         syscalls::channel_signal(handle)
     }
 

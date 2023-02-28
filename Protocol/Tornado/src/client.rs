@@ -34,7 +34,7 @@ pub struct TornadoClient {
 impl TornadoClient {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("tornado", None, None, None, 4096)?;
-        let channel = TornadoChannel::new(process.get_channel_address(channel_handle).unwrap(), false);
+        let channel = TornadoChannel::new(process.get_channel_address(channel_handle, 0).unwrap(), process.get_channel_address(channel_handle, 1).unwrap(), false);
         Ok(Self {
             channel_handle: channel_handle,
             channel: channel,
@@ -45,7 +45,6 @@ impl TornadoClient {
         match event {
             StormEvent::ChannelSignalled(channel_handle) => {
                 if *channel_handle == self.channel_handle {
-                    println!("TornadoClient: got event");
                     // observer.handle_tornado_event(*channel_handle, event);
                 }
             }
@@ -53,8 +52,8 @@ impl TornadoClient {
         }
     }
 
-    pub fn set_render_tree(&self, parameters: &SetRenderTreeParameters) {
-        let message = self.channel.prepare_message(SET_RENDER_TREE_PARAMETERS, false);
+    pub fn set_render_tree(&mut self, parameters: &SetRenderTreeParameters) {
+        let (call_id, message) = self.channel.prepare_message(SET_RENDER_TREE_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

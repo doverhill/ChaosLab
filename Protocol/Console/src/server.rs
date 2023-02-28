@@ -21,10 +21,10 @@ use alloc::vec::Vec;
 
 pub enum ConsoleServerRequest {
     GetCapabilities,
-    SetTextColor(&'static SetTextColorParameters),
+    SetTextColor(SetTextColorParameters),
     MoveTextCursor(MoveTextCursorParameters),
     DrawImagePatch(DrawImagePatchParameters),
-    WriteText(&'static WriteTextParameters),
+    WriteText(WriteTextParameters),
     WriteObjects(WriteObjectsParameters),
 }
 
@@ -51,20 +51,17 @@ impl ConsoleServer {
     pub fn process_event(&mut self, process: &mut StormProcess, event: &StormEvent, observer: &mut impl ConsoleServerObserver) {
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
-                println!("{:?} == {:?}?", *service_handle, self.service_handle);
                 if *service_handle == self.service_handle {
                     println!("ConsoleServer: client connected");
                     process.initialize_channel(*channel_handle, 4096);
-                    let channel = ConsoleChannel::new(process.get_channel_address(*channel_handle).unwrap(), true);
+                    let channel = ConsoleChannel::new(process.get_channel_address(*channel_handle, 0).unwrap(), process.get_channel_address(*channel_handle, 1).unwrap(), true);
                     self.channels.insert(*channel_handle, channel);
                     observer.handle_console_client_connected(*service_handle, *channel_handle);
                 }
             }
             StormEvent::ChannelSignalled(channel_handle) => {
                 if let Some(channel) = self.channels.get(&channel_handle) {
-                    println!("ConsoleServer: client request");
                     while let Some(message) = channel.find_message() {
-                        println!("found channel message");
                         unsafe {
                             match (*message).message_id {
                                 GET_CAPABILITIES_PARAMETERS =>  {
@@ -85,10 +82,6 @@ impl ConsoleServer {
                                 }
                                 WRITE_TEXT_PARAMETERS =>  {
                                     println!("got WRITE_TEXT_PARAMETERS message");
-                                    let payload = ChannelMessageHeader::get_payload_address(message);
-                                    WriteTextParameters::reconstruct_at_inline(payload);
-                                    let parameters = (payload as *const WriteTextParameters).as_ref().unwrap();
-                                    observer.handle_console_request(self.service_handle, *channel_handle, ConsoleServerRequest::WriteText(parameters));
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_OBJECTS_PARAMETERS =>  {
@@ -111,11 +104,9 @@ impl ConsoleServer {
         }
     }
 
-    pub fn key_pressed(&self, channel_handle: ChannelHandle, parameters: KeyPressedParameters) {
-        println!("ConsoleServer::key_pressed");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(KEY_PRESSED_PARAMETERS, false);
+    pub fn key_pressed(&mut self, channel_handle: ChannelHandle, parameters: KeyPressedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(KEY_PRESSED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -123,11 +114,9 @@ impl ConsoleServer {
         }
     }
 
-    pub fn key_released(&self, channel_handle: ChannelHandle, parameters: KeyReleasedParameters) {
-        println!("ConsoleServer::key_released");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(KEY_RELEASED_PARAMETERS, false);
+    pub fn key_released(&mut self, channel_handle: ChannelHandle, parameters: KeyReleasedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(KEY_RELEASED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -135,11 +124,9 @@ impl ConsoleServer {
         }
     }
 
-    pub fn pointer_moved(&self, channel_handle: ChannelHandle, parameters: PointerMovedParameters) {
-        println!("ConsoleServer::pointer_moved");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(POINTER_MOVED_PARAMETERS, true);
+    pub fn pointer_moved(&mut self, channel_handle: ChannelHandle, parameters: PointerMovedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(POINTER_MOVED_PARAMETERS, true);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -147,11 +134,9 @@ impl ConsoleServer {
         }
     }
 
-    pub fn pointer_pressed(&self, channel_handle: ChannelHandle, parameters: PointerPressedParameters) {
-        println!("ConsoleServer::pointer_pressed");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(POINTER_PRESSED_PARAMETERS, false);
+    pub fn pointer_pressed(&mut self, channel_handle: ChannelHandle, parameters: PointerPressedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(POINTER_PRESSED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -159,11 +144,9 @@ impl ConsoleServer {
         }
     }
 
-    pub fn pointer_released(&self, channel_handle: ChannelHandle, parameters: PointerReleasedParameters) {
-        println!("ConsoleServer::pointer_released");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(POINTER_RELEASED_PARAMETERS, false);
+    pub fn pointer_released(&mut self, channel_handle: ChannelHandle, parameters: PointerReleasedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(POINTER_RELEASED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -171,11 +154,9 @@ impl ConsoleServer {
         }
     }
 
-    pub fn size_changed(&self, channel_handle: ChannelHandle, parameters: SizeChangedParameters) {
-        println!("ConsoleServer::size_changed");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(SIZE_CHANGED_PARAMETERS, false);
+    pub fn size_changed(&mut self, channel_handle: ChannelHandle, parameters: SizeChangedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(SIZE_CHANGED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);

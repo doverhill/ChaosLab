@@ -54,6 +54,7 @@ namespace IDLCompiler
             var messageHeader = source.AddBlock("pub struct ChannelMessageHeader");
             messageHeader.AddLine("message_magic: u64,");
             messageHeader.AddLine("pub message_id: u64,");
+            messageHeader.AddLine("pub call_id: u64,");
             messageHeader.AddLine("message_length: usize,");
             messageHeader.AddLine("previous_message_offset: usize,");
             messageHeader.AddLine("next_message_offset: usize,");
@@ -75,8 +76,8 @@ namespace IDLCompiler
             source.AddBlank();
 
             var lockImpl = source.AddBlock("impl ChannelLock");
-            var getFunction = lockImpl.AddBlock($"pub unsafe fn get(channel: &{channelName}) -> Self");
-            getFunction.AddLine("let channel_header = channel.channel_address as *const ChannelHeader;");
+            var getFunction = lockImpl.AddBlock($"pub unsafe fn get(channel_address: *mut u8) -> Self");
+            getFunction.AddLine("let channel_header = channel_address as *const ChannelHeader;");
             getFunction.AddLine("while (*channel_header).lock.swap(true, Ordering::Acquire) {}");
             var getReturn = getFunction.AddBlock("Self");
             getReturn.AddLine("channel_header: channel_header");
@@ -91,44 +92,55 @@ namespace IDLCompiler
             source.AddBlank();
 
             var channel = source.AddBlock($"pub struct {channelName}");
-            channel.AddLine("channel_address: *mut u8,");
+            channel.AddLine("rx_channel_address: *mut u8,");
+            channel.AddLine("tx_channel_address: *mut u8,");
+            channel.AddLine("call_id: u64,");
 
             source.AddBlank();
 
             var channelImpl = source.AddBlock($"impl {channelName}");
 
-            var newFunctionBlock = channelImpl.AddBlock("pub fn new(channel_address: *mut u8, is_server: bool) -> Self");
+            var newFunctionBlock = channelImpl.AddBlock("pub fn new(channel_address_0: *mut u8, channel_address_1: *mut u8, is_server: bool) -> Self");
             var unsafeBlock = newFunctionBlock.AddBlock("unsafe");
-            var ifBlock = unsafeBlock.AddBlock("if !is_server");
-            ifBlock.AddLine("let channel_header = channel_address as *mut ChannelHeader;");
-            ifBlock.AddLine("(*channel_header).lock.store(false, Ordering::Relaxed);");
-            ifBlock.AddLine("(*channel_header).channel_magic = ChannelHeader::MAGIC;");
-            ifBlock.AddLine($"(*channel_header).protocol_name[0] = {idl.Protocol.Name.Length};");
-            for (var i = 0; i < idl.Protocol.Name.Length; i++)
-            {
-                ifBlock.AddLine($"(*channel_header).protocol_name[{i + 1}] = '{idl.Protocol.Name[i]}' as u8;");
+            var ifBlock = unsafeBlock.AddBlock("if is_server");
+            var returnBlock = ifBlock.AddBlock(channelName);
+            returnBlock.AddLine("rx_channel_address: channel_address_0,");
+            returnBlock.AddLine("tx_channel_address: channel_address_1,");
+            returnBlock.AddLine("call_id: 1,");
+            var elseBlock = unsafeBlock.AddBlock("else");
+            elseBlock.AddLine("Self::initialize(channel_address_0);");
+            elseBlock.AddLine("Self::initialize(channel_address_1);");
+            returnBlock = elseBlock.AddBlock(channelName);
+            returnBlock.AddLine("rx_channel_address: channel_address_1,");
+            returnBlock.AddLine("tx_channel_address: channel_address_0,");
+            returnBlock.AddLine("call_id: 1,");
+
+            channelImpl.AddBlank();
+
+            var initializeBlock = channelImpl.AddBlock("unsafe fn initialize(channel_address: *mut u8)");
+            initializeBlock.AddLine("let channel_header = channel_address as *mut ChannelHeader;");
+            initializeBlock.AddLine("(*channel_header).lock.store(false, Ordering::Relaxed);");
+            initializeBlock.AddLine("(*channel_header).channel_magic = ChannelHeader::MAGIC;");
+            initializeBlock.AddLine($"(*channel_header).protocol_name[0] = {idl.Protocol.Name.Length};");
+            for (var i = 0; i < idl.Protocol.Name.Length; i++) {
+                initializeBlock.AddLine($"(*channel_header).protocol_name[{i + 1}] = '{idl.Protocol.Name[i]}' as u8;");
             }
-            versionBlock = ifBlock.AddBlock("(*channel_header).protocol_version = ProtocolVersion");
+            versionBlock = initializeBlock.AddBlock("(*channel_header).protocol_version = ProtocolVersion");
             versionBlock.AddLine($"major: {idl.Protocol.Version},");
             versionBlock.AddLine("minor: 0,");
             versionBlock.AddLine("patch: 0,");
             versionBlock.AddLine("is_preview: false,");
             versionBlock.AddLine("preview_version: 0,");
             versionBlock.SemiColonAfter = true;
-            ifBlock.AddLine("(*channel_header).first_message_offset = 0;");
-            ifBlock.AddLine("(*channel_header).last_message_offset = 0;");
-            ifBlock.AddLine("(*channel_header).number_of_messages = 0;");
-            ifBlock.AddLine("(*channel_header).is_writing = false;");
-
-            var returnBlock = unsafeBlock.AddBlock(channelName);
-            returnBlock.AddLine("channel_address: channel_address,");
+            initializeBlock.AddLine("(*channel_header).first_message_offset = 0;");
+            initializeBlock.AddLine("(*channel_header).last_message_offset = 0;");
+            initializeBlock.AddLine("(*channel_header).number_of_messages = 0;");
+            initializeBlock.AddLine("(*channel_header).is_writing = false;");
 
             channelImpl.AddBlank();
 
             var compatibleFunctionBlock = channelImpl.AddBlock("pub fn check_compatible(&self) -> bool");
             unsafeBlock = compatibleFunctionBlock.AddBlock("unsafe");
-            unsafeBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
-
             var checkString = "(*channel_header).channel_magic == ChannelHeader::MAGIC";
             checkString += $" && (*channel_header).protocol_version.major == {idl.Protocol.Version}";
             checkString += $" && (*channel_header).protocol_name[0] == {idl.Protocol.Name.Length}";
@@ -136,14 +148,21 @@ namespace IDLCompiler
             {
                 checkString += $" && (*channel_header).protocol_name[{i + 1}] == '{idl.Protocol.Name[i]}' as u8";
             }
-            unsafeBlock.AddLine(checkString);
+            unsafeBlock.AddLine("let channel_header = self.rx_channel_address as *mut ChannelHeader;");
+            unsafeBlock.AddLine($"let rx_compatible = {checkString};");
+            unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
+            unsafeBlock.AddLine($"let tx_compatible = {checkString};");
+            unsafeBlock.AddLine("rx_compatible && tx_compatible");
 
             channelImpl.AddBlank();
 
-            var prepareFunctionBlock = channelImpl.AddBlock("pub fn prepare_message(&self, message_id: u64, replace_pending: bool) -> *mut ChannelMessageHeader");
+            var prepareFunctionBlock = channelImpl.AddBlock("pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader)");
+            prepareFunctionBlock.AddLine("let call_id = self.call_id;");
+            prepareFunctionBlock.AddLine("self.call_id += 1;");
+
             unsafeBlock = prepareFunctionBlock.AddBlock("unsafe");
-            unsafeBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
-            unsafeBlock.AddLine("let lock = ChannelLock::get(self);");
+            unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
+            unsafeBlock.AddLine("let lock = ChannelLock::get(self.tx_channel_address);");
             unsafeBlock.AddLine("#[cfg(debug)]");
             unsafeBlock.AddLine("assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);");
             unsafeBlock.AddLine("assert!(!(*channel_header).is_writing);");
@@ -151,31 +170,32 @@ namespace IDLCompiler
             ifBlock = unsafeBlock.AddBlock("if (*channel_header).number_of_messages == 0");
             ifBlock.AddLine("(*channel_header).first_message_offset = mem::size_of::<ChannelHeader>();");
             ifBlock.AddLine("(*channel_header).last_message_offset = mem::size_of::<ChannelHeader>();");
-            ifBlock.AddLine("message = self.channel_address.offset(mem::size_of::<ChannelHeader>() as isize) as *mut ChannelMessageHeader;");
+            ifBlock.AddLine("message = self.tx_channel_address.offset(mem::size_of::<ChannelHeader>() as isize) as *mut ChannelMessageHeader;");
             ifBlock.AddLine("(*message).previous_message_offset = 0;");
-            var elseBlock = unsafeBlock.AddBlock("else");
+            elseBlock = unsafeBlock.AddBlock("else");
             elseBlock.AddLine("let last_message_offset = (*channel_header).last_message_offset;");
-            elseBlock.AddLine("let last_message = self.channel_address.offset(last_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("let last_message = self.tx_channel_address.offset(last_message_offset as isize) as *mut ChannelMessageHeader;");
             elseBlock.AddLine("(*last_message).next_message_offset = (*channel_header).last_message_offset + (*last_message).message_length;");
-            elseBlock.AddLine("message = self.channel_address.offset((*last_message).next_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("message = self.tx_channel_address.offset((*last_message).next_message_offset as isize) as *mut ChannelMessageHeader;");
             elseBlock.AddLine("(*message).previous_message_offset = last_message_offset;");
 
             unsafeBlock.AddLine("(*channel_header).is_writing = true;");
             //unsafeBlock.AddLine("#[cfg(debug)]");
             unsafeBlock.AddLine("(*message).message_magic = ChannelMessageHeader::MAGIC;");
             unsafeBlock.AddLine("(*message).message_id = message_id;");
+            unsafeBlock.AddLine("(*message).call_id = call_id;");
             unsafeBlock.AddLine("(*message).replace_pending = replace_pending;");
             unsafeBlock.AddLine("(*message).message_length = 0;");
             unsafeBlock.AddLine("(*message).next_message_offset = 0;");
-            unsafeBlock.AddLine("message");
+            unsafeBlock.AddLine("(call_id, message)");
 
             channelImpl.AddBlank();
 
             var commitFunctionBlock = channelImpl.AddBlock("pub fn commit_message(&self, message_payload_size: usize)");
             unsafeBlock = commitFunctionBlock.AddBlock("unsafe");
-            unsafeBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
-            unsafeBlock.AddLine("let lock = ChannelLock::get(self);");
-            unsafeBlock.AddLine("let last_message = self.channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;");
+            unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
+            unsafeBlock.AddLine("let lock = ChannelLock::get(self.tx_channel_address);");
+            unsafeBlock.AddLine("let last_message = self.tx_channel_address.offset((*channel_header).last_message_offset as isize) as *mut ChannelMessageHeader;");
             unsafeBlock.AddLine("#[cfg(debug)]");
             unsafeBlock.AddLine("assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);");
             unsafeBlock.AddLine("assert!((*channel_header).is_writing);");
@@ -187,10 +207,10 @@ namespace IDLCompiler
 
             channelImpl.AddBlank();
 
-            var findFunctionBlock = channelImpl.AddBlock("pub fn find_specific_message(&self, message_id: u64) -> Option<*mut ChannelMessageHeader>");
+            var findFunctionBlock = channelImpl.AddBlock("pub fn find_specific_message(&self, call_id: u64) -> Option<*mut ChannelMessageHeader>");
             unsafeBlock = findFunctionBlock.AddBlock("unsafe");
-            unsafeBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
-            unsafeBlock.AddLine("let lock = ChannelLock::get(self);");
+            unsafeBlock.AddLine("let channel_header = self.rx_channel_address as *mut ChannelHeader;");
+            unsafeBlock.AddLine("let lock = ChannelLock::get(self.rx_channel_address);");
             unsafeBlock.AddLine("#[cfg(debug)]");
             unsafeBlock.AddLine("assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);");
 
@@ -198,13 +218,13 @@ namespace IDLCompiler
             ifBlock.AddLine("None");
 
             elseBlock = unsafeBlock.AddBlock("else");
-            elseBlock.AddLine("let first_message = self.channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("let first_message = self.rx_channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;");
             elseBlock.AddLine("#[cfg(debug)]");
             elseBlock.AddLine("assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);");
             elseBlock.AddLine("let iter = first_message;");
-            var whileBlock = elseBlock.AddBlock("while (*iter).message_id != message_id && (*iter).next_message_offset != 0");
-            whileBlock.AddLine("let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
-            ifBlock = elseBlock.AddBlock("if (*iter).message_id == message_id");
+            var whileBlock = elseBlock.AddBlock("while (*iter).call_id != call_id && (*iter).next_message_offset != 0");
+            whileBlock.AddLine("let iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
+            ifBlock = elseBlock.AddBlock("if (*iter).call_id == call_id");
             ifBlock.AddLine("Some(iter)");
             elseBlock = elseBlock.AddBlock("else");
             elseBlock.AddLine("None");
@@ -214,8 +234,8 @@ namespace IDLCompiler
 
             findFunctionBlock = channelImpl.AddBlock("pub fn find_message(&self) -> Option<*mut ChannelMessageHeader>");
             unsafeBlock = findFunctionBlock.AddBlock("unsafe");
-            unsafeBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
-            unsafeBlock.AddLine("let lock = ChannelLock::get(self);");
+            unsafeBlock.AddLine("let channel_header = self.rx_channel_address as *mut ChannelHeader;");
+            unsafeBlock.AddLine("let lock = ChannelLock::get(self.rx_channel_address);");
             unsafeBlock.AddLine("#[cfg(debug)]");
             unsafeBlock.AddLine("assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);");
 
@@ -223,7 +243,7 @@ namespace IDLCompiler
             ifBlock.AddLine("None");
 
             elseBlock = unsafeBlock.AddBlock("else");
-            elseBlock.AddLine("let first_message = self.channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("let first_message = self.rx_channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;");
             elseBlock.AddLine("#[cfg(debug)]");
             elseBlock.AddLine("assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);");
             ifBlock = elseBlock.AddBlock("if !(*first_message).replace_pending");
@@ -232,7 +252,7 @@ namespace IDLCompiler
             elseBlock.AddLine("let mut last_of_kind = first_message;");
             elseBlock.AddLine("let iter = first_message;");
             whileBlock = elseBlock.AddBlock("while (*iter).next_message_offset != 0");
-            whileBlock.AddLine("let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
+            whileBlock.AddLine("let iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
             ifBlock = whileBlock.AddBlock("if (*iter).message_id == (*first_message).message_id");
             ifBlock.AddLine("last_of_kind = iter;");
             elseBlock.AddLine("let iter = first_message;");
@@ -240,15 +260,15 @@ namespace IDLCompiler
             ifBlock = whileBlock.AddBlock("if (*iter).message_id == (*first_message).message_id && iter != last_of_kind");
             ifBlock.AddLine("assert!((*channel_header).number_of_messages > 1);");
             ifBlock.AddLine("self.unlink_message(iter, true);");
-            whileBlock.AddLine("let iter = self.channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
+            whileBlock.AddLine("let iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
             elseBlock.AddLine("Some(last_of_kind)");
 
             channelImpl.AddBlank();
 
             var unlinkFunctionBlock = channelImpl.AddBlock("pub fn unlink_message(&self, message: *mut ChannelMessageHeader, lock_held: bool)");
             unsafeBlock = unlinkFunctionBlock.AddBlock("unsafe");
-            unsafeBlock.AddLine("let channel_header = self.channel_address as *mut ChannelHeader;");
-            unsafeBlock.AddLine("let lock = if lock_held { None } else { Some(ChannelLock::get(self)) };");
+            unsafeBlock.AddLine("let channel_header = self.rx_channel_address as *mut ChannelHeader;");
+            unsafeBlock.AddLine("let lock = if lock_held { None } else { Some(ChannelLock::get(self.rx_channel_address)) };");
             unsafeBlock.AddLine("#[cfg(debug)]");
             unsafeBlock.AddLine("assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);");
             unsafeBlock.AddLine("#[cfg(debug)]");
@@ -257,13 +277,13 @@ namespace IDLCompiler
             ifBlock = unsafeBlock.AddBlock("if (*message).previous_message_offset == 0");
             ifBlock.AddLine("(*channel_header).first_message_offset = (*message).next_message_offset;");
             elseBlock = unsafeBlock.AddBlock("else");
-            elseBlock.AddLine("let previous_message = self.channel_address.offset((*message).previous_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("let previous_message = self.rx_channel_address.offset((*message).previous_message_offset as isize) as *mut ChannelMessageHeader;");
             elseBlock.AddLine("(*previous_message).next_message_offset = (*message).next_message_offset;");
 
             ifBlock = unsafeBlock.AddBlock("if (*message).next_message_offset == 0");
             ifBlock.AddLine("(*channel_header).last_message_offset = (*message).previous_message_offset;");
             elseBlock = unsafeBlock.AddBlock("else");
-            elseBlock.AddLine("let next_message = self.channel_address.offset((*message).next_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("let next_message = self.rx_channel_address.offset((*message).next_message_offset as isize) as *mut ChannelMessageHeader;");
             elseBlock.AddLine("(*next_message).previous_message_offset = (*message).previous_message_offset;");
 
             unsafeBlock.AddLine("(*channel_header).number_of_messages = (*channel_header).number_of_messages - 1;");

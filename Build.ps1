@@ -13,4 +13,3 @@ Set-Location ..\..
 Set-Location Server\Tornado
 cargo build
 Set-Location ..\..
-

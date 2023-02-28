@@ -10,7 +10,7 @@ namespace Storm
     internal class Output
     {
         private static object _lock = new object();
-        public static SyscallProcessEmitType KernelVerbosity = SyscallProcessEmitType.Debug;
+        public static SyscallProcessEmitType KernelVerbosity = SyscallProcessEmitType.Information;
         public static SyscallProcessEmitType ProcessVerbosity = SyscallProcessEmitType.Debug;
 
         private static Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>> HeadingColors =

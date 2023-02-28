@@ -52,20 +52,17 @@ impl StorageServer {
     pub fn process_event(&mut self, process: &mut StormProcess, event: &StormEvent, observer: &mut impl StorageServerObserver) {
         match event {
             StormEvent::ServiceConnected(service_handle, channel_handle) => {
-                println!("{:?} == {:?}?", *service_handle, self.service_handle);
                 if *service_handle == self.service_handle {
                     println!("StorageServer: client connected");
                     process.initialize_channel(*channel_handle, 4096);
-                    let channel = StorageChannel::new(process.get_channel_address(*channel_handle).unwrap(), true);
+                    let channel = StorageChannel::new(process.get_channel_address(*channel_handle, 0).unwrap(), process.get_channel_address(*channel_handle, 1).unwrap(), true);
                     self.channels.insert(*channel_handle, channel);
                     observer.handle_storage_client_connected(*service_handle, *channel_handle);
                 }
             }
             StormEvent::ChannelSignalled(channel_handle) => {
                 if let Some(channel) = self.channels.get(&channel_handle) {
-                    println!("StorageServer: client request");
                     while let Some(message) = channel.find_message() {
-                        println!("found channel message");
                         unsafe {
                             match (*message).message_id {
                                 GET_CAPABILITIES_PARAMETERS =>  {
@@ -116,11 +113,9 @@ impl StorageServer {
         }
     }
 
-    pub fn watched_object_changed(&self, channel_handle: ChannelHandle, parameters: WatchedObjectChangedParameters) {
-        println!("StorageServer::watched_object_changed");
-        if let Some(channel) = self.channels.get(&channel_handle) {
-            println!("found channel");
-            let message = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, false);
+    pub fn watched_object_changed(&mut self, channel_handle: ChannelHandle, parameters: WatchedObjectChangedParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);

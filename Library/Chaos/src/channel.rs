@@ -13,36 +13,50 @@ use std::iter::once;
 use std::ptr::null_mut;
 
 pub struct Channel {
-    map_handle: HANDLE,
-    pub map_pointer: *mut u8,
-    // pub observers: Vec<&'a mut CO>,
-    // pub on_messaged: Option<Box<dyn Fn(ChannelHandle, u64) + 'a>>,
-    // pub on_destroyed: Option<Box<dyn Fn(ChannelHandle) + 'a>>,
+    map_handle_0: HANDLE,
+    pub map_pointer_0: *mut u8,
+    map_handle_1: HANDLE,
+    pub map_pointer_1: *mut u8,
 }
 
 impl Drop for Channel {
     fn drop(&mut self) {
         println!("dropping channel");
-        if self.map_pointer as *mut _ != NULL {
-            unsafe { UnmapViewOfFile(self.map_pointer as *mut _) };
+        if self.map_pointer_0 as *mut _ != NULL {
+            unsafe { UnmapViewOfFile(self.map_pointer_0 as *mut _) };
         }
 
-        if self.map_handle as *mut _ != NULL {
-            unsafe { CloseHandle(self.map_handle) };
+        if self.map_handle_0 as *mut _ != NULL {
+            unsafe { CloseHandle(self.map_handle_0) };
+        }
+
+        if self.map_pointer_1 as *mut _ != NULL {
+            unsafe { UnmapViewOfFile(self.map_pointer_1 as *mut _) };
+        }
+
+        if self.map_handle_1 as *mut _ != NULL {
+            unsafe { CloseHandle(self.map_handle_1) };
         }
     }
 }
 
 impl Channel {
     pub fn new(handle: ChannelHandle, initial_size: usize) -> Self {
-        let memory_name = Self::get_map_name(handle);
-        let (map_handle, map_pointer) = Self::create_shared_memory(&memory_name, initial_size);
-        map_handle.expect("Failed to create shared memory");
+        // first buffer
+        let memory_name = Self::get_map_name(handle, 0);
+        let (map_handle_0, map_pointer_0) = Self::create_shared_memory(&memory_name, initial_size);
+        map_handle_0.expect("Failed to create shared memory");
+
+        // second buffer
+        let memory_name = Self::get_map_name(handle, 1);
+        let (map_handle_1, map_pointer_1) = Self::create_shared_memory(&memory_name, initial_size);
+        map_handle_1.expect("Failed to create shared memory");
 
         Channel {
-            map_handle: map_handle.unwrap(),
-            map_pointer: map_pointer,
-            // observers: Vec::new(),
+            map_handle_0: map_handle_0.unwrap(),
+            map_pointer_0: map_pointer_0,
+            map_handle_1: map_handle_1.unwrap(),
+            map_pointer_1: map_pointer_1,
         }
     }
 
@@ -56,8 +70,8 @@ impl Channel {
     //     }
     // }
 
-    fn get_map_name(handle: ChannelHandle) -> String {
-        return format!("Local\\__chaos_channel_{}", handle.raw_handle());
+    fn get_map_name(handle: ChannelHandle, id: usize) -> String {
+        return format!("Local\\__chaos_channel_{}_{}", handle.raw_handle(), id);
     }
 
     fn create_shared_memory(name: &str, size: usize) -> (Option<HANDLE>, *mut u8) {
