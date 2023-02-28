@@ -17,8 +17,8 @@ use crate::from_server::*;
 use crate::message_ids::*;
 use alloc::vec::Vec;
 
-pub enum StorageClientEvent {
-    WatchedObjectChanged(WatchedObjectChangedParameters),
+pub enum StorageClientEvent<'a> {
+    WatchedObjectChanged(&'a WatchedObjectChangedParameters),
 }
 
 pub trait StorageClientObserver {
@@ -44,6 +44,23 @@ impl StorageClient {
         match event {
             StormEvent::ChannelSignalled(channel_handle) => {
                 if *channel_handle == self.channel_handle {
+                    while let Some(message) = self.channel.find_message() {
+                        unsafe {
+                            match (*message).message_id {
+                                WATCHED_OBJECT_CHANGED_PARAMETERS =>  {
+                                    println!("got WATCHED_OBJECT_CHANGED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    WatchedObjectChangedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const WatchedObjectChangedParameters;
+                                    let request = StorageClientEvent::WatchedObjectChanged(parameters.as_ref().unwrap());
+                                    observer.handle_storage_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                     // observer.handle_storage_event(*channel_handle, event);
                 }
             }

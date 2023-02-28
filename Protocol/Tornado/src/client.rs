@@ -18,8 +18,8 @@ use crate::from_server::*;
 use crate::message_ids::*;
 use alloc::vec::Vec;
 
-pub enum TornadoClientEvent {
-    ComponentClicked(ComponentClickedParameters),
+pub enum TornadoClientEvent<'a> {
+    ComponentClicked(&'a ComponentClickedParameters),
 }
 
 pub trait TornadoClientObserver {
@@ -45,6 +45,23 @@ impl TornadoClient {
         match event {
             StormEvent::ChannelSignalled(channel_handle) => {
                 if *channel_handle == self.channel_handle {
+                    while let Some(message) = self.channel.find_message() {
+                        unsafe {
+                            match (*message).message_id {
+                                COMPONENT_CLICKED_PARAMETERS =>  {
+                                    println!("got COMPONENT_CLICKED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    ComponentClickedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const ComponentClickedParameters;
+                                    let request = TornadoClientEvent::ComponentClicked(parameters.as_ref().unwrap());
+                                    observer.handle_tornado_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                     // observer.handle_tornado_event(*channel_handle, event);
                 }
             }

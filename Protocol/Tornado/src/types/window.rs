@@ -38,6 +38,7 @@ impl Window {
         // String title
         let mut len = self.title.len();
         *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
         core::ptr::copy(self.title.as_ptr(), pointer, len);
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);

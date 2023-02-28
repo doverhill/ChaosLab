@@ -32,7 +32,12 @@ impl ServerState {
 
 impl ConsoleClientObserver for ServerState {
     fn handle_console_event(&mut self, channel_handle: ChannelHandle, event: ConsoleClientEvent) {
-        println!("handle_console_event");
+        match event {
+            ConsoleClientEvent::PointerMoved(parameters) => {
+                println!("moved to {} {}", parameters.position.x, parameters.position.y);
+            },
+            _ => {}
+        }
     }
 }
 

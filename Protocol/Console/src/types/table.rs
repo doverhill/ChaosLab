@@ -35,6 +35,7 @@ impl Table {
         // String name
         let mut len = self.name.len();
         *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
         core::ptr::copy(self.name.as_ptr(), pointer, len);
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
@@ -43,6 +44,7 @@ impl Table {
         // String description
         let mut len = self.description.len();
         *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
         core::ptr::copy(self.description.as_ptr(), pointer, len);
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);

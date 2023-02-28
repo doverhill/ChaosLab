@@ -18,15 +18,15 @@ use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
-pub enum StorageServerRequest {
+pub enum StorageServerRequest<'a> {
     GetCapabilities,
-    ListObjects(ListObjectsParameters),
-    LockObject(LockObjectParameters),
-    UnlockObject(UnlockObjectParameters),
-    ReadObject(ReadObjectParameters),
-    WriteObject(WriteObjectParameters),
-    WatchObject(WatchObjectParameters),
-    UnwatchObject(UnwatchObjectParameters),
+    ListObjects(&'a ListObjectsParameters),
+    LockObject(&'a LockObjectParameters),
+    UnlockObject(&'a UnlockObjectParameters),
+    ReadObject(&'a ReadObjectParameters),
+    WriteObject(&'a WriteObjectParameters),
+    WatchObject(&'a WatchObjectParameters),
+    UnwatchObject(&'a UnwatchObjectParameters),
 }
 
 pub trait StorageServerObserver {
@@ -67,41 +67,76 @@ impl StorageServer {
                             match (*message).message_id {
                                 GET_CAPABILITIES_PARAMETERS =>  {
                                     println!("got GET_CAPABILITIES_PARAMETERS message");
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, StorageServerRequest::GetCapabilities);
                                     channel.unlink_message(message, false);
                                 }
                                 LIST_OBJECTS_PARAMETERS =>  {
                                     println!("got LIST_OBJECTS_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    ListObjectsParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const ListObjectsParameters;
+                                    let request = StorageServerRequest::ListObjects(parameters.as_ref().unwrap());
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 LOCK_OBJECT_PARAMETERS =>  {
                                     println!("got LOCK_OBJECT_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    LockObjectParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const LockObjectParameters;
+                                    let request = StorageServerRequest::LockObject(parameters.as_ref().unwrap());
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 UNLOCK_OBJECT_PARAMETERS =>  {
                                     println!("got UNLOCK_OBJECT_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    UnlockObjectParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const UnlockObjectParameters;
+                                    let request = StorageServerRequest::UnlockObject(parameters.as_ref().unwrap());
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 READ_OBJECT_PARAMETERS =>  {
                                     println!("got READ_OBJECT_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    ReadObjectParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const ReadObjectParameters;
+                                    let request = StorageServerRequest::ReadObject(parameters.as_ref().unwrap());
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_OBJECT_PARAMETERS =>  {
                                     println!("got WRITE_OBJECT_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    WriteObjectParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const WriteObjectParameters;
+                                    let request = StorageServerRequest::WriteObject(parameters.as_ref().unwrap());
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WATCH_OBJECT_PARAMETERS =>  {
                                     println!("got WATCH_OBJECT_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    WatchObjectParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const WatchObjectParameters;
+                                    let request = StorageServerRequest::WatchObject(parameters.as_ref().unwrap());
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 UNWATCH_OBJECT_PARAMETERS =>  {
                                     println!("got UNWATCH_OBJECT_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    UnwatchObjectParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const UnwatchObjectParameters;
+                                    let request = StorageServerRequest::UnwatchObject(parameters.as_ref().unwrap());
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 _ => {}
                             }
                         }
                     }
-                    // observer.handle_storage_request(self.service_handle, channel_handle, request);
                 }
             }
             StormEvent::ChannelDestroyed(channel_handle) => {

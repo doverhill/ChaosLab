@@ -61,6 +61,7 @@ namespace IDLCompiler
                     {
                         functionBlock.AddLine($"let mut len = self.{field.Name}.len();");
                         functionBlock.AddLine("*(pointer as *mut usize) = len;");
+                        functionBlock.AddLine("pointer = pointer.offset(mem::size_of::<usize>() as isize);");
                         functionBlock.AddLine($"core::ptr::copy(self.{field.Name}.as_ptr(), pointer, len);");
                         functionBlock.AddLine("len = ((len + 7) / 8) * 8;");
                         functionBlock.AddLine("pointer = pointer.offset(len as isize);");

@@ -19,8 +19,8 @@ use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
-pub enum TornadoServerRequest {
-    SetRenderTree(SetRenderTreeParameters),
+pub enum TornadoServerRequest<'a> {
+    SetRenderTree(&'a SetRenderTreeParameters),
 }
 
 pub trait TornadoServerObserver {
@@ -61,13 +61,17 @@ impl TornadoServer {
                             match (*message).message_id {
                                 SET_RENDER_TREE_PARAMETERS =>  {
                                     println!("got SET_RENDER_TREE_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    SetRenderTreeParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const SetRenderTreeParameters;
+                                    let request = TornadoServerRequest::SetRenderTree(parameters.as_ref().unwrap());
+                                    observer.handle_tornado_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 _ => {}
                             }
                         }
                     }
-                    // observer.handle_tornado_request(self.service_handle, channel_handle, request);
                 }
             }
             StormEvent::ChannelDestroyed(channel_handle) => {

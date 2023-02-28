@@ -39,6 +39,7 @@ impl Button {
         // String icon_name
         let mut len = self.icon_name.len();
         *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
         core::ptr::copy(self.icon_name.as_ptr(), pointer, len);
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
@@ -47,6 +48,7 @@ impl Button {
         // String text
         let mut len = self.text.len();
         *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
         core::ptr::copy(self.text.as_ptr(), pointer, len);
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);

@@ -33,6 +33,7 @@ impl ListObjectsParameters {
         // String path
         let mut len = self.path.len();
         *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
         core::ptr::copy(self.path.as_ptr(), pointer, len);
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);
@@ -41,6 +42,7 @@ impl ListObjectsParameters {
         // String pattern
         let mut len = self.pattern.len();
         *(pointer as *mut usize) = len;
+        pointer = pointer.offset(mem::size_of::<usize>() as isize);
         core::ptr::copy(self.pattern.as_ptr(), pointer, len);
         len = ((len + 7) / 8) * 8;
         pointer = pointer.offset(len as isize);

@@ -19,13 +19,13 @@ use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
-pub enum ConsoleServerRequest {
+pub enum ConsoleServerRequest<'a> {
     GetCapabilities,
-    SetTextColor(SetTextColorParameters),
-    MoveTextCursor(MoveTextCursorParameters),
-    DrawImagePatch(DrawImagePatchParameters),
-    WriteText(WriteTextParameters),
-    WriteObjects(WriteObjectsParameters),
+    SetTextColor(&'a SetTextColorParameters),
+    MoveTextCursor(&'a MoveTextCursorParameters),
+    DrawImagePatch(&'a DrawImagePatchParameters),
+    WriteText(&'a WriteTextParameters),
+    WriteObjects(&'a WriteObjectsParameters),
 }
 
 pub trait ConsoleServerObserver {
@@ -66,33 +66,58 @@ impl ConsoleServer {
                             match (*message).message_id {
                                 GET_CAPABILITIES_PARAMETERS =>  {
                                     println!("got GET_CAPABILITIES_PARAMETERS message");
+                                    observer.handle_console_request(self.service_handle, *channel_handle, ConsoleServerRequest::GetCapabilities);
                                     channel.unlink_message(message, false);
                                 }
                                 SET_TEXT_COLOR_PARAMETERS =>  {
                                     println!("got SET_TEXT_COLOR_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    SetTextColorParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const SetTextColorParameters;
+                                    let request = ConsoleServerRequest::SetTextColor(parameters.as_ref().unwrap());
+                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 MOVE_TEXT_CURSOR_PARAMETERS =>  {
                                     println!("got MOVE_TEXT_CURSOR_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    MoveTextCursorParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const MoveTextCursorParameters;
+                                    let request = ConsoleServerRequest::MoveTextCursor(parameters.as_ref().unwrap());
+                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 DRAW_IMAGE_PATCH_PARAMETERS =>  {
                                     println!("got DRAW_IMAGE_PATCH_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    DrawImagePatchParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const DrawImagePatchParameters;
+                                    let request = ConsoleServerRequest::DrawImagePatch(parameters.as_ref().unwrap());
+                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_TEXT_PARAMETERS =>  {
                                     println!("got WRITE_TEXT_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    WriteTextParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const WriteTextParameters;
+                                    let request = ConsoleServerRequest::WriteText(parameters.as_ref().unwrap());
+                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_OBJECTS_PARAMETERS =>  {
                                     println!("got WRITE_OBJECTS_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    WriteObjectsParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const WriteObjectsParameters;
+                                    let request = ConsoleServerRequest::WriteObjects(parameters.as_ref().unwrap());
+                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
                                     channel.unlink_message(message, false);
                                 }
                                 _ => {}
                             }
                         }
                     }
-                    // observer.handle_console_request(self.service_handle, channel_handle, request);
                 }
             }
             StormEvent::ChannelDestroyed(channel_handle) => {

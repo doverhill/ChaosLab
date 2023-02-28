@@ -18,13 +18,13 @@ use crate::from_server::*;
 use crate::message_ids::*;
 use alloc::vec::Vec;
 
-pub enum ConsoleClientEvent {
-    KeyPressed(KeyPressedParameters),
-    KeyReleased(KeyReleasedParameters),
-    PointerMoved(PointerMovedParameters),
-    PointerPressed(PointerPressedParameters),
-    PointerReleased(PointerReleasedParameters),
-    SizeChanged(SizeChangedParameters),
+pub enum ConsoleClientEvent<'a> {
+    KeyPressed(&'a KeyPressedParameters),
+    KeyReleased(&'a KeyReleasedParameters),
+    PointerMoved(&'a PointerMovedParameters),
+    PointerPressed(&'a PointerPressedParameters),
+    PointerReleased(&'a PointerReleasedParameters),
+    SizeChanged(&'a SizeChangedParameters),
 }
 
 pub trait ConsoleClientObserver {
@@ -50,6 +50,73 @@ impl ConsoleClient {
         match event {
             StormEvent::ChannelSignalled(channel_handle) => {
                 if *channel_handle == self.channel_handle {
+                    while let Some(message) = self.channel.find_message() {
+                        unsafe {
+                            match (*message).message_id {
+                                KEY_PRESSED_PARAMETERS =>  {
+                                    println!("got KEY_PRESSED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    KeyPressedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const KeyPressedParameters;
+                                    let request = ConsoleClientEvent::KeyPressed(parameters.as_ref().unwrap());
+                                    observer.handle_console_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                KEY_RELEASED_PARAMETERS =>  {
+                                    println!("got KEY_RELEASED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    KeyReleasedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const KeyReleasedParameters;
+                                    let request = ConsoleClientEvent::KeyReleased(parameters.as_ref().unwrap());
+                                    observer.handle_console_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                POINTER_MOVED_PARAMETERS =>  {
+                                    println!("got POINTER_MOVED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    PointerMovedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const PointerMovedParameters;
+                                    let request = ConsoleClientEvent::PointerMoved(parameters.as_ref().unwrap());
+                                    observer.handle_console_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                POINTER_PRESSED_PARAMETERS =>  {
+                                    println!("got POINTER_PRESSED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    PointerPressedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const PointerPressedParameters;
+                                    let request = ConsoleClientEvent::PointerPressed(parameters.as_ref().unwrap());
+                                    observer.handle_console_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                POINTER_RELEASED_PARAMETERS =>  {
+                                    println!("got POINTER_RELEASED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    PointerReleasedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const PointerReleasedParameters;
+                                    let request = ConsoleClientEvent::PointerReleased(parameters.as_ref().unwrap());
+                                    observer.handle_console_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                SIZE_CHANGED_PARAMETERS =>  {
+                                    println!("got SIZE_CHANGED_PARAMETERS message");
+                                    let address = ChannelMessageHeader::get_payload_address(message);
+                                    println!("found message at {:p}", address);
+                                    SizeChangedParameters::reconstruct_at_inline(address);
+                                    let parameters = address as *const SizeChangedParameters;
+                                    let request = ConsoleClientEvent::SizeChanged(parameters.as_ref().unwrap());
+                                    observer.handle_console_event(*channel_handle, request);
+                                    self.channel.unlink_message(message, false);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                     // observer.handle_console_event(*channel_handle, event);
                 }
             }
