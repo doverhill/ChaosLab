@@ -6,22 +6,40 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
+use std::ops::Deref;
 use crate::types::*;
 use crate::enums::*;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-pub struct FromChannel<T> {
+pub struct FromChannel<'a, T> {
+    channel: &'a ConsoleChannel,
     value: T,
 }
 
-impl<T> FromChannel<T> {
-    pub fn new (value: T) -> Self {
+impl<T> FromChannel<'a, T> {
+    pub fn new(channel: &'a ConsoleChannel, value: T) -> Self {
         Self {
+            channel: channel,
             value: value,
         }
     }
 }
+
+impl<T> Deref for FromChannel<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<T> Drop for FromChannel<T> {
+    fn drop(&mut self) {
+
+    }
+}
+
 struct ProtocolVersion {
     major: u16,
     minor: u16,
@@ -72,9 +90,9 @@ struct ChannelLock {
 impl ChannelLock {
     pub unsafe fn get(name: &str, channel_address: *mut u8) -> Self {
         let channel_header = channel_address as *const ChannelHeader;
-        println!("LOCK: getting for {}", name);
+      //  println!("LOCK: getting for {}", name);
         while (*channel_header).lock.swap(true, Ordering::Acquire) {}
-        println!("LOCK: got for {}", name);
+//        println!("LOCK: got for {}", name);
         Self {
             name: name.to_string(),
             channel_header: channel_header
@@ -84,7 +102,7 @@ impl ChannelLock {
 
 impl Drop for ChannelLock {
     fn drop(&mut self) {
-        println!("LOCK: releasing for {}", self.name);
+  //      println!("LOCK: releasing for {}", self.name);
         unsafe {
             (*self.channel_header).lock.store(false, Ordering::Relaxed);
         }
@@ -165,14 +183,14 @@ impl ConsoleChannel {
             assert!(!(*channel_header).is_writing);
             let mut message: *mut ChannelMessageHeader;
             if (*channel_header).number_of_messages == 0 {
-                println!("a");
+                // println!("a");
                 (*channel_header).first_message_offset = mem::size_of::<ChannelHeader>();
                 (*channel_header).last_message_offset = mem::size_of::<ChannelHeader>();
                 message = self.tx_channel_address.offset(mem::size_of::<ChannelHeader>() as isize) as *mut ChannelMessageHeader;
                 (*message).previous_message_offset = 0;
             }
             else {
-                println!("b");
+                // println!("b");
                 let last_message_offset = (*channel_header).last_message_offset;
                 let last_message = self.tx_channel_address.offset(last_message_offset as isize) as *mut ChannelMessageHeader;
                 let new_last_message_offset = last_message_offset + (*last_message).message_length;
@@ -278,6 +296,7 @@ impl ConsoleChannel {
     }
 
     pub fn unlink_message(&self, message: *mut ChannelMessageHeader, lock_held: bool) {
+        println!("unlink_message");
         unsafe {
             let channel_header = self.rx_channel_address as *mut ChannelHeader;
             let lock = if lock_held { None } else { Some(ChannelLock::get("unlink_message", self.rx_channel_address)) };
