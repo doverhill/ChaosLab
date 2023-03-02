@@ -14,16 +14,33 @@ namespace IDLCompiler
             var channelName = $"{protocolName.ToPascal()}Channel";
 
             source.AddLine("use core::sync::atomic::{AtomicBool, Ordering};");
+            source.AddLine("use core::ops::Deref;");
             source.AddBlank();
 
-            var fromChannelStruct = source.AddBlock("pub struct FromChannel<T>");
+            var fromChannelStruct = source.AddBlock("pub struct FromChannel<'a, T>");
+            fromChannelStruct.AddLine($"channel: &'a {channelName},");
+            fromChannelStruct.AddLine("message: *mut ChannelMessageHeader,");
             fromChannelStruct.AddLine("value: T,");
             source.AddBlank();
 
-            var fromChannelImpl = source.AddBlock("impl<T> FromChannel<T>");
-            var newBlock = fromChannelImpl.AddBlock("pub fn new (value: T) -> Self");
+            var fromChannelImpl = source.AddBlock("impl<'a, T> FromChannel<'a, T>");
+            var newBlock = fromChannelImpl.AddBlock($"pub fn new (channel: &'a {channelName}, message: *mut ChannelMessageHeader, value: T) -> Self");
             var selfBlock = newBlock.AddBlock("Self");
+            selfBlock.AddLine("channel: channel,");
+            selfBlock.AddLine("message: message,");
             selfBlock.AddLine("value: value,");
+            source.AddBlank();
+
+            var derefImpl = source.AddBlock("impl<'a, T> Deref for FromChannel<'a, T>");
+            derefImpl.AddLine("type Target = T;");
+            var derefFunc = derefImpl.AddBlock("fn deref(&self) -> &T");
+            derefFunc.AddLine("&self.value");
+            source.AddBlank();
+
+            var dropImpl = source.AddBlock("impl<'a, T> Drop for FromChannel<'a, T>");
+            var dropFunc = dropImpl.AddBlock("fn drop(&mut self)");
+            dropFunc.AddLine("self.channel.unlink_message(self.message, false);");
+            source.AddBlank();
 
             var versionBlock = source.AddBlock("struct ProtocolVersion");
             versionBlock.AddLine("major: u16,");
@@ -89,7 +106,7 @@ namespace IDLCompiler
 
             source.AddBlank();
 
-            var dropImpl = source.AddBlock("impl Drop for ChannelLock");
+            dropImpl = source.AddBlock("impl Drop for ChannelLock");
             var dropFunction = dropImpl.AddBlock("fn drop(&mut self)");
             dropFunction.AddLine("""println!("LOCK: releasing for {}", self.name);""");
             var dropUnsafe = dropFunction.AddBlock("unsafe");
@@ -159,16 +176,19 @@ namespace IDLCompiler
             unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
             unsafeBlock.AddLine($"let tx_compatible = {checkString};");
             unsafeBlock.AddLine("rx_compatible && tx_compatible");
+            channelImpl.AddBlank();
 
+            var numberOfMessagesBlock = channelImpl.AddBlock("pub fn number_of_messages_available(&self) -> usize");
+            numberOfMessagesBlock.AddLine("let channel_header = self.rx_channel_address as *mut ChannelHeader;");
+            numberOfMessagesBlock.AddLine("unsafe { (*channel_header).number_of_messages }");
             channelImpl.AddBlank();
 
             var prepareFunctionBlock = channelImpl.AddBlock("pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader)");
-            prepareFunctionBlock.AddLine("let call_id = self.call_id;");
-            prepareFunctionBlock.AddLine("self.call_id += 1;");
-
             unsafeBlock = prepareFunctionBlock.AddBlock("unsafe");
             unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
             unsafeBlock.AddLine("""let lock = ChannelLock::get("prepare_message", self.tx_channel_address);""");
+            unsafeBlock.AddLine("let call_id = self.call_id;");
+            unsafeBlock.AddLine("self.call_id += 1;");
             unsafeBlock.AddLine("#[cfg(debug)]");
             unsafeBlock.AddLine("assert!((*channel_header).channel_magic == ChannelHeader::MAGIC);");
             unsafeBlock.AddLine("assert!(!(*channel_header).is_writing);");

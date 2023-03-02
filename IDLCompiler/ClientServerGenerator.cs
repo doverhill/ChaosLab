@@ -257,7 +257,7 @@ namespace IDLCompiler {
                     ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     ifBlock.AddLine($$"""unsafe { {{returnsType.Name}}::reconstruct_at_inline(payload); }""");
                     ifBlock.AddLine($"let payload = payload as *mut {returnsType.Name};");
-                    ifBlock.AddLine("Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))");
+                    ifBlock.AddLine("Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))");
                     var elseBlock = fnBlock.AddBlock("else");
                     elseBlock.AddLine("Err(StormError::NotFound)");
                 }

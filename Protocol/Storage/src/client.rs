@@ -78,7 +78,7 @@ impl StorageClient {
             let payload = ChannelMessageHeader::get_payload_address(message);
             unsafe { GetCapabilitiesReturns::reconstruct_at_inline(payload); }
             let payload = payload as *mut GetCapabilitiesReturns;
-            Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))
+            Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))
         }
         else {
             Err(StormError::NotFound)
@@ -98,7 +98,7 @@ impl StorageClient {
             let payload = ChannelMessageHeader::get_payload_address(message);
             unsafe { ListObjectsReturns::reconstruct_at_inline(payload); }
             let payload = payload as *mut ListObjectsReturns;
-            Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))
+            Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))
         }
         else {
             Err(StormError::NotFound)
@@ -118,7 +118,7 @@ impl StorageClient {
             let payload = ChannelMessageHeader::get_payload_address(message);
             unsafe { LockObjectReturns::reconstruct_at_inline(payload); }
             let payload = payload as *mut LockObjectReturns;
-            Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))
+            Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))
         }
         else {
             Err(StormError::NotFound)
@@ -146,7 +146,7 @@ impl StorageClient {
             let payload = ChannelMessageHeader::get_payload_address(message);
             unsafe { ReadObjectReturns::reconstruct_at_inline(payload); }
             let payload = payload as *mut ReadObjectReturns;
-            Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))
+            Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))
         }
         else {
             Err(StormError::NotFound)
@@ -174,7 +174,7 @@ impl StorageClient {
             let payload = ChannelMessageHeader::get_payload_address(message);
             unsafe { WatchObjectReturns::reconstruct_at_inline(payload); }
             let payload = payload as *mut WatchObjectReturns;
-            Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))
+            Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))
         }
         else {
             Err(StormError::NotFound)

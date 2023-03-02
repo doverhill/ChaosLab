@@ -134,7 +134,7 @@ impl ConsoleClient {
             let payload = ChannelMessageHeader::get_payload_address(message);
             unsafe { GetCapabilitiesReturns::reconstruct_at_inline(payload); }
             let payload = payload as *mut GetCapabilitiesReturns;
-            Ok(FromChannel::new(unsafe { payload.as_ref().unwrap() }))
+            Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))
         }
         else {
             Err(StormError::NotFound)

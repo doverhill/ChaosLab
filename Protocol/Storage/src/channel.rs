@@ -9,18 +9,37 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 
 use core::sync::atomic::{AtomicBool, Ordering};
+use core::ops::Deref;
 
-pub struct FromChannel<T> {
+pub struct FromChannel<'a, T> {
+    channel: &'a StorageChannel,
+    message: *mut ChannelMessageHeader,
     value: T,
 }
 
-impl<T> FromChannel<T> {
-    pub fn new (value: T) -> Self {
+impl<'a, T> FromChannel<'a, T> {
+    pub fn new (channel: &'a StorageChannel, message: *mut ChannelMessageHeader, value: T) -> Self {
         Self {
+            channel: channel,
+            message: message,
             value: value,
         }
     }
 }
+
+impl<'a, T> Deref for FromChannel<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<'a, T> Drop for FromChannel<'a, T> {
+    fn drop(&mut self) {
+        self.channel.unlink_message(self.message, false);
+    }
+}
+
 struct ProtocolVersion {
     major: u16,
     minor: u16,
@@ -151,6 +170,11 @@ impl StorageChannel {
             let tx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 's' as u8 && (*channel_header).protocol_name[2] == 't' as u8 && (*channel_header).protocol_name[3] == 'o' as u8 && (*channel_header).protocol_name[4] == 'r' as u8 && (*channel_header).protocol_name[5] == 'a' as u8 && (*channel_header).protocol_name[6] == 'g' as u8 && (*channel_header).protocol_name[7] == 'e' as u8;
             rx_compatible && tx_compatible
         }
+    }
+
+    pub fn number_of_messages_available(&self) -> usize {
+        let channel_header = self.rx_channel_address as *mut ChannelHeader;
+        unsafe { (*channel_header).number_of_messages }
     }
 
     pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader) {
