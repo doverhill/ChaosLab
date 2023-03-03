@@ -29,7 +29,7 @@ impl StormAction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum StormEvent {
     ServiceConnected(ServiceHandle, ChannelHandle),
     ChannelSignalled(ChannelHandle),

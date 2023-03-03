@@ -24,16 +24,16 @@ impl Drop for StormProcess {
 
 impl StormProcess {
 // impl<'a> StormProcess<'a> {
-    pub fn new(name: &str) -> Result<Rc<RefCell<Self>>, StormError> {
+    pub fn new(name: &str) -> Result<Self, StormError> {
         syscalls::process_set_info(name)?;
 
-        Ok(Rc::new(RefCell::new(Self {
+        Ok(Self {
             name: name.to_string(),
             services: HashMap::new(),
             channels: HashMap::new(),
             // service_observers: Vec::new(),
             // channel_observers: Vec::new(),
-        })))
+        })
     }
 
     pub fn create_service(

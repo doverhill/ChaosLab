@@ -21,51 +21,78 @@ use crate::message_ids::*;
 use alloc::vec::Vec;
 
 pub enum TornadoClientEvent<'a> {
-    ComponentClicked(&'a ComponentClickedParameters),
+    ComponentClicked(FromChannel<'a, &'a ComponentClickedParameters>),
 }
 
-pub trait TornadoClientObserver {
-    fn handle_tornado_event(&mut self, channel_handle: ChannelHandle, event: TornadoClientEvent);
+pub enum TornadoClientChannelEvent<'a> {
+    ServerDisconnected(ChannelHandle),
+    ServerEvent(TornadoClientEvent<'a>),
 }
 
 pub struct TornadoClient {
+    current_event: Option<StormEvent>,
     channel_handle: ChannelHandle,
     channel: TornadoChannel,
 }
 
 impl TornadoClient {
-    pub fn connect_first(process: &mut StormProcess) -> Result<Rc<RefCell<Self>>, StormError> {
+    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("tornado", None, None, None, 4096)?;
         let channel = TornadoChannel::new(process.get_channel_address(channel_handle, 0).unwrap(), process.get_channel_address(channel_handle, 1).unwrap(), false);
-        Ok(Rc::new(RefCell::new(Self {
+        Ok(Self {
+            current_event: None,
             channel_handle: channel_handle,
             channel: channel,
-        })))
+        })
     }
 
-    pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl TornadoClientObserver) {
-        match event {
-            StormEvent::ChannelSignalled(channel_handle) => {
-                if *channel_handle == self.channel_handle {
-                    while let Some(message) = self.channel.find_message() {
-                        unsafe {
-                            match (*message).message_id {
-                                COMPONENT_CLICKED_PARAMETERS =>  {
-                                    let address = ChannelMessageHeader::get_payload_address(message);
-                                    ComponentClickedParameters::reconstruct_at_inline(address);
-                                    let parameters = address as *const ComponentClickedParameters;
-                                    let request = TornadoClientEvent::ComponentClicked(parameters.as_ref().unwrap());
-                                    observer.handle_tornado_event(*channel_handle, request);
-                                    self.channel.unlink_message(message, false);
+    pub fn register_event(&mut self, event: StormEvent) {
+        self.current_event = Some(event);
+    }
+
+    pub fn get_event(&mut self, process: &StormProcess) -> Option<TornadoClientChannelEvent> {
+        if let Some(current_event) = self.current_event {
+            match current_event {
+                StormEvent::ChannelDestroyed(channel_handle) => {
+                    self.current_event = None;
+                    if channel_handle == self.channel_handle {
+                        Some(TornadoClientChannelEvent::ServerDisconnected(channel_handle))
+                    }
+                    else {
+                        None
+                    }
+                }
+                StormEvent::ChannelSignalled(channel_handle) => {
+                    if channel_handle == self.channel_handle {
+                        if let Some(message) = self.channel.find_message() {
+                            unsafe {
+                                match (*message).message_id {
+                                    COMPONENT_CLICKED_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        ComponentClickedParameters::reconstruct_at_inline(address);
+                                        let parameters = address as *const ComponentClickedParameters;
+                                        let request = TornadoClientEvent::ComponentClicked(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
+                                        Some(TornadoClientChannelEvent::ServerEvent(request))
+                                    },
+                                    _ => { panic!("TornadoClient: Unknown message received"); }
                                 }
-                                _ => {}
                             }
                         }
+                        else {
+                            self.current_event = None;
+                            None
+                        }
                     }
-                    // observer.handle_tornado_event(*channel_handle, event);
+                    else {
+                        self.current_event = None;
+                        None
+                    }
                 }
+                _ => { panic!("TornadoClient: Unexpected storm event type"); }
             }
-            _ => {}
+        }
+        else {
+            None
         }
     }
 

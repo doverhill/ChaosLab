@@ -21,96 +21,118 @@ use crate::message_ids::*;
 use alloc::vec::Vec;
 
 pub enum ConsoleClientEvent<'a> {
-    KeyPressed(&'a KeyPressedParameters),
-    KeyReleased(&'a KeyReleasedParameters),
-    PointerMoved(&'a PointerMovedParameters),
-    PointerPressed(&'a PointerPressedParameters),
-    PointerReleased(&'a PointerReleasedParameters),
-    SizeChanged(&'a SizeChangedParameters),
+    KeyPressed(FromChannel<'a, &'a KeyPressedParameters>),
+    KeyReleased(FromChannel<'a, &'a KeyReleasedParameters>),
+    PointerMoved(FromChannel<'a, &'a PointerMovedParameters>),
+    PointerPressed(FromChannel<'a, &'a PointerPressedParameters>),
+    PointerReleased(FromChannel<'a, &'a PointerReleasedParameters>),
+    SizeChanged(FromChannel<'a, &'a SizeChangedParameters>),
 }
 
-pub trait ConsoleClientObserver {
-    fn handle_console_event(&mut self, channel_handle: ChannelHandle, event: ConsoleClientEvent);
+pub enum ConsoleClientChannelEvent<'a> {
+    ServerDisconnected(ChannelHandle),
+    ServerEvent(ConsoleClientEvent<'a>),
 }
 
 pub struct ConsoleClient {
+    current_event: Option<StormEvent>,
     channel_handle: ChannelHandle,
     channel: ConsoleChannel,
 }
 
 impl ConsoleClient {
-    pub fn connect_first(process: &mut StormProcess) -> Result<Rc<RefCell<Self>>, StormError> {
+    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
         let channel_handle = process.connect_to_service("console", None, None, None, 4096)?;
         let channel = ConsoleChannel::new(process.get_channel_address(channel_handle, 0).unwrap(), process.get_channel_address(channel_handle, 1).unwrap(), false);
-        Ok(Rc::new(RefCell::new(Self {
+        Ok(Self {
+            current_event: None,
             channel_handle: channel_handle,
             channel: channel,
-        })))
+        })
     }
 
-    pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl ConsoleClientObserver) {
-        match event {
-            StormEvent::ChannelSignalled(channel_handle) => {
-                if *channel_handle == self.channel_handle {
-                    while let Some(message) = self.channel.find_message() {
-                        unsafe {
-                            match (*message).message_id {
-                                KEY_PRESSED_PARAMETERS =>  {
-                                    let address = ChannelMessageHeader::get_payload_address(message);
-                                    KeyPressedParameters::reconstruct_at_inline(address);
-                                    let parameters = address as *const KeyPressedParameters;
-                                    let request = ConsoleClientEvent::KeyPressed(parameters.as_ref().unwrap());
-                                    observer.handle_console_event(*channel_handle, request);
-                                    self.channel.unlink_message(message, false);
+    pub fn register_event(&mut self, event: StormEvent) {
+        self.current_event = Some(event);
+    }
+
+    pub fn get_event(&mut self, process: &StormProcess) -> Option<ConsoleClientChannelEvent> {
+        if let Some(current_event) = self.current_event {
+            match current_event {
+                StormEvent::ChannelDestroyed(channel_handle) => {
+                    self.current_event = None;
+                    if channel_handle == self.channel_handle {
+                        Some(ConsoleClientChannelEvent::ServerDisconnected(channel_handle))
+                    }
+                    else {
+                        None
+                    }
+                }
+                StormEvent::ChannelSignalled(channel_handle) => {
+                    if channel_handle == self.channel_handle {
+                        if let Some(message) = self.channel.find_message() {
+                            unsafe {
+                                match (*message).message_id {
+                                    KEY_PRESSED_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        KeyPressedParameters::reconstruct_at_inline(address);
+                                        let parameters = address as *const KeyPressedParameters;
+                                        let request = ConsoleClientEvent::KeyPressed(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
+                                        Some(ConsoleClientChannelEvent::ServerEvent(request))
+                                    },
+                                    KEY_RELEASED_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        KeyReleasedParameters::reconstruct_at_inline(address);
+                                        let parameters = address as *const KeyReleasedParameters;
+                                        let request = ConsoleClientEvent::KeyReleased(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
+                                        Some(ConsoleClientChannelEvent::ServerEvent(request))
+                                    },
+                                    POINTER_MOVED_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        PointerMovedParameters::reconstruct_at_inline(address);
+                                        let parameters = address as *const PointerMovedParameters;
+                                        let request = ConsoleClientEvent::PointerMoved(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
+                                        Some(ConsoleClientChannelEvent::ServerEvent(request))
+                                    },
+                                    POINTER_PRESSED_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        PointerPressedParameters::reconstruct_at_inline(address);
+                                        let parameters = address as *const PointerPressedParameters;
+                                        let request = ConsoleClientEvent::PointerPressed(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
+                                        Some(ConsoleClientChannelEvent::ServerEvent(request))
+                                    },
+                                    POINTER_RELEASED_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        PointerReleasedParameters::reconstruct_at_inline(address);
+                                        let parameters = address as *const PointerReleasedParameters;
+                                        let request = ConsoleClientEvent::PointerReleased(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
+                                        Some(ConsoleClientChannelEvent::ServerEvent(request))
+                                    },
+                                    SIZE_CHANGED_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        SizeChangedParameters::reconstruct_at_inline(address);
+                                        let parameters = address as *const SizeChangedParameters;
+                                        let request = ConsoleClientEvent::SizeChanged(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
+                                        Some(ConsoleClientChannelEvent::ServerEvent(request))
+                                    },
+                                    _ => { panic!("ConsoleClient: Unknown message received"); }
                                 }
-                                KEY_RELEASED_PARAMETERS =>  {
-                                    let address = ChannelMessageHeader::get_payload_address(message);
-                                    KeyReleasedParameters::reconstruct_at_inline(address);
-                                    let parameters = address as *const KeyReleasedParameters;
-                                    let request = ConsoleClientEvent::KeyReleased(parameters.as_ref().unwrap());
-                                    observer.handle_console_event(*channel_handle, request);
-                                    self.channel.unlink_message(message, false);
-                                }
-                                POINTER_MOVED_PARAMETERS =>  {
-                                    let address = ChannelMessageHeader::get_payload_address(message);
-                                    PointerMovedParameters::reconstruct_at_inline(address);
-                                    let parameters = address as *const PointerMovedParameters;
-                                    let request = ConsoleClientEvent::PointerMoved(parameters.as_ref().unwrap());
-                                    observer.handle_console_event(*channel_handle, request);
-                                    self.channel.unlink_message(message, false);
-                                }
-                                POINTER_PRESSED_PARAMETERS =>  {
-                                    let address = ChannelMessageHeader::get_payload_address(message);
-                                    PointerPressedParameters::reconstruct_at_inline(address);
-                                    let parameters = address as *const PointerPressedParameters;
-                                    let request = ConsoleClientEvent::PointerPressed(parameters.as_ref().unwrap());
-                                    observer.handle_console_event(*channel_handle, request);
-                                    self.channel.unlink_message(message, false);
-                                }
-                                POINTER_RELEASED_PARAMETERS =>  {
-                                    let address = ChannelMessageHeader::get_payload_address(message);
-                                    PointerReleasedParameters::reconstruct_at_inline(address);
-                                    let parameters = address as *const PointerReleasedParameters;
-                                    let request = ConsoleClientEvent::PointerReleased(parameters.as_ref().unwrap());
-                                    observer.handle_console_event(*channel_handle, request);
-                                    self.channel.unlink_message(message, false);
-                                }
-                                SIZE_CHANGED_PARAMETERS =>  {
-                                    let address = ChannelMessageHeader::get_payload_address(message);
-                                    SizeChangedParameters::reconstruct_at_inline(address);
-                                    let parameters = address as *const SizeChangedParameters;
-                                    let request = ConsoleClientEvent::SizeChanged(parameters.as_ref().unwrap());
-                                    observer.handle_console_event(*channel_handle, request);
-                                    self.channel.unlink_message(message, false);
-                                }
-                                _ => {}
                             }
                         }
+                        else {
+                            self.current_event = None;
+                            None
+                        }
                     }
-                    // observer.handle_console_event(*channel_handle, event);
+                    else {
+                        self.current_event = None;
+                        None
+                    }
                 }
+                _ => { panic!("ConsoleClient: Unexpected storm event type"); }
             }
-            _ => {}
+        }
+        else {
+            None
         }
     }
 

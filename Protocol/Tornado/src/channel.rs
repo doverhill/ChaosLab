@@ -72,6 +72,7 @@ pub struct ChannelMessageHeader {
     next_message_offset: usize,
     replace_pending: bool,
     is_writing: bool,
+    pending_unlink: bool,
 }
 
 impl ChannelMessageHeader {
@@ -205,6 +206,7 @@ impl TornadoChannel {
             (*message).message_length = 0;
             (*message).next_message_offset = 0;
             (*message).is_writing = true;
+            (*message).pending_unlink = false;
             (call_id, message)
         }
     }
@@ -243,6 +245,8 @@ impl TornadoChannel {
                     iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
                 }
                 if (*iter).call_id == call_id {
+                    assert!(!(*iter).pending_unlink);
+                    (*iter).pending_unlink = true;
                     Some(iter)
                 }
                 else {
@@ -266,6 +270,7 @@ impl TornadoChannel {
                 #[cfg(debug)]
                 assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
                 if !(*first_message).replace_pending {
+                    (*first_message).pending_unlink = true;
                     Some(first_message)
                 }
                 else {
@@ -273,18 +278,19 @@ impl TornadoChannel {
                     let mut iter = first_message;
                     while (*iter).next_message_offset != 0 && !(*iter).is_writing {
                         iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
-                        if (*iter).message_id == (*first_message).message_id {
+                        if (*iter).message_id == (*first_message).message_id && !(*iter).pending_unlink {
                             last_of_kind = iter;
                         }
                     }
                     let mut iter = first_message;
                     while (*iter).next_message_offset != 0 && iter != last_of_kind && !(*iter).is_writing {
                         let next_message_offset = (*iter).next_message_offset;
-                        if (*iter).message_id == (*first_message).message_id {
+                        if (*iter).message_id == (*first_message).message_id && !(*iter).pending_unlink {
                             self.unlink_message(iter, true);
                         }
                         iter = self.rx_channel_address.offset(next_message_offset as isize) as *mut ChannelMessageHeader;
                     }
+                    (*last_of_kind).pending_unlink = true;
                     Some(last_of_kind)
                 }
             }

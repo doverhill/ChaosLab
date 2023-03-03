@@ -77,6 +77,7 @@ namespace IDLCompiler
             messageHeader.AddLine("next_message_offset: usize,");
             messageHeader.AddLine("replace_pending: bool,");
             messageHeader.AddLine("is_writing: bool,");
+            messageHeader.AddLine("pending_unlink: bool,");
 
             source.AddBlank();
 
@@ -217,6 +218,7 @@ namespace IDLCompiler
             unsafeBlock.AddLine("(*message).message_length = 0;");
             unsafeBlock.AddLine("(*message).next_message_offset = 0;");
             unsafeBlock.AddLine("(*message).is_writing = true;");
+            unsafeBlock.AddLine("(*message).pending_unlink = false;");
             unsafeBlock.AddLine("(call_id, message)");
 
             channelImpl.AddBlank();
@@ -256,6 +258,8 @@ namespace IDLCompiler
             var whileBlock = elseBlock.AddBlock("while (*iter).call_id != call_id && (*iter).next_message_offset != 0 && !(*iter).is_writing");
             whileBlock.AddLine("iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
             ifBlock = elseBlock.AddBlock("if (*iter).call_id == call_id");
+            ifBlock.AddLine("assert!(!(*iter).pending_unlink);");
+            ifBlock.AddLine("(*iter).pending_unlink = true;");
             ifBlock.AddLine("Some(iter)");
             elseBlock = elseBlock.AddBlock("else");
             elseBlock.AddLine("None");
@@ -278,21 +282,23 @@ namespace IDLCompiler
             elseBlock.AddLine("#[cfg(debug)]");
             elseBlock.AddLine("assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);");
             ifBlock = elseBlock.AddBlock("if !(*first_message).replace_pending");
+            ifBlock.AddLine("(*first_message).pending_unlink = true;");
             ifBlock.AddLine("Some(first_message)");
             elseBlock = elseBlock.AddBlock("else");
             elseBlock.AddLine("let mut last_of_kind = first_message;");
             elseBlock.AddLine("let mut iter = first_message;");
             whileBlock = elseBlock.AddBlock("while (*iter).next_message_offset != 0 && !(*iter).is_writing");
             whileBlock.AddLine("iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
-            ifBlock = whileBlock.AddBlock("if (*iter).message_id == (*first_message).message_id");
+            ifBlock = whileBlock.AddBlock("if (*iter).message_id == (*first_message).message_id && !(*iter).pending_unlink");
             ifBlock.AddLine("last_of_kind = iter;");
             elseBlock.AddLine("let mut iter = first_message;");
             whileBlock = elseBlock.AddBlock("while (*iter).next_message_offset != 0 && iter != last_of_kind && !(*iter).is_writing");
             whileBlock.AddLine("let next_message_offset = (*iter).next_message_offset;");
-            ifBlock = whileBlock.AddBlock("if (*iter).message_id == (*first_message).message_id");
+            ifBlock = whileBlock.AddBlock("if (*iter).message_id == (*first_message).message_id && !(*iter).pending_unlink");
             //ifBlock.AddLine("assert!((*channel_header).number_of_messages > 1);");
             ifBlock.AddLine("self.unlink_message(iter, true);");
             whileBlock.AddLine("iter = self.rx_channel_address.offset(next_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("(*last_of_kind).pending_unlink = true;");
             elseBlock.AddLine("Some(last_of_kind)");
 
             channelImpl.AddBlank();
