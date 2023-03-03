@@ -10,6 +10,8 @@ use crate::types::*;
 use crate::enums::*;
 
 use alloc::boxed::Box;
+use alloc::rc::Rc;
+use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
 use crate::channel::{ConsoleChannel, ChannelMessageHeader};
@@ -28,10 +30,16 @@ pub enum ConsoleServerRequest<'a> {
     WriteObjects(&'a WriteObjectsParameters),
 }
 
+pub enum ConsoleServerEvent<'a> {
+    ClientConnected(ServiceHandle, ChannelHandle),
+    ClientDisconnected(ServiceHandle, ChannelHandle),
+    ClientRequest(ConsoleServerRequest<'a>)
+}
+
 pub trait ConsoleServerObserver {
     fn handle_console_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
     fn handle_console_client_disconnected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_console_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: ConsoleServerRequest);
+    fn handle_console_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, call_id: u64, request: ConsoleServerRequest);
 }
 
 pub struct ConsoleServer {
@@ -40,12 +48,12 @@ pub struct ConsoleServer {
 }
 
 impl ConsoleServer {
-    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
+    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Rc<RefCell<Self>>, StormError> {
         let service_handle = process.create_service("console", vendor_name, device_name, device_id)?;
-        Ok(Self {
+        Ok(Rc::new(RefCell::new(Self {
             service_handle: service_handle,
             channels: BTreeMap::new(),
-        })
+        })))
     }
 
     pub fn process_event(&mut self, process: &mut StormProcess, event: &StormEvent, observer: &mut impl ConsoleServerObserver) {
@@ -65,7 +73,7 @@ impl ConsoleServer {
                         unsafe {
                             match (*message).message_id {
                                 GET_CAPABILITIES_PARAMETERS =>  {
-                                    observer.handle_console_request(self.service_handle, *channel_handle, ConsoleServerRequest::GetCapabilities);
+                                    observer.handle_console_request(self.service_handle, *channel_handle, (*message).call_id, ConsoleServerRequest::GetCapabilities);
                                     channel.unlink_message(message, false);
                                 }
                                 SET_TEXT_COLOR_PARAMETERS =>  {
@@ -73,7 +81,7 @@ impl ConsoleServer {
                                     SetTextColorParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const SetTextColorParameters;
                                     let request = ConsoleServerRequest::SetTextColor(parameters.as_ref().unwrap());
-                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_console_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 MOVE_TEXT_CURSOR_PARAMETERS =>  {
@@ -81,7 +89,7 @@ impl ConsoleServer {
                                     MoveTextCursorParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const MoveTextCursorParameters;
                                     let request = ConsoleServerRequest::MoveTextCursor(parameters.as_ref().unwrap());
-                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_console_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 DRAW_IMAGE_PATCH_PARAMETERS =>  {
@@ -89,7 +97,7 @@ impl ConsoleServer {
                                     DrawImagePatchParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const DrawImagePatchParameters;
                                     let request = ConsoleServerRequest::DrawImagePatch(parameters.as_ref().unwrap());
-                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_console_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_TEXT_PARAMETERS =>  {
@@ -97,7 +105,7 @@ impl ConsoleServer {
                                     WriteTextParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const WriteTextParameters;
                                     let request = ConsoleServerRequest::WriteText(parameters.as_ref().unwrap());
-                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_console_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_OBJECTS_PARAMETERS =>  {
@@ -105,7 +113,7 @@ impl ConsoleServer {
                                     WriteObjectsParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const WriteObjectsParameters;
                                     let request = ConsoleServerRequest::WriteObjects(parameters.as_ref().unwrap());
-                                    observer.handle_console_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_console_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 _ => {}
@@ -123,7 +131,7 @@ impl ConsoleServer {
         }
     }
 
-    pub fn key_pressed(&mut self, channel_handle: ChannelHandle, parameters: KeyPressedParameters) {
+    pub fn key_pressed(&mut self, channel_handle: ChannelHandle, parameters: &KeyPressedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(KEY_PRESSED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
@@ -133,7 +141,7 @@ impl ConsoleServer {
         }
     }
 
-    pub fn key_released(&mut self, channel_handle: ChannelHandle, parameters: KeyReleasedParameters) {
+    pub fn key_released(&mut self, channel_handle: ChannelHandle, parameters: &KeyReleasedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(KEY_RELEASED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
@@ -143,7 +151,7 @@ impl ConsoleServer {
         }
     }
 
-    pub fn pointer_moved(&mut self, channel_handle: ChannelHandle, parameters: PointerMovedParameters) {
+    pub fn pointer_moved(&mut self, channel_handle: ChannelHandle, parameters: &PointerMovedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(POINTER_MOVED_PARAMETERS, true);
             let payload = ChannelMessageHeader::get_payload_address(message);
@@ -153,7 +161,7 @@ impl ConsoleServer {
         }
     }
 
-    pub fn pointer_pressed(&mut self, channel_handle: ChannelHandle, parameters: PointerPressedParameters) {
+    pub fn pointer_pressed(&mut self, channel_handle: ChannelHandle, parameters: &PointerPressedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(POINTER_PRESSED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
@@ -163,7 +171,7 @@ impl ConsoleServer {
         }
     }
 
-    pub fn pointer_released(&mut self, channel_handle: ChannelHandle, parameters: PointerReleasedParameters) {
+    pub fn pointer_released(&mut self, channel_handle: ChannelHandle, parameters: &PointerReleasedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(POINTER_RELEASED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
@@ -173,7 +181,7 @@ impl ConsoleServer {
         }
     }
 
-    pub fn size_changed(&mut self, channel_handle: ChannelHandle, parameters: SizeChangedParameters) {
+    pub fn size_changed(&mut self, channel_handle: ChannelHandle, parameters: &SizeChangedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(SIZE_CHANGED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
@@ -183,6 +191,16 @@ impl ConsoleServer {
         }
     }
 
+    pub fn get_capabilities_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &GetCapabilitiesReturns) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, false);
+            unsafe { (*message).call_id = call_id };
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = unsafe { parameters.write_at(payload) };
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
+        }
+    }
 }
 
 

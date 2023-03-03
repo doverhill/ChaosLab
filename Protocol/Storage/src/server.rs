@@ -9,6 +9,8 @@ use core::ptr::addr_of_mut;
 use crate::types::*;
 
 use alloc::boxed::Box;
+use alloc::rc::Rc;
+use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
 use crate::channel::{StorageChannel, ChannelMessageHeader};
@@ -32,7 +34,7 @@ pub enum StorageServerRequest<'a> {
 pub trait StorageServerObserver {
     fn handle_storage_client_connected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
     fn handle_storage_client_disconnected(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle);
-    fn handle_storage_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, request: StorageServerRequest);
+    fn handle_storage_request(&mut self, service_handle: ServiceHandle, channel_handle: ChannelHandle, call_id: u64, request: StorageServerRequest);
 }
 
 pub struct StorageServer {
@@ -41,12 +43,12 @@ pub struct StorageServer {
 }
 
 impl StorageServer {
-    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Self, StormError> {
+    pub fn create(process: &mut StormProcess, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<Rc<RefCell<Self>>, StormError> {
         let service_handle = process.create_service("storage", vendor_name, device_name, device_id)?;
-        Ok(Self {
+        Ok(Rc::new(RefCell::new(Self {
             service_handle: service_handle,
             channels: BTreeMap::new(),
-        })
+        })))
     }
 
     pub fn process_event(&mut self, process: &mut StormProcess, event: &StormEvent, observer: &mut impl StorageServerObserver) {
@@ -66,7 +68,7 @@ impl StorageServer {
                         unsafe {
                             match (*message).message_id {
                                 GET_CAPABILITIES_PARAMETERS =>  {
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, StorageServerRequest::GetCapabilities);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, StorageServerRequest::GetCapabilities);
                                     channel.unlink_message(message, false);
                                 }
                                 LIST_OBJECTS_PARAMETERS =>  {
@@ -74,7 +76,7 @@ impl StorageServer {
                                     ListObjectsParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const ListObjectsParameters;
                                     let request = StorageServerRequest::ListObjects(parameters.as_ref().unwrap());
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 LOCK_OBJECT_PARAMETERS =>  {
@@ -82,7 +84,7 @@ impl StorageServer {
                                     LockObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const LockObjectParameters;
                                     let request = StorageServerRequest::LockObject(parameters.as_ref().unwrap());
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 UNLOCK_OBJECT_PARAMETERS =>  {
@@ -90,7 +92,7 @@ impl StorageServer {
                                     UnlockObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const UnlockObjectParameters;
                                     let request = StorageServerRequest::UnlockObject(parameters.as_ref().unwrap());
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 READ_OBJECT_PARAMETERS =>  {
@@ -98,7 +100,7 @@ impl StorageServer {
                                     ReadObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const ReadObjectParameters;
                                     let request = StorageServerRequest::ReadObject(parameters.as_ref().unwrap());
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_OBJECT_PARAMETERS =>  {
@@ -106,7 +108,7 @@ impl StorageServer {
                                     WriteObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const WriteObjectParameters;
                                     let request = StorageServerRequest::WriteObject(parameters.as_ref().unwrap());
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 WATCH_OBJECT_PARAMETERS =>  {
@@ -114,7 +116,7 @@ impl StorageServer {
                                     WatchObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const WatchObjectParameters;
                                     let request = StorageServerRequest::WatchObject(parameters.as_ref().unwrap());
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 UNWATCH_OBJECT_PARAMETERS =>  {
@@ -122,7 +124,7 @@ impl StorageServer {
                                     UnwatchObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const UnwatchObjectParameters;
                                     let request = StorageServerRequest::UnwatchObject(parameters.as_ref().unwrap());
-                                    observer.handle_storage_request(self.service_handle, *channel_handle, request);
+                                    observer.handle_storage_request(self.service_handle, *channel_handle, (*message).call_id, request);
                                     channel.unlink_message(message, false);
                                 }
                                 _ => {}
@@ -140,7 +142,7 @@ impl StorageServer {
         }
     }
 
-    pub fn watched_object_changed(&mut self, channel_handle: ChannelHandle, parameters: WatchedObjectChangedParameters) {
+    pub fn watched_object_changed(&mut self, channel_handle: ChannelHandle, parameters: &WatchedObjectChangedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, false);
             let payload = ChannelMessageHeader::get_payload_address(message);
@@ -150,6 +152,56 @@ impl StorageServer {
         }
     }
 
+    pub fn get_capabilities_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &GetCapabilitiesReturns) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, false);
+            unsafe { (*message).call_id = call_id };
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = unsafe { parameters.write_at(payload) };
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
+        }
+    }
+    pub fn list_objects_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ListObjectsReturns) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(LIST_OBJECTS_RETURNS, false);
+            unsafe { (*message).call_id = call_id };
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = unsafe { parameters.write_at(payload) };
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
+        }
+    }
+    pub fn lock_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &LockObjectReturns) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(LOCK_OBJECT_RETURNS, false);
+            unsafe { (*message).call_id = call_id };
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = unsafe { parameters.write_at(payload) };
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
+        }
+    }
+    pub fn read_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ReadObjectReturns) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(READ_OBJECT_RETURNS, false);
+            unsafe { (*message).call_id = call_id };
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = unsafe { parameters.write_at(payload) };
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
+        }
+    }
+    pub fn watch_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &WatchObjectReturns) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(WATCH_OBJECT_RETURNS, false);
+            unsafe { (*message).call_id = call_id };
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = unsafe { parameters.write_at(payload) };
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle);
+        }
+    }
 }
 
 

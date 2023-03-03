@@ -12,11 +12,9 @@ use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::{EventPump, EventSubsystem};
 use std::thread;
-use std::time::Duration;
 use uuid::Uuid;
-use std::sync::Arc;
 use core::cell::RefCell;
-use std::sync::mpsc::channel;
+use std::rc::Rc;
 
 struct StormEventWrapper {
     event: StormEvent,
@@ -65,15 +63,16 @@ fn main() {
     canvas.present();
 
     let mut process = StormProcess::new("HostServer.Console").unwrap();
-    let mut state = ServerState::new();
 
     // set up service
     let mut console_server = ConsoleServer::create(
-        &mut process,
+        &mut process.borrow_mut(),
         "Chaos",
         "SDL console host server",
         Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
     ).unwrap();
+
+    let mut state = ServerState::new(process.clone(), console_server.clone());
 
     // hack to get events from both sdl and storm:
     // spawn thread doing storm event wait - posting events to sdl event queue
@@ -92,13 +91,13 @@ fn main() {
         let event = pump.wait_event();
 
         if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
-            console_server.process_event(&mut process, &wrapper.event, &mut state);
+            console_server.borrow_mut().process_event(&mut process.borrow_mut(), &wrapper.event, &mut state);
         } 
         else {
             match event {
                 Event::MouseMotion { x, y, .. } => {
                     if let Some(channel_handle) = state.get_first_client_handle() {
-                        console_server.pointer_moved(*channel_handle, PointerMovedParameters { position: Point { x: x as i64, y: y as i64 } });
+                        console_server.borrow_mut().pointer_moved(*channel_handle, &PointerMovedParameters { position: Point { x: x as i64, y: y as i64 } });
                     }
                 },
                 Event::Quit { .. } => {
@@ -109,5 +108,5 @@ fn main() {
         }
     }
 
-    process.end();
+    process.borrow().end();
 }

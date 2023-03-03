@@ -1,4 +1,6 @@
 use alloc::collections::BTreeMap;
+use alloc::rc::Rc;
+use core::cell::RefCell;
 use library_chaos::{ChannelHandle, ServiceHandle, StormProcess};
 use protocol_console::{ConsoleClient, ConsoleClientEvent, ConsoleClientObserver};
 use protocol_tornado::{TornadoServer, TornadoServerObserver, TornadoServerRequest};
@@ -12,14 +14,14 @@ impl ClientState {
 }
 
 pub struct ServerState {
-    process: StormProcess,
-    tornado_server: TornadoServer,
-    console_client: ConsoleClient,
+    process: Rc<RefCell<StormProcess>>,
+    tornado_server: Rc<RefCell<TornadoServer>>,
+    console_client: Rc<RefCell<ConsoleClient>>,
     clients: BTreeMap<ChannelHandle, ClientState>,
 }
 
 impl ServerState {
-    pub fn new(process: StormProcess, tornado_server: TornadoServer, console_client: ConsoleClient) -> Self {
+    pub fn new(process: Rc<RefCell<StormProcess>>, tornado_server: Rc<RefCell<TornadoServer>>, console_client: Rc<RefCell<ConsoleClient>>) -> Self {
         Self {
             process: process,
             tornado_server: tornado_server,
@@ -29,12 +31,6 @@ impl ServerState {
     }
 
     pub fn run(&mut self) {
-        // main event loop
-        loop {
-            let event = StormProcess::wait_for_event().unwrap();
-            self.console_client.process_event(&self.process, &event, self);
-            self.tornado_server.process_event(&mut self.process, &event, self);
-        }
     }
 
     pub fn add_client(&mut self, handle: ChannelHandle) {
@@ -83,6 +79,7 @@ impl TornadoServerObserver for ServerState {
         &mut self,
         service_handle: ServiceHandle,
         channel_handle: ChannelHandle,
+        call_id: u64,
         request: TornadoServerRequest,
     ) {
         println!("handle_tornado_request");

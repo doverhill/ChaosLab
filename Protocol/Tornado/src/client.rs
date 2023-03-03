@@ -10,6 +10,8 @@ use crate::types::*;
 use crate::enums::*;
 
 use alloc::boxed::Box;
+use alloc::rc::Rc;
+use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
 use crate::channel::{TornadoChannel, ChannelMessageHeader, FromChannel};
@@ -32,13 +34,13 @@ pub struct TornadoClient {
 }
 
 impl TornadoClient {
-    pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
+    pub fn connect_first(process: &mut StormProcess) -> Result<Rc<RefCell<Self>>, StormError> {
         let channel_handle = process.connect_to_service("tornado", None, None, None, 4096)?;
         let channel = TornadoChannel::new(process.get_channel_address(channel_handle, 0).unwrap(), process.get_channel_address(channel_handle, 1).unwrap(), false);
-        Ok(Self {
+        Ok(Rc::new(RefCell::new(Self {
             channel_handle: channel_handle,
             channel: channel,
-        })
+        })))
     }
 
     pub fn process_event(&self, process: &StormProcess, event: &StormEvent, observer: &mut impl TornadoClientObserver) {
