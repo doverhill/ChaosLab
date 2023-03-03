@@ -60,7 +60,6 @@ impl TornadoServer {
                         unsafe {
                             match (*message).message_id {
                                 SET_RENDER_TREE_PARAMETERS =>  {
-                                    println!("got SET_RENDER_TREE_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     SetRenderTreeParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const SetRenderTreeParameters;

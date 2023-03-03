@@ -77,7 +77,7 @@ namespace IDLCompiler {
                 var callName = CasedString.FromSnake(call.Name);
                 var (parametersType, parametersMessageName) = call.ToParametersType();
                 var arm = innerMatchBlock.AddBlock($"{parametersMessageName} => ");
-                arm.AddLine($$"""println!("got {{parametersMessageName}} message");""");
+                //arm.AddLine($$"""println!("got {{parametersMessageName}} message");""");
                 if (parametersType != null) {
                     arm.AddLine("let address = ChannelMessageHeader::get_payload_address(message);");
                     arm.AddLine($"{parametersType.Name}::reconstruct_at_inline(address);");
@@ -195,10 +195,10 @@ namespace IDLCompiler {
                 var callName = CasedString.FromSnake(call.Name);
                 var (parametersType, parametersMessageName) = call.ToParametersType();
                 var arm = innerMatchBlock.AddBlock($"{parametersMessageName} => ");
-                arm.AddLine($$"""println!("got {{parametersMessageName}} message");""");
+                //arm.AddLine($$"""println!("got {{parametersMessageName}} message");""");
                 if (parametersType != null) {
                     arm.AddLine("let address = ChannelMessageHeader::get_payload_address(message);");
-                    arm.AddLine("""println!("found message at {:p}", address);""");
+                    //arm.AddLine("""println!("found message at {:p}", address);""");
                     arm.AddLine($"{parametersType.Name}::reconstruct_at_inline(address);");
                     arm.AddLine($"let parameters = address as *const {parametersType.Name};");
                     arm.AddLine($"let request = {structName}Event::{callName.ToPascal()}(parameters.as_ref().unwrap());");

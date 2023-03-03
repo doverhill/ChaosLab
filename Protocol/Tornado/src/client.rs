@@ -49,9 +49,7 @@ impl TornadoClient {
                         unsafe {
                             match (*message).message_id {
                                 COMPONENT_CLICKED_PARAMETERS =>  {
-                                    println!("got COMPONENT_CLICKED_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
-                                    println!("found message at {:p}", address);
                                     ComponentClickedParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const ComponentClickedParameters;
                                     let request = TornadoClientEvent::ComponentClicked(parameters.as_ref().unwrap());

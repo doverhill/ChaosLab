@@ -66,12 +66,10 @@ impl StorageServer {
                         unsafe {
                             match (*message).message_id {
                                 GET_CAPABILITIES_PARAMETERS =>  {
-                                    println!("got GET_CAPABILITIES_PARAMETERS message");
                                     observer.handle_storage_request(self.service_handle, *channel_handle, StorageServerRequest::GetCapabilities);
                                     channel.unlink_message(message, false);
                                 }
                                 LIST_OBJECTS_PARAMETERS =>  {
-                                    println!("got LIST_OBJECTS_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     ListObjectsParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const ListObjectsParameters;
@@ -80,7 +78,6 @@ impl StorageServer {
                                     channel.unlink_message(message, false);
                                 }
                                 LOCK_OBJECT_PARAMETERS =>  {
-                                    println!("got LOCK_OBJECT_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     LockObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const LockObjectParameters;
@@ -89,7 +86,6 @@ impl StorageServer {
                                     channel.unlink_message(message, false);
                                 }
                                 UNLOCK_OBJECT_PARAMETERS =>  {
-                                    println!("got UNLOCK_OBJECT_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     UnlockObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const UnlockObjectParameters;
@@ -98,7 +94,6 @@ impl StorageServer {
                                     channel.unlink_message(message, false);
                                 }
                                 READ_OBJECT_PARAMETERS =>  {
-                                    println!("got READ_OBJECT_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     ReadObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const ReadObjectParameters;
@@ -107,7 +102,6 @@ impl StorageServer {
                                     channel.unlink_message(message, false);
                                 }
                                 WRITE_OBJECT_PARAMETERS =>  {
-                                    println!("got WRITE_OBJECT_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     WriteObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const WriteObjectParameters;
@@ -116,7 +110,6 @@ impl StorageServer {
                                     channel.unlink_message(message, false);
                                 }
                                 WATCH_OBJECT_PARAMETERS =>  {
-                                    println!("got WATCH_OBJECT_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     WatchObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const WatchObjectParameters;
@@ -125,7 +118,6 @@ impl StorageServer {
                                     channel.unlink_message(message, false);
                                 }
                                 UNWATCH_OBJECT_PARAMETERS =>  {
-                                    println!("got UNWATCH_OBJECT_PARAMETERS message");
                                     let address = ChannelMessageHeader::get_payload_address(message);
                                     UnwatchObjectParameters::reconstruct_at_inline(address);
                                     let parameters = address as *const UnwatchObjectParameters;

@@ -49,9 +49,11 @@ impl ConsoleServerObserver for ServerState {
 
         match request {
             ConsoleServerRequest::WriteText(parameters) => {
-                println!("write_text");
-                println!("write {} to console", parameters.text);
+                println!("console::write_text: {}", parameters.text);
             },
+            ConsoleServerRequest::GetCapabilities => {
+                
+            }
             _ => {}
         }
     }
