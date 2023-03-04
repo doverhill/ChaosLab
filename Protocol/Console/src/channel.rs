@@ -11,33 +11,55 @@ use crate::enums::*;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::ops::Deref;
+use core::marker::PhantomData;
 
-pub struct FromChannel<'a, T> {
-    channel: &'a ConsoleChannel,
-    message: *mut ChannelMessageHeader,
-    value: T,
+pub struct FromChannel<T> {
+    channel_address: *mut ChannelHeader,
+    message_address: *mut ChannelMessageHeader,
+    phantom: PhantomData<T>,
 }
 
-impl<'a, T> FromChannel<'a, T> {
-    pub fn new (channel: &'a ConsoleChannel, message: *mut ChannelMessageHeader, value: T) -> Self {
+impl<T> FromChannel<T> {
+    pub fn new (channel_address: *mut u8, message_address: *mut ChannelMessageHeader) -> Self {
         Self {
-            channel: channel,
-            message: message,
-            value: value,
+            channel_address: channel_address as *mut ChannelHeader,
+            message_address: message_address,
+            phantom: PhantomData,
         }
     }
 }
 
-impl<'a, T> Deref for FromChannel<'a, T> {
+impl<T> Deref for FromChannel<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        &self.value
+        unsafe { (ChannelMessageHeader::get_payload_address(self.message_address) as *const T).as_ref().unwrap() }
     }
 }
 
-impl<'a, T> Drop for FromChannel<'a, T> {
+impl<T> Drop for FromChannel<T> {
     fn drop(&mut self) {
-        self.channel.unlink_message(self.message, false);
+        unsafe {
+            let lock = ChannelLock::get("from_channel_drop", self.channel_address as *mut u8);
+            assert!((*self.message_address).pending_unlink);
+            #[cfg(debug)]
+            assert!((*self.channel_address).channel_magic == ChannelHeader::MAGIC);
+            #[cfg(debug)]
+            assert!((*self.message_address).message_magic == ChannelMessageHeader::MAGIC);
+            if (*self.message_address).previous_message_offset == 0 {
+                (*self.channel_address).first_message_offset = (*self.message_address).next_message_offset;
+            }
+            else {
+                let previous_message = self.channel_address.offset((*self.message_address).previous_message_offset as isize) as *mut ChannelMessageHeader;
+                (*previous_message).next_message_offset = (*self.message_address).next_message_offset;
+            }
+            if (*self.message_address).next_message_offset == 0 {
+                (*self.channel_address).last_message_offset = (*self.message_address).previous_message_offset;
+            }
+            else {
+                let next_message = self.channel_address.offset((*self.message_address).next_message_offset as isize) as *mut ChannelMessageHeader;
+                (*next_message).previous_message_offset = (*self.message_address).previous_message_offset;
+            }
+        }
     }
 }
 
@@ -91,7 +113,9 @@ struct ChannelLock {
 impl ChannelLock {
     pub unsafe fn get(name: &str, channel_address: *mut u8) -> Self {
         let channel_header = channel_address as *const ChannelHeader;
+        println!("LOCK: getting for {}", name);
         while (*channel_header).lock.swap(true, Ordering::Acquire) {}
+        println!("LOCK: got for {}", name);
         Self {
             name: name.to_string(),
             channel_header: channel_header
@@ -101,6 +125,7 @@ impl ChannelLock {
 
 impl Drop for ChannelLock {
     fn drop(&mut self) {
+        println!("LOCK: releasing for {}", self.name);
         unsafe {
             (*self.channel_header).lock.store(false, Ordering::Relaxed);
         }
@@ -108,7 +133,7 @@ impl Drop for ChannelLock {
 }
 
 pub struct ConsoleChannel {
-    rx_channel_address: *mut u8,
+    pub rx_channel_address: *mut u8,
     tx_channel_address: *mut u8,
     call_id: u64,
 }

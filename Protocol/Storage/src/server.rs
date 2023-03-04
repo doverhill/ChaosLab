@@ -19,21 +19,21 @@ use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
-pub enum StorageServerRequest<'a> {
+pub enum StorageServerRequest {
     GetCapabilities,
-    ListObjects(FromChannel<'a, &'a ListObjectsParameters>),
-    LockObject(FromChannel<'a, &'a LockObjectParameters>),
-    UnlockObject(FromChannel<'a, &'a UnlockObjectParameters>),
-    ReadObject(FromChannel<'a, &'a ReadObjectParameters>),
-    WriteObject(FromChannel<'a, &'a WriteObjectParameters>),
-    WatchObject(FromChannel<'a, &'a WatchObjectParameters>),
-    UnwatchObject(FromChannel<'a, &'a UnwatchObjectParameters>),
+    ListObjects(FromChannel<ListObjectsParameters>),
+    LockObject(FromChannel<LockObjectParameters>),
+    UnlockObject(FromChannel<UnlockObjectParameters>),
+    ReadObject(FromChannel<ReadObjectParameters>),
+    WriteObject(FromChannel<WriteObjectParameters>),
+    WatchObject(FromChannel<WatchObjectParameters>),
+    UnwatchObject(FromChannel<UnwatchObjectParameters>),
 }
 
-pub enum StorageServerChannelEvent<'a> {
+pub enum StorageServerChannelEvent {
     ClientConnected(ServiceHandle, ChannelHandle),
     ClientDisconnected(ServiceHandle, ChannelHandle),
-    ClientRequest(StorageServerRequest<'a>),
+    ClientRequest(ServiceHandle, ChannelHandle, u64, StorageServerRequest),
 }
 
 pub struct StorageServer {
@@ -53,6 +53,7 @@ impl StorageServer {
     }
 
     pub fn register_event(&mut self, event: StormEvent) {
+        println!("StorageServer::register_event: {:?}", event);
         self.current_event = Some(event);
     }
 
@@ -79,56 +80,49 @@ impl StorageServer {
                                 match (*message).message_id {
                                     GET_CAPABILITIES_PARAMETERS => {
                                         channel.unlink_message(message, false);
-                                        Some(StorageServerChannelEvent::ClientRequest(StorageServerRequest::GetCapabilities))
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, StorageServerRequest::GetCapabilities))
                                     },
                                     LIST_OBJECTS_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         ListObjectsParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const ListObjectsParameters;
-                                        let request = StorageServerRequest::ListObjects(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(StorageServerChannelEvent::ClientRequest(request))
+                                        let request = StorageServerRequest::ListObjects(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     LOCK_OBJECT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         LockObjectParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const LockObjectParameters;
-                                        let request = StorageServerRequest::LockObject(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(StorageServerChannelEvent::ClientRequest(request))
+                                        let request = StorageServerRequest::LockObject(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     UNLOCK_OBJECT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         UnlockObjectParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const UnlockObjectParameters;
-                                        let request = StorageServerRequest::UnlockObject(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(StorageServerChannelEvent::ClientRequest(request))
+                                        let request = StorageServerRequest::UnlockObject(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     READ_OBJECT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         ReadObjectParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const ReadObjectParameters;
-                                        let request = StorageServerRequest::ReadObject(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(StorageServerChannelEvent::ClientRequest(request))
+                                        let request = StorageServerRequest::ReadObject(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     WRITE_OBJECT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         WriteObjectParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const WriteObjectParameters;
-                                        let request = StorageServerRequest::WriteObject(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(StorageServerChannelEvent::ClientRequest(request))
+                                        let request = StorageServerRequest::WriteObject(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     WATCH_OBJECT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         WatchObjectParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const WatchObjectParameters;
-                                        let request = StorageServerRequest::WatchObject(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(StorageServerChannelEvent::ClientRequest(request))
+                                        let request = StorageServerRequest::WatchObject(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     UNWATCH_OBJECT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         UnwatchObjectParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const UnwatchObjectParameters;
-                                        let request = StorageServerRequest::UnwatchObject(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(StorageServerChannelEvent::ClientRequest(request))
+                                        let request = StorageServerRequest::UnwatchObject(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(StorageServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     _ => { panic!("StorageServer: Unknown message received"); }
                                 }

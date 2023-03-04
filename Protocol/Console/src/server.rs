@@ -20,19 +20,19 @@ use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
-pub enum ConsoleServerRequest<'a> {
+pub enum ConsoleServerRequest {
     GetCapabilities,
-    SetTextColor(FromChannel<'a, &'a SetTextColorParameters>),
-    MoveTextCursor(FromChannel<'a, &'a MoveTextCursorParameters>),
-    DrawImagePatch(FromChannel<'a, &'a DrawImagePatchParameters>),
-    WriteText(FromChannel<'a, &'a WriteTextParameters>),
-    WriteObjects(FromChannel<'a, &'a WriteObjectsParameters>),
+    SetTextColor(FromChannel<SetTextColorParameters>),
+    MoveTextCursor(FromChannel<MoveTextCursorParameters>),
+    DrawImagePatch(FromChannel<DrawImagePatchParameters>),
+    WriteText(FromChannel<WriteTextParameters>),
+    WriteObjects(FromChannel<WriteObjectsParameters>),
 }
 
-pub enum ConsoleServerChannelEvent<'a> {
+pub enum ConsoleServerChannelEvent {
     ClientConnected(ServiceHandle, ChannelHandle),
     ClientDisconnected(ServiceHandle, ChannelHandle),
-    ClientRequest(ConsoleServerRequest<'a>),
+    ClientRequest(ServiceHandle, ChannelHandle, u64, ConsoleServerRequest),
 }
 
 pub struct ConsoleServer {
@@ -52,6 +52,7 @@ impl ConsoleServer {
     }
 
     pub fn register_event(&mut self, event: StormEvent) {
+        println!("ConsoleServer::register_event: {:?}", event);
         self.current_event = Some(event);
     }
 
@@ -78,42 +79,37 @@ impl ConsoleServer {
                                 match (*message).message_id {
                                     GET_CAPABILITIES_PARAMETERS => {
                                         channel.unlink_message(message, false);
-                                        Some(ConsoleServerChannelEvent::ClientRequest(ConsoleServerRequest::GetCapabilities))
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, ConsoleServerRequest::GetCapabilities))
                                     },
                                     SET_TEXT_COLOR_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         SetTextColorParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const SetTextColorParameters;
-                                        let request = ConsoleServerRequest::SetTextColor(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(request))
+                                        let request = ConsoleServerRequest::SetTextColor(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     MOVE_TEXT_CURSOR_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         MoveTextCursorParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const MoveTextCursorParameters;
-                                        let request = ConsoleServerRequest::MoveTextCursor(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(request))
+                                        let request = ConsoleServerRequest::MoveTextCursor(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     DRAW_IMAGE_PATCH_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         DrawImagePatchParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const DrawImagePatchParameters;
-                                        let request = ConsoleServerRequest::DrawImagePatch(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(request))
+                                        let request = ConsoleServerRequest::DrawImagePatch(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     WRITE_TEXT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         WriteTextParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const WriteTextParameters;
-                                        let request = ConsoleServerRequest::WriteText(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(request))
+                                        let request = ConsoleServerRequest::WriteText(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     WRITE_OBJECTS_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         WriteObjectsParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const WriteObjectsParameters;
-                                        let request = ConsoleServerRequest::WriteObjects(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(request))
+                                        let request = ConsoleServerRequest::WriteObjects(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     _ => { panic!("ConsoleServer: Unknown message received"); }
                                 }

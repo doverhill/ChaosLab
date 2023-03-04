@@ -23,20 +23,20 @@ namespace IDLCompiler {
             source.AddLine("use alloc::vec::Vec;");
             source.AddBlank();
 
-            var requestEnumBlock = source.AddBlock($"pub enum {structName}Request<'a>");
+            var requestEnumBlock = source.AddBlock($"pub enum {structName}Request");
             foreach (var call in from.Values)
             {
                 var callName = CasedString.FromSnake(call.Name);
                 var (parametersType, _) = call.ToParametersType();
-                var parameter = parametersType != null ? $"(FromChannel<'a, &'a {parametersType.Name}>)" : "";
+                var parameter = parametersType != null ? $"(FromChannel<{parametersType.Name}>)" : "";
                 requestEnumBlock.AddLine($"{callName.ToPascal()}{parameter},");
             }
             source.AddBlank();
 
-            var eventEnumBlock = source.AddBlock($"pub enum {structName}ChannelEvent<'a>");
+            var eventEnumBlock = source.AddBlock($"pub enum {structName}ChannelEvent");
             eventEnumBlock.AddLine("ClientConnected(ServiceHandle, ChannelHandle),");
             eventEnumBlock.AddLine("ClientDisconnected(ServiceHandle, ChannelHandle),");
-            eventEnumBlock.AddLine($"ClientRequest({structName}Request<'a>),");
+            eventEnumBlock.AddLine($"ClientRequest(ServiceHandle, ChannelHandle, u64, {structName}Request),");
             source.AddBlank();
 
             //var observerTrait = source.AddBlock($"pub trait {structName}Observer");
@@ -64,6 +64,7 @@ namespace IDLCompiler {
             implBlock.AddBlank();
 
             var registerBlock = implBlock.AddBlock("pub fn register_event(&mut self, event: StormEvent)");
+            registerBlock.AddLine($$"""println!("{{structName}}::register_event: {:?}", event);""");
             registerBlock.AddLine("self.current_event = Some(event);");
             implBlock.AddBlank();
 
@@ -107,14 +108,15 @@ namespace IDLCompiler {
                 if (parametersType != null) {
                     arm.AddLine("let address = ChannelMessageHeader::get_payload_address(message);");
                     arm.AddLine($"{parametersType.Name}::reconstruct_at_inline(address);");
-                    arm.AddLine($"let parameters = address as *const {parametersType.Name};");
-                    arm.AddLine($"let request = {structName}Request::{callName.ToPascal()}(FromChannel::new(channel, message, parameters.as_ref().unwrap()));");
-                    arm.AddLine($"Some({structName}ChannelEvent::ClientRequest(request))");
+                    //arm.AddLine($"let parameters = address as *const {parametersType.Name};");
+                    //arm.AddLine("let channel_address = channel.rx_channel_address;");
+                    arm.AddLine($"let request = {structName}Request::{callName.ToPascal()}(FromChannel::new(channel.rx_channel_address, message));");
+                    arm.AddLine($"Some({structName}ChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))");
                     //arm.AddLine($"observer.handle_{idl.Protocol.Name}_request(self.service_handle, *channel_handle, (*message).call_id, request);");
                 }
                 else {
                     arm.AddLine("channel.unlink_message(message, false);");
-                    arm.AddLine($"Some({structName}ChannelEvent::ClientRequest({structName}Request::{callName.ToPascal()}))");
+                    arm.AddLine($"Some({structName}ChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, {structName}Request::{callName.ToPascal()}))");
                     //arm.AddLine($"observer.handle_{idl.Protocol.Name}_request(self.service_handle, *channel_handle, (*message).call_id, {structName}Request::{callName.ToPascal()});");
                 }
             }
@@ -203,19 +205,19 @@ namespace IDLCompiler {
             source.AddLine("use alloc::vec::Vec;");
             source.AddBlank();
 
-            var eventEnumBlock = source.AddBlock($"pub enum {structName}Event<'a>");
+            var eventEnumBlock = source.AddBlock($"pub enum {structName}Event");
             foreach (var call in from.Values)
             {
                 var callName = CasedString.FromSnake(call.Name);
                 var (parametersType, _) = call.ToParametersType();
-                var parameter = parametersType != null ? $"(FromChannel<'a, &'a {parametersType.Name}>)" : "";
+                var parameter = parametersType != null ? $"(FromChannel<{parametersType.Name}>)" : "";
                 eventEnumBlock.AddLine($"{callName.ToPascal()}{parameter},");
             }
             source.AddBlank();
 
-            eventEnumBlock = source.AddBlock($"pub enum {structName}ChannelEvent<'a>");
+            eventEnumBlock = source.AddBlock($"pub enum {structName}ChannelEvent");
             eventEnumBlock.AddLine("ServerDisconnected(ChannelHandle),");
-            eventEnumBlock.AddLine($"ServerEvent({structName}Event<'a>),");
+            eventEnumBlock.AddLine($"ServerEvent(ChannelHandle, {structName}Event),");
             source.AddBlank();
 
             //var observerTrait = source.AddBlock($"pub trait {structName}Observer");
@@ -278,9 +280,9 @@ namespace IDLCompiler {
                     arm.AddLine("let address = ChannelMessageHeader::get_payload_address(message);");
                     //arm.AddLine("""println!("found message at {:p}", address);""");
                     arm.AddLine($"{parametersType.Name}::reconstruct_at_inline(address);");
-                    arm.AddLine($"let parameters = address as *const {parametersType.Name};");
-                    arm.AddLine($"let request = {structName}Event::{callName.ToPascal()}(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));");
-                    arm.AddLine($"Some({structName}ChannelEvent::ServerEvent(request))");
+                    //arm.AddLine($"let parameters = address as *const {parametersType.Name};");
+                    arm.AddLine($"let request = {structName}Event::{callName.ToPascal()}(FromChannel::new(self.channel.rx_channel_address, message));");
+                    arm.AddLine($"Some({structName}ChannelEvent::ServerEvent(channel_handle, request))");
                     //arm.AddLine($"observer.handle_{idl.Protocol.Name}_event(*channel_handle, request);");
                 }
                 else {
@@ -306,7 +308,7 @@ namespace IDLCompiler {
                 string returns = "";
                 if (returnsType != null)
                 {
-                    returns = $" -> Result<FromChannel<&{returnsType.Name}>, StormError>";
+                    returns = $" -> Result<FromChannel<{returnsType.Name}>, StormError>";
                     parameters = ", process: &StormProcess";
                 }
                 if (parametersType != null)
@@ -321,12 +323,12 @@ namespace IDLCompiler {
                     fnBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     fnBlock.AddLine("let size = unsafe { parameters.write_at(payload) };");
                     fnBlock.AddLine("self.channel.commit_message(size);");
-                    fnBlock.AddLine($"StormProcess::signal_channel(self.channel_handle);");
                 }
                 else
                 {
                     fnBlock.AddLine("self.channel.commit_message(0);");
                 }
+                fnBlock.AddLine($"StormProcess::signal_channel(self.channel_handle);");
 
                 if (returnsType != null)
                 {
@@ -337,8 +339,8 @@ namespace IDLCompiler {
                     ifBlock = fnBlock.AddBlock($"if let Some(message) = self.channel.find_specific_message(call_id)");
                     ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     ifBlock.AddLine($$"""unsafe { {{returnsType.Name}}::reconstruct_at_inline(payload); }""");
-                    ifBlock.AddLine($"let payload = payload as *mut {returnsType.Name};");
-                    ifBlock.AddLine("Ok(FromChannel::new(&self.channel, message, unsafe { payload.as_ref().unwrap() }))");
+                    //ifBlock.AddLine($"let payload = payload as *mut {returnsType.Name};");
+                    ifBlock.AddLine("Ok(FromChannel::new(self.channel.rx_channel_address, message))");
                     elseBlock = fnBlock.AddBlock("else");
                     elseBlock.AddLine("Err(StormError::NotFound)");
                 }

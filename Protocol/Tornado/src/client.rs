@@ -20,13 +20,13 @@ use crate::from_server::*;
 use crate::message_ids::*;
 use alloc::vec::Vec;
 
-pub enum TornadoClientEvent<'a> {
-    ComponentClicked(FromChannel<'a, &'a ComponentClickedParameters>),
+pub enum TornadoClientEvent {
+    ComponentClicked(FromChannel<ComponentClickedParameters>),
 }
 
-pub enum TornadoClientChannelEvent<'a> {
+pub enum TornadoClientChannelEvent {
     ServerDisconnected(ChannelHandle),
-    ServerEvent(TornadoClientEvent<'a>),
+    ServerEvent(ChannelHandle, TornadoClientEvent),
 }
 
 pub struct TornadoClient {
@@ -70,9 +70,8 @@ impl TornadoClient {
                                     COMPONENT_CLICKED_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         ComponentClickedParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const ComponentClickedParameters;
-                                        let request = TornadoClientEvent::ComponentClicked(FromChannel::new(&self.channel, message, parameters.as_ref().unwrap()));
-                                        Some(TornadoClientChannelEvent::ServerEvent(request))
+                                        let request = TornadoClientEvent::ComponentClicked(FromChannel::new(self.channel.rx_channel_address, message));
+                                        Some(TornadoClientChannelEvent::ServerEvent(channel_handle, request))
                                     },
                                     _ => { panic!("TornadoClient: Unknown message received"); }
                                 }

@@ -4,6 +4,8 @@ use sdl2::Sdl;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
+use sdl2::render::Canvas;
+use sdl2::video::Window;
 use sdl2::{EventPump, EventSubsystem};
 use std::collections::HashMap;
 use std::thread;
@@ -25,20 +27,12 @@ pub struct ServerApplication {
     process: StormProcess,
     console_server: ConsoleServer,
     clients: HashMap<ChannelHandle, Client>,
-    sdl: Option<Sdl>,
+    sdl: Sdl,
+    canvas: Canvas<Window>,
 }
 
 impl ServerApplication {
     pub fn new(process: StormProcess, console_server: ConsoleServer) -> Self {
-        Self {
-            process: process,
-            console_server: console_server,
-            clients: HashMap::new(),
-            sdl: None,
-        }
-    }
-
-    pub fn initialize(&mut self) {
         let scale_factor: usize = 2;
         let width = 800;
         let height = 600;
@@ -79,15 +73,20 @@ impl ServerApplication {
 
         canvas.present();
 
-        self.sdl = Some(sdl);
+        Self {
+            process: process,
+            console_server: console_server,
+            clients: HashMap::new(),
+            sdl: sdl,
+            canvas: canvas,
+        }
     }
 
     pub fn run(&mut self) {
         // hack to get events from both sdl and storm:
         // spawn thread doing storm event wait - posting events to sdl event queue
         // on main thread, loop on sdl event queue and handle incoming events from both sources
-        let sdl = self.sdl.unwrap();
-        let events = sdl.event().unwrap();
+        let events = self.sdl.event().unwrap();
         events.register_custom_event::<StormEventWrapper>().unwrap();
         let sender = events.event_sender();
         thread::spawn(move || loop {
@@ -99,7 +98,7 @@ impl ServerApplication {
         });
 
         // main loop
-        let mut pump = sdl.event_pump().unwrap();
+        let mut pump = self.sdl.event_pump().unwrap();
         'main_loop: loop {
             let event = pump.wait_event();
 
@@ -140,11 +139,25 @@ impl ServerApplication {
             ConsoleServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
                 self.clients.remove(&channel_handle);
             }
-            ConsoleServerChannelEvent::ClientRequest(request) => {
+            ConsoleServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
                 match request {
                     ConsoleServerRequest::WriteText(parameters) => {
                         println!("console::WriteText: {}", parameters.text);
-                    }
+                    },
+                    ConsoleServerRequest::GetCapabilities => {
+                        println!("console::GetCapabilities");
+                        self.console_server.get_capabilities_reply(channel_handle, call_id, &GetCapabilitiesReturns {
+                            is_framebuffer: true,
+                            framebuffer_size: Size {
+                                width: 1000,
+                                height: 800,
+                            },
+                            text_size: Size {
+                                width: 80,
+                                height: 50
+                            }
+                        });
+                    },
                     _ => {
                         // not implemented
                     }

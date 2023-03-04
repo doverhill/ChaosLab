@@ -1,5 +1,5 @@
 use alloc::collections::BTreeMap;
-use library_chaos::{ChannelHandle, ServiceHandle, StormProcess};
+use library_chaos::*;
 use protocol_console::*;
 use protocol_tornado::*;
 
@@ -19,7 +19,11 @@ pub struct ServerApplication {
 }
 
 impl ServerApplication {
-    pub fn new(process: StormProcess, tornado_server: TornadoServer, console_client: ConsoleClient) -> Self {
+    pub fn new(
+        process: StormProcess,
+        tornado_server: TornadoServer,
+        console_client: ConsoleClient,
+    ) -> Self {
         Self {
             process: process,
             tornado_server: tornado_server,
@@ -28,31 +32,34 @@ impl ServerApplication {
         }
     }
 
-    pub fn initialize(&mut self) {
-        self.console_client.write_text(&WriteTextParameters { text: "hello console".to_string() });
-
-        let console_info = self.console_client.get_capabilities(&self.process).unwrap();
-        println!("tornado: {}x{}", console_info.framebuffer_size.width, console_info.framebuffer_size.height);
-    }
-
     pub fn run(&mut self) {
+        self.console_client.write_text(&WriteTextParameters {
+            text: "hello console".to_string(),
+        });
+
+        // let console_info = self.console_client.get_capabilities(&self.process).unwrap();
+        // println!(
+        //     "tornado: {}x{}",
+        //     console_info.framebuffer_size.width, console_info.framebuffer_size.height
+        // );
+
         // main event loop
         loop {
             let event = StormProcess::wait_for_event().unwrap();
             self.console_client.register_event(event);
             while let Some(event) = self.console_client.get_event(&mut self.process) {
                 self.process_console_client_event(event);
-            };
+            }
             self.tornado_server.register_event(event);
             while let Some(event) = self.tornado_server.get_event(&mut self.process) {
                 self.process_tornado_server_event(event);
-            };
+            }
         }
     }
 
     fn process_console_client_event(&mut self, event: ConsoleClientChannelEvent) {
         // match event {
-        //     ConsoleClientEvent::PointerMoved(parameters) => 
+        //     ConsoleClientEvent::PointerMoved(parameters) =>
         //     {
 
         //     }
@@ -63,15 +70,15 @@ impl ServerApplication {
         match event {
             TornadoServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
                 self.clients.insert(channel_handle, Client::new());
-            },
+            }
             TornadoServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
                 self.clients.remove(&channel_handle);
-            },
-            TornadoServerChannelEvent::ClientRequest(request) => {
+            }
+            TornadoServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
                 match request {
                     TornadoServerRequest::SetRenderTree(parameters) => {
                         println!("console::SetRenderTree");
-                    },
+                    }
                     _ => {
                         // not implemented
                     }
@@ -79,7 +86,6 @@ impl ServerApplication {
             }
         }
     }
-
 }
 
 // impl TornadoServerObserver for ServerState {

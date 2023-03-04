@@ -20,14 +20,14 @@ use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
-pub enum TornadoServerRequest<'a> {
-    SetRenderTree(FromChannel<'a, &'a SetRenderTreeParameters>),
+pub enum TornadoServerRequest {
+    SetRenderTree(FromChannel<SetRenderTreeParameters>),
 }
 
-pub enum TornadoServerChannelEvent<'a> {
+pub enum TornadoServerChannelEvent {
     ClientConnected(ServiceHandle, ChannelHandle),
     ClientDisconnected(ServiceHandle, ChannelHandle),
-    ClientRequest(TornadoServerRequest<'a>),
+    ClientRequest(ServiceHandle, ChannelHandle, u64, TornadoServerRequest),
 }
 
 pub struct TornadoServer {
@@ -47,6 +47,7 @@ impl TornadoServer {
     }
 
     pub fn register_event(&mut self, event: StormEvent) {
+        println!("TornadoServer::register_event: {:?}", event);
         self.current_event = Some(event);
     }
 
@@ -74,9 +75,8 @@ impl TornadoServer {
                                     SET_RENDER_TREE_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         SetRenderTreeParameters::reconstruct_at_inline(address);
-                                        let parameters = address as *const SetRenderTreeParameters;
-                                        let request = TornadoServerRequest::SetRenderTree(FromChannel::new(channel, message, parameters.as_ref().unwrap()));
-                                        Some(TornadoServerChannelEvent::ClientRequest(request))
+                                        let request = TornadoServerRequest::SetRenderTree(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(TornadoServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     _ => { panic!("TornadoServer: Unknown message received"); }
                                 }

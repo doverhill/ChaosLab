@@ -23,7 +23,6 @@ fn main() {
     ).unwrap();
 
     let mut server_application = ServerApplication::new(process, console_server);
-    server_application.initialize();
     server_application.run();
 
     // process.borrow().end();

@@ -15,31 +15,49 @@ namespace IDLCompiler
 
             source.AddLine("use core::sync::atomic::{AtomicBool, Ordering};");
             source.AddLine("use core::ops::Deref;");
+            source.AddLine("use core::marker::PhantomData;");
             source.AddBlank();
 
-            var fromChannelStruct = source.AddBlock("pub struct FromChannel<'a, T>");
-            fromChannelStruct.AddLine($"channel: &'a {channelName},");
-            fromChannelStruct.AddLine("message: *mut ChannelMessageHeader,");
-            fromChannelStruct.AddLine("value: T,");
+            var fromChannelStruct = source.AddBlock("pub struct FromChannel<T>");
+            fromChannelStruct.AddLine("channel_address: *mut ChannelHeader,");
+            fromChannelStruct.AddLine("message_address: *mut ChannelMessageHeader,");
+            fromChannelStruct.AddLine("phantom: PhantomData<T>,");
             source.AddBlank();
 
-            var fromChannelImpl = source.AddBlock("impl<'a, T> FromChannel<'a, T>");
-            var newBlock = fromChannelImpl.AddBlock($"pub fn new (channel: &'a {channelName}, message: *mut ChannelMessageHeader, value: T) -> Self");
+            var fromChannelImpl = source.AddBlock("impl<T> FromChannel<T>");
+            var newBlock = fromChannelImpl.AddBlock($"pub fn new (channel_address: *mut u8, message_address: *mut ChannelMessageHeader) -> Self");
             var selfBlock = newBlock.AddBlock("Self");
-            selfBlock.AddLine("channel: channel,");
-            selfBlock.AddLine("message: message,");
-            selfBlock.AddLine("value: value,");
+            selfBlock.AddLine("channel_address: channel_address as *mut ChannelHeader,");
+            selfBlock.AddLine("message_address: message_address,");
+            selfBlock.AddLine("phantom: PhantomData,");
             source.AddBlank();
 
-            var derefImpl = source.AddBlock("impl<'a, T> Deref for FromChannel<'a, T>");
+            var derefImpl = source.AddBlock("impl<T> Deref for FromChannel<T>");
             derefImpl.AddLine("type Target = T;");
             var derefFunc = derefImpl.AddBlock("fn deref(&self) -> &T");
-            derefFunc.AddLine("&self.value");
+            derefFunc.AddLine("unsafe { (ChannelMessageHeader::get_payload_address(self.message_address) as *const T).as_ref().unwrap() }");
             source.AddBlank();
 
-            var dropImpl = source.AddBlock("impl<'a, T> Drop for FromChannel<'a, T>");
+            var dropImpl = source.AddBlock("impl<T> Drop for FromChannel<T>");
             var dropFunc = dropImpl.AddBlock("fn drop(&mut self)");
-            dropFunc.AddLine("self.channel.unlink_message(self.message, false);");
+            var unsafeBlock = dropFunc.AddBlock("unsafe");
+            unsafeBlock.AddLine("""let lock = ChannelLock::get("from_channel_drop", self.channel_address as *mut u8);""");
+            unsafeBlock.AddLine("assert!((*self.message_address).pending_unlink);");
+            unsafeBlock.AddLine("#[cfg(debug)]");
+            unsafeBlock.AddLine("assert!((*self.channel_address).channel_magic == ChannelHeader::MAGIC);");
+            unsafeBlock.AddLine("#[cfg(debug)]");
+            unsafeBlock.AddLine("assert!((*self.message_address).message_magic == ChannelMessageHeader::MAGIC);");
+            var ifBlock = unsafeBlock.AddBlock("if (*self.message_address).previous_message_offset == 0");
+            ifBlock.AddLine("(*self.channel_address).first_message_offset = (*self.message_address).next_message_offset;");
+            var elseBlock = unsafeBlock.AddBlock("else");
+            elseBlock.AddLine("let previous_message = self.channel_address.offset((*self.message_address).previous_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("(*previous_message).next_message_offset = (*self.message_address).next_message_offset;");
+            ifBlock = unsafeBlock.AddBlock("if (*self.message_address).next_message_offset == 0");
+            ifBlock.AddLine("(*self.channel_address).last_message_offset = (*self.message_address).previous_message_offset;");
+            elseBlock = unsafeBlock.AddBlock("else");
+            elseBlock.AddLine("let next_message = self.channel_address.offset((*self.message_address).next_message_offset as isize) as *mut ChannelMessageHeader;");
+            elseBlock.AddLine("(*next_message).previous_message_offset = (*self.message_address).previous_message_offset;");
+
             source.AddBlank();
 
             var versionBlock = source.AddBlock("struct ProtocolVersion");
@@ -98,9 +116,9 @@ namespace IDLCompiler
             var lockImpl = source.AddBlock("impl ChannelLock");
             var getFunction = lockImpl.AddBlock($"pub unsafe fn get(name: &str, channel_address: *mut u8) -> Self");
             getFunction.AddLine("let channel_header = channel_address as *const ChannelHeader;");
-            //getFunction.AddLine("""println!("LOCK: getting for {}", name);""");
+            getFunction.AddLine("""println!("LOCK: getting for {}", name);""");
             getFunction.AddLine("while (*channel_header).lock.swap(true, Ordering::Acquire) {}");
-            //getFunction.AddLine("""println!("LOCK: got for {}", name);""");
+            getFunction.AddLine("""println!("LOCK: got for {}", name);""");
             var getReturn = getFunction.AddBlock("Self");
             getReturn.AddLine("name: name.to_string(),");
             getReturn.AddLine("channel_header: channel_header");
@@ -109,14 +127,14 @@ namespace IDLCompiler
 
             dropImpl = source.AddBlock("impl Drop for ChannelLock");
             var dropFunction = dropImpl.AddBlock("fn drop(&mut self)");
-            //dropFunction.AddLine("""println!("LOCK: releasing for {}", self.name);""");
+            dropFunction.AddLine("""println!("LOCK: releasing for {}", self.name);""");
             var dropUnsafe = dropFunction.AddBlock("unsafe");
             dropUnsafe.AddLine("(*self.channel_header).lock.store(false, Ordering::Relaxed);");
 
             source.AddBlank();
 
             var channel = source.AddBlock($"pub struct {channelName}");
-            channel.AddLine("rx_channel_address: *mut u8,");
+            channel.AddLine("pub rx_channel_address: *mut u8,");
             channel.AddLine("tx_channel_address: *mut u8,");
             channel.AddLine("call_id: u64,");
 
@@ -125,13 +143,13 @@ namespace IDLCompiler
             var channelImpl = source.AddBlock($"impl {channelName}");
 
             var newFunctionBlock = channelImpl.AddBlock("pub fn new(channel_address_0: *mut u8, channel_address_1: *mut u8, is_server: bool) -> Self");
-            var unsafeBlock = newFunctionBlock.AddBlock("unsafe");
-            var ifBlock = unsafeBlock.AddBlock("if is_server");
+            unsafeBlock = newFunctionBlock.AddBlock("unsafe");
+            ifBlock = unsafeBlock.AddBlock("if is_server");
             var returnBlock = ifBlock.AddBlock(channelName);
             returnBlock.AddLine("rx_channel_address: channel_address_0,");
             returnBlock.AddLine("tx_channel_address: channel_address_1,");
             returnBlock.AddLine("call_id: 1,");
-            var elseBlock = unsafeBlock.AddBlock("else");
+            elseBlock = unsafeBlock.AddBlock("else");
             elseBlock.AddLine("Self::initialize(channel_address_0);");
             elseBlock.AddLine("Self::initialize(channel_address_1);");
             returnBlock = elseBlock.AddBlock(channelName);

@@ -23,7 +23,6 @@ fn main() {
     let tornado_server = TornadoServer::create(&mut process, "Chaos", "Tornado server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
     let mut server_application = ServerApplication::new(process, tornado_server, console_client);
-    server_application.initialize();
     server_application.run();
 
     // process.end();
