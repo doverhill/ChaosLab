@@ -29,6 +29,8 @@ pub struct ServerApplication {
     clients: HashMap<ChannelHandle, Client>,
     sdl: Sdl,
     canvas: Canvas<Window>,
+    framebuffer_size: Size,
+    text_size: Size,
 }
 
 impl ServerApplication {
@@ -57,8 +59,8 @@ impl ServerApplication {
             .unwrap();
         let mut canvas = window.into_canvas().build().unwrap();
 
-        // canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 128, 255));
-        // canvas.clear();
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 128, 255));
+        canvas.clear();
 
         // canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
         // let r = Rect::new(
@@ -79,6 +81,8 @@ impl ServerApplication {
             clients: HashMap::new(),
             sdl: sdl,
             canvas: canvas,
+            framebuffer_size: Size { width: width as u64, height: height as u64 },
+            text_size: Size { width: text_width as u64, height: text_height as u64 },
         }
     }
 
@@ -121,11 +125,11 @@ impl ServerApplication {
                                 },
                             );
                         }
-                    }
-                    Event::Quit { .. } => {
+                    },
+                    Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                         break 'main_loop;
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 };
             }
         }

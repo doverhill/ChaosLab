@@ -113,9 +113,7 @@ struct ChannelLock {
 impl ChannelLock {
     pub unsafe fn get(name: &str, channel_address: *mut u8) -> Self {
         let channel_header = channel_address as *const ChannelHeader;
-        println!("LOCK: getting for {}", name);
         while (*channel_header).lock.swap(true, Ordering::Acquire) {}
-        println!("LOCK: got for {}", name);
         Self {
             name: name.to_string(),
             channel_header: channel_header
@@ -125,7 +123,6 @@ impl ChannelLock {
 
 impl Drop for ChannelLock {
     fn drop(&mut self) {
-        println!("LOCK: releasing for {}", self.name);
         unsafe {
             (*self.channel_header).lock.store(false, Ordering::Relaxed);
         }
@@ -194,11 +191,58 @@ impl TornadoChannel {
         }
     }
 
+    pub fn dump_rx(&self, text: &str) {
+        unsafe {
+            let channel_address = self.rx_channel_address;
+            println!("DUMPING CHANNEL rx ({}) {:p}", text, channel_address);
+            let channel_header = channel_address as *mut ChannelHeader;
+            if (*channel_header).first_message_offset == 0 {
+                println!("  EMPTY");
+            }
+            else {
+                let mut index = (*channel_header).first_message_offset;
+                let mut iter = channel_address.offset((*channel_header).first_message_offset as isize) as *const ChannelMessageHeader;
+                'messages: loop {
+                    println!("  {}: prev: {}, next: {}, size: {}", index, (*iter).previous_message_offset, (*iter).next_message_offset, (*iter).message_length);
+                    if (*iter).next_message_offset == 0 {
+                        break 'messages;
+                    }
+                    index = (*iter).next_message_offset;
+                    iter = channel_address.offset((*iter).next_message_offset as isize) as *const ChannelMessageHeader;
+                }
+            }
+        }
+    }
+
+    pub fn dump_tx(&self, text: &str) {
+        unsafe {
+            let channel_address = self.tx_channel_address;
+            println!("DUMPING CHANNEL tx ({}) {:p}", text, channel_address);
+            let channel_header = channel_address as *mut ChannelHeader;
+            if (*channel_header).first_message_offset == 0 {
+                println!("  EMPTY");
+            }
+            else {
+                let mut index = (*channel_header).first_message_offset;
+                let mut iter = channel_address.offset((*channel_header).first_message_offset as isize) as *const ChannelMessageHeader;
+                'messages: loop {
+                    println!("  {}: prev: {}, next: {}, size: {}", index, (*iter).previous_message_offset, (*iter).next_message_offset, (*iter).message_length);
+                    if (*iter).next_message_offset == 0 {
+                        break 'messages;
+                    }
+                    index = (*iter).next_message_offset;
+                    iter = channel_address.offset((*iter).next_message_offset as isize) as *const ChannelMessageHeader;
+                }
+            }
+        }
+    }
+
     pub fn number_of_messages_available(&self) -> usize {
         0
     }
 
     pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader) {
+        self.dump_tx("prepare_message BEFORE");
         unsafe {
             let channel_header = self.tx_channel_address as *mut ChannelHeader;
             let lock = ChannelLock::get("prepare_message", self.tx_channel_address);
@@ -232,11 +276,13 @@ impl TornadoChannel {
             (*message).next_message_offset = 0;
             (*message).is_writing = true;
             (*message).pending_unlink = false;
+            self.dump_tx("prepare_message AFTER");
             (call_id, message)
         }
     }
 
     pub fn commit_message(&self, message_payload_size: usize) {
+        self.dump_tx("commit_message BEFORE");
         unsafe {
             let channel_header = self.tx_channel_address as *mut ChannelHeader;
             let lock = ChannelLock::get("commit_message", self.tx_channel_address);
@@ -249,6 +295,7 @@ impl TornadoChannel {
             (*channel_header).is_writing = false;
             (*last_message).message_length = mem::size_of::<ChannelMessageHeader>() + message_payload_size;
             (*last_message).is_writing = false;
+            self.dump_tx("commit_message AFTER");
         }
     }
 

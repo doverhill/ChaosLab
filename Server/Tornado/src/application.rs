@@ -37,11 +37,11 @@ impl ServerApplication {
             text: "hello console".to_string(),
         });
 
-        // let console_info = self.console_client.get_capabilities(&self.process).unwrap();
-        // println!(
-        //     "tornado: {}x{}",
-        //     console_info.framebuffer_size.width, console_info.framebuffer_size.height
-        // );
+        let console_info = self.console_client.get_capabilities(&self.process).unwrap();
+        println!(
+            "tornado: {}x{}",
+            console_info.framebuffer_size.width, console_info.framebuffer_size.height
+        );
 
         // main event loop
         loop {

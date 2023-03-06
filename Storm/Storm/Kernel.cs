@@ -142,7 +142,7 @@ namespace Storm
             }
             catch (Exception e)
             {
-                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "Application error: " + e.Message);
+                Output.WriteLineKernel(SyscallProcessEmitType.Information, process, thread, "Application error: " + e.Message);
                 clientSocket.Close();
             }
 
@@ -151,11 +151,11 @@ namespace Storm
             {
                 Handles.Cleanup(process);
                 Services.Cleanup(process);
-                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "Process exit");
+                Output.WriteLineKernel(SyscallProcessEmitType.Information, process, thread, "Process exit");
             }
             else
             {
-                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "Thread exit");
+                Output.WriteLineKernel(SyscallProcessEmitType.Information, process, thread, "Thread exit");
             }
         }
     }

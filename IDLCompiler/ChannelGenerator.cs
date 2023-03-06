@@ -116,9 +116,9 @@ namespace IDLCompiler
             var lockImpl = source.AddBlock("impl ChannelLock");
             var getFunction = lockImpl.AddBlock($"pub unsafe fn get(name: &str, channel_address: *mut u8) -> Self");
             getFunction.AddLine("let channel_header = channel_address as *const ChannelHeader;");
-            getFunction.AddLine("""println!("LOCK: getting for {}", name);""");
+            //getFunction.AddLine("""println!("LOCK: getting for {}", name);""");
             getFunction.AddLine("while (*channel_header).lock.swap(true, Ordering::Acquire) {}");
-            getFunction.AddLine("""println!("LOCK: got for {}", name);""");
+            //getFunction.AddLine("""println!("LOCK: got for {}", name);""");
             var getReturn = getFunction.AddBlock("Self");
             getReturn.AddLine("name: name.to_string(),");
             getReturn.AddLine("channel_header: channel_header");
@@ -127,7 +127,7 @@ namespace IDLCompiler
 
             dropImpl = source.AddBlock("impl Drop for ChannelLock");
             var dropFunction = dropImpl.AddBlock("fn drop(&mut self)");
-            dropFunction.AddLine("""println!("LOCK: releasing for {}", self.name);""");
+            //dropFunction.AddLine("""println!("LOCK: releasing for {}", self.name);""");
             var dropUnsafe = dropFunction.AddBlock("unsafe");
             dropUnsafe.AddLine("(*self.channel_header).lock.store(false, Ordering::Relaxed);");
 
@@ -197,6 +197,9 @@ namespace IDLCompiler
             unsafeBlock.AddLine("rx_compatible && tx_compatible");
             channelImpl.AddBlank();
 
+            GenerateDump(channelImpl, "rx");
+            GenerateDump(channelImpl, "tx");
+
             var numberOfMessagesBlock = channelImpl.AddBlock("pub fn number_of_messages_available(&self) -> usize");
             //numberOfMessagesBlock.AddLine("let channel_header = self.rx_channel_address as *mut ChannelHeader;");
             //numberOfMessagesBlock.AddLine("unsafe { (*channel_header).number_of_messages }");
@@ -204,6 +207,7 @@ namespace IDLCompiler
             channelImpl.AddBlank();
 
             var prepareFunctionBlock = channelImpl.AddBlock("pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader)");
+            prepareFunctionBlock.AddLine("self.dump_tx(\"prepare_message BEFORE\");");
             unsafeBlock = prepareFunctionBlock.AddBlock("unsafe");
             unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
             unsafeBlock.AddLine("""let lock = ChannelLock::get("prepare_message", self.tx_channel_address);""");
@@ -237,11 +241,13 @@ namespace IDLCompiler
             unsafeBlock.AddLine("(*message).next_message_offset = 0;");
             unsafeBlock.AddLine("(*message).is_writing = true;");
             unsafeBlock.AddLine("(*message).pending_unlink = false;");
+            unsafeBlock.AddLine("self.dump_tx(\"prepare_message AFTER\");");
             unsafeBlock.AddLine("(call_id, message)");
 
             channelImpl.AddBlank();
 
             var commitFunctionBlock = channelImpl.AddBlock("pub fn commit_message(&self, message_payload_size: usize)");
+            commitFunctionBlock.AddLine("self.dump_tx(\"commit_message BEFORE\");");
             unsafeBlock = commitFunctionBlock.AddBlock("unsafe");
             unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
             unsafeBlock.AddLine("""let lock = ChannelLock::get("commit_message", self.tx_channel_address);""");
@@ -255,6 +261,7 @@ namespace IDLCompiler
             //unsafeBlock.AddLine("(*channel_header).number_of_messages = (*channel_header).number_of_messages + 1;");
             unsafeBlock.AddLine("(*last_message).message_length = mem::size_of::<ChannelMessageHeader>() + message_payload_size;");
             unsafeBlock.AddLine("(*last_message).is_writing = false;");
+            unsafeBlock.AddLine("self.dump_tx(\"commit_message AFTER\");");
 
             channelImpl.AddBlank();
 
@@ -343,6 +350,29 @@ namespace IDLCompiler
             elseBlock.AddLine("(*next_message).previous_message_offset = (*message).previous_message_offset;");
 
             //unsafeBlock.AddLine("(*channel_header).number_of_messages = (*channel_header).number_of_messages - 1;");
+        }
+
+        private static void GenerateDump(SourceGenerator.SourceBlock block, string channel)
+        {
+            var dumpBlock = block.AddBlock($"pub fn dump_{channel}(&self, text: &str)");
+            var unsafeBlock = dumpBlock.AddBlock("unsafe");
+            unsafeBlock.AddLine($"let channel_address = self.{channel}_channel_address;");
+            unsafeBlock.AddLine($"println!(\"DUMPING CHANNEL {channel} ({{}}) {{:p}}\", text, channel_address);");
+            unsafeBlock.AddLine("let channel_header = channel_address as *mut ChannelHeader;");
+            //unsafeBlock.AddLine($"let lock = ChannelLock::get(\"dump_{channel}\", channel_address);");
+            var ifBlock = unsafeBlock.AddBlock("if (*channel_header).first_message_offset == 0");
+            ifBlock.AddLine("println!(\"  EMPTY\");");
+            var elseBlock = unsafeBlock.AddBlock("else");
+            elseBlock.AddLine("let mut index = (*channel_header).first_message_offset;");
+            elseBlock.AddLine("let mut iter = channel_address.offset((*channel_header).first_message_offset as isize) as *const ChannelMessageHeader;");
+            var whileBlock = elseBlock.AddBlock("'messages: loop");
+            whileBlock.AddLine("println!(\"  {}: prev: {}, next: {}, size: {}\", index, (*iter).previous_message_offset, (*iter).next_message_offset, (*iter).message_length);");
+            ifBlock = whileBlock.AddBlock("if (*iter).next_message_offset == 0");
+            ifBlock.AddLine("break 'messages;");
+            whileBlock.AddLine("index = (*iter).next_message_offset;");
+            whileBlock.AddLine("iter = channel_address.offset((*iter).next_message_offset as isize) as *const ChannelMessageHeader;");
+
+            block.AddBlank();
         }
     }
 }
