@@ -14,11 +14,11 @@ namespace IDLCompiler
         [JsonPropertyName("types")]
         public Dictionary<string, IDLType> Types;
         [JsonPropertyName("from_client_size")]
-        public int FromClientSize = 4096;
+        public int FromClientSize = 1024 * 1024;
         [JsonPropertyName("from_client")]
         public Dictionary<string, IDLCall> FromClient;
         [JsonPropertyName("from_server_size")]
-        public int FromServerSize = 4096;
+        public int FromServerSize = 1024 * 1024;
         [JsonPropertyName("from_server")]
         public Dictionary<string, IDLCall> FromServer;
 

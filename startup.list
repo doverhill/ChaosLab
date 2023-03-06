@@ -5,6 +5,6 @@
 1500 Server\Tornado target\debug\server_tornado.exe
 
 # Applications
-1000 Application\Cluido target\debug\cluido.exe
+#1000 Application\Cluido target\debug\cluido.exe
 
 

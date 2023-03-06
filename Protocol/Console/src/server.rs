@@ -63,7 +63,7 @@ impl ConsoleServer {
                     self.current_event = None;
                     if service_handle == self.service_handle {
                         println!("ConsoleServer: client connected");
-                        process.initialize_channel(channel_handle, 4096);
+                        process.initialize_channel(channel_handle, 1048576);
                         let channel = ConsoleChannel::new(process.get_channel_address(channel_handle, 0).unwrap(), process.get_channel_address(channel_handle, 1).unwrap(), true);
                         self.channels.insert(channel_handle, channel);
                         Some(ConsoleServerChannelEvent::ClientConnected(service_handle, channel_handle))
