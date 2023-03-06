@@ -1,79 +1,76 @@
-use library_chaos::{ChannelHandle, ServiceHandle, StormProcess, StormEvent};
+use crate::helpers;
+use library_chaos::{ChannelHandle, ServiceHandle, StormEvent, StormProcess};
 use protocol_console::*;
-use sdl2::Sdl;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::keyboard::Mod;
+use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
-use crate::helpers;
-use sdl2::render::Canvas;
+use sdl2::render::{Canvas, Texture};
+use sdl2::surface::Surface;
 use sdl2::video::Window;
+use sdl2::Sdl;
 use sdl2::{EventPump, EventSubsystem};
+use std::cell::RefMut;
 use std::collections::HashMap;
 use std::thread;
+use core::cell::RefCell;
 
 struct StormEventWrapper {
     event: StormEvent,
     quit: bool,
 }
 
-struct Client {}
+pub struct Client<'a> {
+    channel_handle: ChannelHandle,
+    name: String,
+    pub surface: Surface<'a>,
+    pub text_position: Point,
+}
 
-impl Client {
-    pub fn new() -> Self {
-        Self {}
+impl<'a> Client<'a> {
+    pub fn new(channel_handle: ChannelHandle, name: String, surface: Surface<'a>) -> Self {
+        Self {
+            channel_handle: channel_handle,
+            name: name,
+            surface: surface,
+            text_position: Point { x: 0, y: 0 },
+        }
     }
 }
 
-pub struct ServerApplication {
+pub struct ServerApplication<'a> {
     process: StormProcess,
     console_server: ConsoleServer,
-    clients: HashMap<ChannelHandle, Client>,
+    clients: HashMap<ChannelHandle, RefCell<Client<'a>>>,
     sdl: Sdl,
-    canvas: Canvas<Window>,
+    canvas: RefCell<Canvas<Window>>,
     framebuffer_size: Size,
     text_size: Size,
+    active_client_channel_handle: Option<ChannelHandle>,
 }
 
-impl ServerApplication {
+impl<'a> ServerApplication<'a> {
     pub fn new(process: StormProcess, console_server: ConsoleServer) -> Self {
-        let scale_factor: usize = 2;
-        let width = 800;
-        let height = 600;
+        // set up video
+        let sdl = sdl2::init().unwrap();
+        let video_subsystem = sdl.video().unwrap();
+        let window = video_subsystem
+            .window("Chaos console", 0, 0)
+            .fullscreen_desktop()
+            .build()
+            .unwrap();
+
+        let (width, height) = window.size();
         let glyph_width = 8;
         let glyph_height = 16;
         let text_width = width / glyph_width;
         let text_height = height / glyph_height;
 
-        let window_width = (scale_factor * width) as u32;
-        let window_height = (scale_factor * height) as u32;
-        let window_title = format!(
-            "Console framebuffer: {}x{} text: {}x{} - 1 / 1",
-            width, height, text_width, text_height
-        );
+        let mut canvas = window.into_canvas().accelerated().build().unwrap();
 
-        // set up video
-        let sdl = sdl2::init().unwrap();
-        let video_subsystem = sdl.video().unwrap();
-        let window = video_subsystem
-            .window(window_title.as_str(), window_width, window_height)
-            .build()
-            .unwrap();
-        let mut canvas = window.into_canvas().build().unwrap();
-
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 128, 255));
+        canvas.set_draw_color(sdl2::pixels::Color::BLACK);
         canvas.clear();
-
-        // canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
-        // let r = Rect::new(
-        //     0i32,
-        //     0i32,
-        //     (glyph_width * scale_factor) as u32,
-        //     (glyph_height * scale_factor) as u32,
-        // );
-        // canvas.draw_rect(r);
-
-        // canvas.with_texture_canvas(texture, f)
-
         canvas.present();
 
         Self {
@@ -81,9 +78,16 @@ impl ServerApplication {
             console_server: console_server,
             clients: HashMap::new(),
             sdl: sdl,
-            canvas: canvas,
-            framebuffer_size: Size { width: width as u64, height: height as u64 },
-            text_size: Size { width: text_width as u64, height: text_height as u64 },
+            canvas: RefCell::new(canvas),
+            framebuffer_size: Size {
+                width: width as u64,
+                height: height as u64,
+            },
+            text_size: Size {
+                width: text_width as u64,
+                height: text_height as u64,
+            },
+            active_client_channel_handle: None,
         }
     }
 
@@ -109,15 +113,17 @@ impl ServerApplication {
 
             if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
                 self.console_server.register_event(wrapper.event);
-                while let Some(console_server_event) = self.console_server.get_event(&mut self.process) {
+                while let Some(console_server_event) =
+                    self.console_server.get_event(&mut self.process)
+                {
                     self.process_console_server_event(console_server_event);
                 }
             } else {
                 match event {
                     Event::MouseMotion { x, y, .. } => {
-                        if let Some(channel_handle) = self.get_first_client_handle() {
+                        if let Some(channel_handle) = self.active_client_channel_handle {
                             self.console_server.pointer_moved(
-                                *channel_handle,
+                                channel_handle,
                                 &PointerMovedParameters {
                                     position: Point {
                                         x: x as i64,
@@ -126,11 +132,43 @@ impl ServerApplication {
                                 },
                             );
                         }
-                    },
-                    Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    }
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => {
                         break 'main_loop;
-                    },
-                    _ => {},
+                    }
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        keymod,
+                        ..
+                    } => {
+                        if keymod.contains(Mod::LSHIFTMOD | Mod::LCTRLMOD | Mod::LALTMOD) {
+                            match keycode {
+                                Keycode::Left => {
+                                    self.set_previous_console();
+                                }
+                                Keycode::Right => {
+                                    self.set_next_console();
+                                }
+                                _ => {}
+                            }
+
+                            println!("reserved console command");
+                        } else {
+                            if let Some(channel_handle) = self.active_client_channel_handle {
+                                self.console_server.key_pressed(
+                                    channel_handle,
+                                    &KeyPressedParameters {
+                                        key_code: helpers::convert_key_code_SDL2Console(keycode),
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
                 };
             }
         }
@@ -139,47 +177,78 @@ impl ServerApplication {
     fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent) {
         match event {
             ConsoleServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
-                self.clients.insert(channel_handle, Client::new());
+                let surface = Surface::new(
+                    self.framebuffer_size.width as u32,
+                    self.framebuffer_size.height as u32,
+                    PixelFormatEnum::ARGB32,
+                )
+                .unwrap();
+                self.clients.insert(
+                    channel_handle,
+                    RefCell::new(Client::new(channel_handle, "unnamed".to_string(), surface)),
+                );
+                self.active_client_channel_handle = Some(channel_handle);
             }
             ConsoleServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
                 self.clients.remove(&channel_handle);
             }
-            ConsoleServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
-                match request {
-                    ConsoleServerRequest::WriteText(parameters) => {
-                        println!("console::WriteText: {}", parameters.text);
-                    },
-                    ConsoleServerRequest::GetCapabilities => {
-                        println!("console::GetCapabilities");
-                        self.console_server.get_capabilities_reply(channel_handle, call_id, &GetCapabilitiesReturns {
-                            is_framebuffer: true,
-                            framebuffer_size: Size {
-                                width: 1000,
-                                height: 800,
-                            },
-                            text_size: Size {
-                                width: 80,
-                                height: 50
-                            }
-                        });
-                    },
-                    ConsoleServerRequest::DrawPixelDebug(parameters) => {
-                        self.canvas.set_draw_color(helpers::convert_color(parameters.color));
-                        self.canvas.draw_point(helpers::convert_point(parameters.position));
-                        self.canvas.present();
-                    },
-                    _ => {
-                        // not implemented
+            ConsoleServerChannelEvent::ClientRequest(
+                service_handle,
+                channel_handle,
+                call_id,
+                request,
+            ) => {
+                if let Some(client) = self.clients.get(&channel_handle) {
+                    match request {
+                        ConsoleServerRequest::WriteText(parameters) => {
+                            helpers::draw_text(client.borrow_mut(), &parameters.text);
+                            self.refresh(client.borrow_mut());
+                        }
+                        ConsoleServerRequest::GetCapabilities => {
+                            self.console_server.get_capabilities_reply(
+                                channel_handle,
+                                call_id,
+                                &GetCapabilitiesReturns {
+                                    is_framebuffer: true,
+                                    framebuffer_size: self.framebuffer_size,
+                                    text_size: self.text_size,
+                                },
+                            );
+                        }
+                        ConsoleServerRequest::DrawPixelDebug(parameters) => {
+                            helpers::draw_pixel(client.borrow_mut(), parameters.color, parameters.position);
+                            self.refresh(client.borrow_mut());
+                        }
+                        _ => {
+                            // not implemented
+                        }
                     }
                 }
             }
         }
     }
 
+    fn set_previous_console(&mut self) {
+        println!("previous console");
+    }
 
+    fn set_next_console(&mut self) {
+        println!("next console");
+    }
 
-    pub fn get_first_client_handle(&self) -> Option<&ChannelHandle> {
-        self.clients.keys().next()
+    fn refresh(&self, client: RefMut<Client>) {
+        if let Some(active_channel_handle) = self.active_client_channel_handle {
+            if client.channel_handle == active_channel_handle {
+                let texture_creator = self
+                    .canvas
+                    .borrow()
+                    .texture_creator();
+                let texture = texture_creator
+                    .create_texture_from_surface(&client.surface)
+                    .unwrap();
+                self.canvas.borrow_mut().copy(&texture, None, None);
+            }
+        }
     }
 }
 

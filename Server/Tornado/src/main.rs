@@ -1,4 +1,4 @@
-// #![no_std]
+#![no_std]
 extern crate alloc;
 extern crate library_chaos;
 extern crate protocol_console;

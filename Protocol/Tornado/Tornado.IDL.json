@@ -21,7 +21,15 @@
                 }
             }
         },
-        "Window": {
+        "Application": {
+            "inherits_from": "Component",
+            "fields": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "Document": {
             "inherits_from": "Component",
             "fields": {
                 "title": {

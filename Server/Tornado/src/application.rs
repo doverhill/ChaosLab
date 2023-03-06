@@ -1,4 +1,5 @@
 use alloc::collections::BTreeMap;
+use alloc::format;
 use library_chaos::*;
 use protocol_console::*;
 use protocol_tornado::*;
@@ -33,15 +34,10 @@ impl ServerApplication {
     }
 
     pub fn run(&mut self) {
-        self.console_client.write_text(&WriteTextParameters {
-            text: "hello console".to_string(),
-        });
-
         let console_info = self.console_client.get_capabilities(&self.process).unwrap();
-        println!(
-            "tornado: {}x{}",
-            console_info.framebuffer_size.width, console_info.framebuffer_size.height
-        );
+        self.console_client.write_text(&WriteTextParameters {
+            text: format!("Tornado running at {}x{}, {}x{} text", console_info.framebuffer_size.width, console_info.framebuffer_size.height, console_info.text_size.width, console_info.text_size.height)
+        });
 
         // main event loop
         loop {
@@ -87,7 +83,6 @@ impl ServerApplication {
             TornadoServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
                 match request {
                     TornadoServerRequest::SetRenderTree(parameters) => {
-                        println!("tornado::SetRenderTree");
                     }
                     _ => {
                         // not implemented

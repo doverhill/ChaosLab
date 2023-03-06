@@ -8,3 +8,7 @@ Set-Location ..\..
 Set-Location Server\Tornado
 cargo build
 Set-Location ..\..
+
+Set-Location Application\Cluido
+cargo build
+Set-Location ..\..
