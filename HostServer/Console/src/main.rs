@@ -4,6 +4,7 @@ extern crate sdl2;
 
 mod application;
 use application::ServerApplication;
+mod helpers;
 
 use library_chaos::{StormEvent, StormProcess, StormError};
 use protocol_console::*;

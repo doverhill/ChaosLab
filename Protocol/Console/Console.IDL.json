@@ -169,6 +169,17 @@
                     "array": true
                 }
             }
+        },
+        "draw_pixel_debug": {
+            "type": "call",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                },
+                "color": {
+                    "type": "Color"
+                }
+            }
         }
     },
     

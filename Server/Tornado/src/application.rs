@@ -58,12 +58,22 @@ impl ServerApplication {
     }
 
     fn process_console_client_event(&mut self, event: ConsoleClientChannelEvent) {
-        // match event {
-        //     ConsoleClientEvent::PointerMoved(parameters) =>
-        //     {
+        match event {
+            ConsoleClientChannelEvent::ServerDisconnected(channel_handle) => {
 
-        //     }
-        // }
+            },
+            ConsoleClientChannelEvent::ServerEvent(channel_handle, event) => {
+                match event {
+                    ConsoleClientEvent::PointerMoved(parameters) => {
+                        self.console_client.draw_pixel_debug(&DrawPixelDebugParameters { position: parameters.position, color: Color { alpha: 255, red: 255, green: 0, blue: 0 } });
+                        // self.console_client.write_text(&WriteTextParameters { text: format!("tornado: pointer moved {}, {}", parameters.position.x, parameters.position.y) });
+                    },
+                    _ => {
+                        // not implemented
+                    }
+                }
+            },
+        }
     }
 
     fn process_tornado_server_event(&mut self, event: TornadoServerChannelEvent) {
@@ -77,7 +87,7 @@ impl ServerApplication {
             TornadoServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
                 match request {
                     TornadoServerRequest::SetRenderTree(parameters) => {
-                        println!("console::SetRenderTree");
+                        println!("tornado::SetRenderTree");
                     }
                     _ => {
                         // not implemented

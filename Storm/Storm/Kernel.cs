@@ -109,7 +109,7 @@ namespace Storm
                             SyscallHandlers.ChannelDestroy(reader, writer, process, thread);
                             break;
 
-                        case SyscallNumber.ChannelMessage:
+                        case SyscallNumber.ChannelSignal:
                             SyscallHandlers.ChannelSignal(reader, writer, process, thread);
                             break;
 

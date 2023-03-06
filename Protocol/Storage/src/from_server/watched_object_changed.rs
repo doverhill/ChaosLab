@@ -11,6 +11,7 @@ use crate::types::*;
 use alloc::vec::Vec;
 use alloc::string::String;
 
+#[derive(Copy, Clone)]
 pub struct WatchedObjectChangedParameters {
     pub watch_id: u64,
 }

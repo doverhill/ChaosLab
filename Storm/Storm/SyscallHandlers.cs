@@ -92,6 +92,7 @@ namespace Storm
 
             if (handle != null)
             {
+                // FIXME only one signal event should be allowed per handle, they should never queue up
                 var receivingPID = handle.GetOtherProcessId(process.ProcessId);
                 Process.FireEvent(new Event(receivingPID, Error.None, handle.Id, Handle.None, HandleAction.ChannelSignalled));
 

@@ -56,6 +56,7 @@ impl TornadoClient {
                 StormEvent::ChannelDestroyed(channel_handle) => {
                     self.current_event = None;
                     if channel_handle == self.channel_handle {
+                        println!("TornadoClient: server disconnected");
                         Some(TornadoClientChannelEvent::ServerDisconnected(channel_handle))
                     }
                     else {

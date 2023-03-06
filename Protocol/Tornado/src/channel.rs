@@ -283,7 +283,6 @@ impl TornadoChannel {
     }
 
     pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader) {
-        self.dump_tx("prepare_message BEFORE");
         unsafe {
             let channel_header = self.tx_channel_address as *mut ChannelHeader;
             let lock = ChannelLock::get("prepare_message", self.tx_channel_address);
@@ -317,13 +316,11 @@ impl TornadoChannel {
             (*message).next_message_offset = 0;
             (*message).is_writing = true;
             (*message).pending_unlink = false;
-            self.dump_tx("prepare_message AFTER");
             (call_id, message)
         }
     }
 
     pub fn commit_message(&self, message_payload_size: usize) {
-        self.dump_tx("commit_message BEFORE");
         unsafe {
             let channel_header = self.tx_channel_address as *mut ChannelHeader;
             let lock = ChannelLock::get("commit_message", self.tx_channel_address);
@@ -336,7 +333,6 @@ impl TornadoChannel {
             (*channel_header).is_writing = false;
             (*last_message).message_length = mem::size_of::<ChannelMessageHeader>() + message_payload_size;
             (*last_message).is_writing = false;
-            self.dump_tx("commit_message AFTER");
         }
     }
 

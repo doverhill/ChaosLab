@@ -10,6 +10,17 @@ namespace IDLCompiler
 {
     internal static class TypeGenerator
     {
+        private static bool Copyable(IDLType type) {
+            return type.Fields.All(f => {
+                if (f.Value.IsArray) return false;
+                if (f.Value.Type == IDLField.FieldType.U8 ||
+                    f.Value.Type == IDLField.FieldType.U64 ||
+                    f.Value.Type == IDLField.FieldType.I64 ||
+                    f.Value.Type == IDLField.FieldType.Bool) return true;
+                return false;
+            });
+        }
+
         public static void GenerateType(SourceGenerator source, IDLType type)
         {
             Console.WriteLine($"    Type {type.Name}");
@@ -28,6 +39,7 @@ namespace IDLCompiler
             source.AddLine("use alloc::string::String;");
             source.AddBlank();
 
+            if (Copyable(type)) source.AddLine("#[derive(Copy, Clone)]");
             var enumBlock = source.AddBlock($"pub struct {type.Name}");
             foreach (var field in type.Fields.Values)
             {

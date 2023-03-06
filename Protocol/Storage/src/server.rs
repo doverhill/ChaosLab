@@ -53,7 +53,6 @@ impl StorageServer {
     }
 
     pub fn register_event(&mut self, event: StormEvent) {
-        println!("StorageServer::register_event: {:?}", event);
         self.current_event = Some(event);
     }
 

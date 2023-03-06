@@ -10,5 +10,7 @@ mod write_text;
 pub use write_text::*;
 mod write_objects;
 pub use write_objects::*;
+mod draw_pixel_debug;
+pub use draw_pixel_debug::*;
 
 

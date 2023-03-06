@@ -14,7 +14,7 @@ enum SyscallNumber {
     ServiceConnect = 12,
 
     ChannelDestroy = 21,
-    ChannelMessage = 22,
+    ChannelSignal = 22,
 
     EventWait = 30,
 
@@ -108,7 +108,7 @@ pub fn channel_destroy(handle: ChannelHandle) -> Result<(), StormError> {
 
 pub fn channel_signal(handle: ChannelHandle) -> Result<(), StormError> {
     KERNEL_CONNECTION.with_borrow_mut(|connection| {
-        write_i32(connection, SyscallNumber::ChannelMessage as i32);
+        write_i32(connection, SyscallNumber::ChannelSignal as i32);
         write_u64(connection, handle.raw_handle());
 
         match StormError::from_i32(read_i32(connection)) {

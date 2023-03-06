@@ -12,6 +12,7 @@ use crate::enums::*;
 use alloc::vec::Vec;
 use alloc::string::String;
 
+#[derive(Copy, Clone)]
 pub struct Color {
     pub alpha: u8,
     pub red: u8,

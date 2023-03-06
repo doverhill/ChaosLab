@@ -12,6 +12,7 @@ use crate::enums::*;
 use alloc::vec::Vec;
 use alloc::string::String;
 
+#[derive(Copy, Clone)]
 pub struct VerticalLayout {
     pub component_id: u64,
     pub parent_component_id: u64,

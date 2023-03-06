@@ -205,7 +205,7 @@ namespace IDLCompiler
             GenerateCount(channelImpl, "tx");
 
             var prepareFunctionBlock = channelImpl.AddBlock("pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader)");
-            prepareFunctionBlock.AddLine("self.dump_tx(\"prepare_message BEFORE\");");
+            //prepareFunctionBlock.AddLine("self.dump_tx(\"prepare_message BEFORE\");");
             unsafeBlock = prepareFunctionBlock.AddBlock("unsafe");
             unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
             unsafeBlock.AddLine("""let lock = ChannelLock::get("prepare_message", self.tx_channel_address);""");
@@ -239,13 +239,13 @@ namespace IDLCompiler
             unsafeBlock.AddLine("(*message).next_message_offset = 0;");
             unsafeBlock.AddLine("(*message).is_writing = true;");
             unsafeBlock.AddLine("(*message).pending_unlink = false;");
-            unsafeBlock.AddLine("self.dump_tx(\"prepare_message AFTER\");");
+            //unsafeBlock.AddLine("self.dump_tx(\"prepare_message AFTER\");");
             unsafeBlock.AddLine("(call_id, message)");
 
             channelImpl.AddBlank();
 
             var commitFunctionBlock = channelImpl.AddBlock("pub fn commit_message(&self, message_payload_size: usize)");
-            commitFunctionBlock.AddLine("self.dump_tx(\"commit_message BEFORE\");");
+            //commitFunctionBlock.AddLine("self.dump_tx(\"commit_message BEFORE\");");
             unsafeBlock = commitFunctionBlock.AddBlock("unsafe");
             unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
             unsafeBlock.AddLine("""let lock = ChannelLock::get("commit_message", self.tx_channel_address);""");
@@ -259,7 +259,7 @@ namespace IDLCompiler
             //unsafeBlock.AddLine("(*channel_header).number_of_messages = (*channel_header).number_of_messages + 1;");
             unsafeBlock.AddLine("(*last_message).message_length = mem::size_of::<ChannelMessageHeader>() + message_payload_size;");
             unsafeBlock.AddLine("(*last_message).is_writing = false;");
-            unsafeBlock.AddLine("self.dump_tx(\"commit_message AFTER\");");
+            //unsafeBlock.AddLine("self.dump_tx(\"commit_message AFTER\");");
 
             channelImpl.AddBlank();
 

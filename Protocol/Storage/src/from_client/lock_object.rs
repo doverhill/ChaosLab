@@ -56,6 +56,7 @@ impl LockObjectParameters {
 use alloc::vec::Vec;
 use alloc::string::String;
 
+#[derive(Copy, Clone)]
 pub struct LockObjectReturns {
     pub lock_id: u64,
 }

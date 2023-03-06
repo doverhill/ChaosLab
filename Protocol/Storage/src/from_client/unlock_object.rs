@@ -11,6 +11,7 @@ use crate::types::*;
 use alloc::vec::Vec;
 use alloc::string::String;
 
+#[derive(Copy, Clone)]
 pub struct UnlockObjectParameters {
     pub lock_id: u64,
 }

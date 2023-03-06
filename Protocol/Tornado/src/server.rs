@@ -47,7 +47,6 @@ impl TornadoServer {
     }
 
     pub fn register_event(&mut self, event: StormEvent) {
-        println!("TornadoServer::register_event: {:?}", event);
         self.current_event = Some(event);
     }
 

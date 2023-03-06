@@ -55,6 +55,7 @@ impl StorageClient {
                 StormEvent::ChannelDestroyed(channel_handle) => {
                     self.current_event = None;
                     if channel_handle == self.channel_handle {
+                        println!("StorageClient: server disconnected");
                         Some(StorageClientChannelEvent::ServerDisconnected(channel_handle))
                     }
                     else {

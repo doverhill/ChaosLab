@@ -27,6 +27,7 @@ pub enum ConsoleServerRequest {
     DrawImagePatch(FromChannel<DrawImagePatchParameters>),
     WriteText(FromChannel<WriteTextParameters>),
     WriteObjects(FromChannel<WriteObjectsParameters>),
+    DrawPixelDebug(FromChannel<DrawPixelDebugParameters>),
 }
 
 pub enum ConsoleServerChannelEvent {
@@ -52,7 +53,6 @@ impl ConsoleServer {
     }
 
     pub fn register_event(&mut self, event: StormEvent) {
-        println!("ConsoleServer::register_event: {:?}", event);
         self.current_event = Some(event);
     }
 
@@ -109,6 +109,12 @@ impl ConsoleServer {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         WriteObjectsParameters::reconstruct_at_inline(address);
                                         let request = ConsoleServerRequest::WriteObjects(FromChannel::new(channel.rx_channel_address, message));
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
+                                    },
+                                    DRAW_PIXEL_DEBUG_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        DrawPixelDebugParameters::reconstruct_at_inline(address);
+                                        let request = ConsoleServerRequest::DrawPixelDebug(FromChannel::new(channel.rx_channel_address, message));
                                         Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     _ => { panic!("ConsoleServer: Unknown message received"); }

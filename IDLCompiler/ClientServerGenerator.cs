@@ -64,7 +64,7 @@ namespace IDLCompiler {
             implBlock.AddBlank();
 
             var registerBlock = implBlock.AddBlock("pub fn register_event(&mut self, event: StormEvent)");
-            registerBlock.AddLine($$"""println!("{{structName}}::register_event: {:?}", event);""");
+            //registerBlock.AddLine($$"""println!("{{structName}}::register_event: {:?}", event);""");
             registerBlock.AddLine("self.current_event = Some(event);");
             implBlock.AddBlank();
 
@@ -253,6 +253,7 @@ namespace IDLCompiler {
             var destroyBlock = matchBlock.AddBlock("StormEvent::ChannelDestroyed(channel_handle) =>");
             destroyBlock.AddLine("self.current_event = None;");
             ifBlock = destroyBlock.AddBlock("if channel_handle == self.channel_handle");
+            ifBlock.AddLine($$"""println!("{{structName}}: server disconnected");""");
             ifBlock.AddLine($"Some({structName}ChannelEvent::ServerDisconnected(channel_handle))");
             var elseBlock = destroyBlock.AddBlock("else");
             elseBlock.AddLine("None");

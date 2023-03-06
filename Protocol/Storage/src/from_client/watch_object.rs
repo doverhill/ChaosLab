@@ -56,6 +56,7 @@ impl WatchObjectParameters {
 use alloc::vec::Vec;
 use alloc::string::String;
 
+#[derive(Copy, Clone)]
 pub struct WatchObjectReturns {
     pub watch_id: u64,
 }

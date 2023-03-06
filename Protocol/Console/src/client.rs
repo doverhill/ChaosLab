@@ -61,6 +61,7 @@ impl ConsoleClient {
                 StormEvent::ChannelDestroyed(channel_handle) => {
                     self.current_event = None;
                     if channel_handle == self.channel_handle {
+                        println!("ConsoleClient: server disconnected");
                         Some(ConsoleClientChannelEvent::ServerDisconnected(channel_handle))
                     }
                     else {
@@ -181,6 +182,14 @@ impl ConsoleClient {
 
     pub fn write_objects(&mut self, parameters: &WriteObjectsParameters) {
         let (call_id, message) = self.channel.prepare_message(WRITE_OBJECTS_PARAMETERS, false);
+        let payload = ChannelMessageHeader::get_payload_address(message);
+        let size = unsafe { parameters.write_at(payload) };
+        self.channel.commit_message(size);
+        StormProcess::signal_channel(self.channel_handle);
+    }
+
+    pub fn draw_pixel_debug(&mut self, parameters: &DrawPixelDebugParameters) {
+        let (call_id, message) = self.channel.prepare_message(DRAW_PIXEL_DEBUG_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
