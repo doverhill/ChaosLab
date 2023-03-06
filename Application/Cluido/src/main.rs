@@ -16,5 +16,9 @@ fn main() {
 
     console_client.write_text(&WriteTextParameters { text: "Cluido".to_string() });
 
+    loop {
+        StormProcess::wait_for_event();
+    }
+
     process.end();
 }
