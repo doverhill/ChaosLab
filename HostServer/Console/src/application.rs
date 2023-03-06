@@ -56,8 +56,8 @@ impl<'a> ServerApplication<'a> {
         let sdl = sdl2::init().unwrap();
         let video_subsystem = sdl.video().unwrap();
         let window = video_subsystem
-            .window("Chaos console", 0, 0)
-            .fullscreen_desktop()
+            .window("Chaos console", 800, 600)
+            // .fullscreen_desktop()
             .build()
             .unwrap();
 
@@ -247,6 +247,7 @@ impl<'a> ServerApplication<'a> {
                     .create_texture_from_surface(&client.surface)
                     .unwrap();
                 self.canvas.borrow_mut().copy(&texture, None, None);
+                self.canvas.borrow_mut().present();
             }
         }
     }
