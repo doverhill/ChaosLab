@@ -27,6 +27,7 @@ fn test_write_and_read() {
         let read = WriteTextParameters::reconstruct_at_inline(raw);
         let reconstructed = (raw as *const WriteTextParameters).as_ref().unwrap();
 
+        assert_eq!(written, read);
         assert_eq!(reconstructed.text, "hejsan");
     }
 }
@@ -47,17 +48,15 @@ fn test_from_channel_wrapper() {
         client_channel.prepare_message(10, true);
         client_channel.commit_message(100);
 
-        assert_eq!(server_channel.number_of_messages_available(), 1);
+        assert_eq!(server_channel.message_count_rx(), 1);
         {
             let raw_message = server_channel.find_message().unwrap();
-            let message = ChannelMessageHeader::get_payload_address(raw_message)
-                as *const WriteTextParameters;
-            let result = FromChannel::new(&server_channel, raw_message, message);
+            let result: FromChannel<WriteTextParameters> = FromChannel::new(server_channel.rx_channel_address, raw_message);
 
             assert_eq!((*raw_message).message_id, 10);
             assert_eq!((*raw_message).call_id, 1);
         }
-        assert_eq!(server_channel.number_of_messages_available(), 0);
+        assert_eq!(server_channel.message_count_rx(), 0);
     }
 }
 
@@ -80,11 +79,11 @@ fn test_queue_replacing() {
         client_channel.prepare_message(10, true);
         client_channel.commit_message(100);
 
-        assert_eq!(server_channel.number_of_messages_available(), 2);
+        assert_eq!(server_channel.message_count_rx(), 2);
         let raw_message = server_channel.find_message().unwrap();
-        assert_eq!(server_channel.number_of_messages_available(), 1);
+        assert_eq!(server_channel.message_count_rx(), 1);
         server_channel.unlink_message(raw_message, false);
-        assert_eq!(server_channel.number_of_messages_available(), 0);
+        assert_eq!(server_channel.message_count_rx(), 0);
     }
 }
 
@@ -101,17 +100,32 @@ fn test_queue_not_replacing() {
         assert!(server_channel.check_compatible());
         assert!(client_channel.check_compatible());
 
-        client_channel.prepare_message(10, false);
-        client_channel.commit_message(100);
+        // write first message
+        let (call_id, raw_message) = client_channel.prepare_message(10, false);
+        let payload = ChannelMessageHeader::get_payload_address(raw_message);
+        let message = WriteTextParameters { text: "this is a message".to_string() };
+        let size = message.write_at(payload);
+        client_channel.commit_message(size);
 
-        client_channel.prepare_message(10, false);
-        client_channel.commit_message(100);
+        // prepare second message
+        client_channel.prepare_message(11, false);
 
-        assert_eq!(server_channel.number_of_messages_available(), 2);
+        // read and unlink first message
+        assert_eq!(server_channel.message_count_rx(), 2);
         let raw_message = server_channel.find_message().unwrap();
-        assert_eq!(server_channel.number_of_messages_available(), 2);
         server_channel.unlink_message(raw_message, false);
-        assert_eq!(server_channel.number_of_messages_available(), 1);
+
+        // commit second message
+        client_channel.commit_message(0);
+
+
+
+        assert_eq!(server_channel.message_count_rx(), 1);
+        // server_channel.unlink_message(raw_message, false);
+        // assert_eq!(server_channel.message_count_rx(), 1);
+
+        let raw_message = server_channel.find_message();
+        assert!(raw_message.is_some());
     }
 }
 
@@ -135,9 +149,9 @@ fn test_race() {
 
         assert!(raw_message1.is_none());
         assert!(raw_message2.is_some());
-        assert_eq!(server_channel.number_of_messages_available(), 1);
+        assert_eq!(server_channel.message_count_rx(), 1);
         server_channel.unlink_message(raw_message2.unwrap(), false);
-        assert_eq!(server_channel.number_of_messages_available(), 0);
+        assert_eq!(server_channel.message_count_rx(), 0);
     }
 }
 

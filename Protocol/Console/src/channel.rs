@@ -14,7 +14,7 @@ use core::ops::Deref;
 use core::marker::PhantomData;
 
 pub struct FromChannel<T> {
-    channel_address: *mut ChannelHeader,
+    channel_address: *mut u8,
     message_address: *mut ChannelMessageHeader,
     phantom: PhantomData<T>,
 }
@@ -22,7 +22,7 @@ pub struct FromChannel<T> {
 impl<T> FromChannel<T> {
     pub fn new (channel_address: *mut u8, message_address: *mut ChannelMessageHeader) -> Self {
         Self {
-            channel_address: channel_address as *mut ChannelHeader,
+            channel_address: channel_address,
             message_address: message_address,
             phantom: PhantomData,
         }
@@ -39,21 +39,22 @@ impl<T> Deref for FromChannel<T> {
 impl<T> Drop for FromChannel<T> {
     fn drop(&mut self) {
         unsafe {
-            let lock = ChannelLock::get("from_channel_drop", self.channel_address as *mut u8);
+            let channel_header = self.channel_address as *mut ChannelHeader;
+            let lock = ChannelLock::get("from_channel_drop", self.channel_address);
             assert!((*self.message_address).pending_unlink);
             #[cfg(debug)]
             assert!((*self.channel_address).channel_magic == ChannelHeader::MAGIC);
             #[cfg(debug)]
             assert!((*self.message_address).message_magic == ChannelMessageHeader::MAGIC);
             if (*self.message_address).previous_message_offset == 0 {
-                (*self.channel_address).first_message_offset = (*self.message_address).next_message_offset;
+                (*channel_header).first_message_offset = (*self.message_address).next_message_offset;
             }
             else {
                 let previous_message = self.channel_address.offset((*self.message_address).previous_message_offset as isize) as *mut ChannelMessageHeader;
                 (*previous_message).next_message_offset = (*self.message_address).next_message_offset;
             }
             if (*self.message_address).next_message_offset == 0 {
-                (*self.channel_address).last_message_offset = (*self.message_address).previous_message_offset;
+                (*channel_header).last_message_offset = (*self.message_address).previous_message_offset;
             }
             else {
                 let next_message = self.channel_address.offset((*self.message_address).next_message_offset as isize) as *mut ChannelMessageHeader;
@@ -203,7 +204,7 @@ impl ConsoleChannel {
                 let mut index = (*channel_header).first_message_offset;
                 let mut iter = channel_address.offset((*channel_header).first_message_offset as isize) as *const ChannelMessageHeader;
                 'messages: loop {
-                    println!("  {}: prev: {}, next: {}, size: {}", index, (*iter).previous_message_offset, (*iter).next_message_offset, (*iter).message_length);
+                    println!("  {}: prev: {}, next: {}, size: {}, message_id: {}, is_writing: {}, pending_unlink: {}", index, (*iter).previous_message_offset, (*iter).next_message_offset, (*iter).message_length, (*iter).message_id, (*iter).is_writing, (*iter).pending_unlink);
                     if (*iter).next_message_offset == 0 {
                         break 'messages;
                     }
@@ -226,7 +227,7 @@ impl ConsoleChannel {
                 let mut index = (*channel_header).first_message_offset;
                 let mut iter = channel_address.offset((*channel_header).first_message_offset as isize) as *const ChannelMessageHeader;
                 'messages: loop {
-                    println!("  {}: prev: {}, next: {}, size: {}", index, (*iter).previous_message_offset, (*iter).next_message_offset, (*iter).message_length);
+                    println!("  {}: prev: {}, next: {}, size: {}, message_id: {}, is_writing: {}, pending_unlink: {}", index, (*iter).previous_message_offset, (*iter).next_message_offset, (*iter).message_length, (*iter).message_id, (*iter).is_writing, (*iter).pending_unlink);
                     if (*iter).next_message_offset == 0 {
                         break 'messages;
                     }
@@ -237,8 +238,48 @@ impl ConsoleChannel {
         }
     }
 
-    pub fn number_of_messages_available(&self) -> usize {
-        0
+    pub fn message_count_rx(&self) -> usize {
+        unsafe {
+            let channel_address = self.rx_channel_address;
+            let channel_header = channel_address as *mut ChannelHeader;
+            if (*channel_header).first_message_offset == 0 {
+                0
+            }
+            else {
+                let mut count = 1;
+                let mut iter = channel_address.offset((*channel_header).first_message_offset as isize) as *const ChannelMessageHeader;
+                'messages: loop {
+                    if (*iter).next_message_offset == 0 {
+                        break 'messages;
+                    }
+                    count += 1;
+                    iter = channel_address.offset((*iter).next_message_offset as isize) as *const ChannelMessageHeader;
+                }
+                count
+            }
+        }
+    }
+
+    pub fn message_count_tx(&self) -> usize {
+        unsafe {
+            let channel_address = self.tx_channel_address;
+            let channel_header = channel_address as *mut ChannelHeader;
+            if (*channel_header).first_message_offset == 0 {
+                0
+            }
+            else {
+                let mut count = 1;
+                let mut iter = channel_address.offset((*channel_header).first_message_offset as isize) as *const ChannelMessageHeader;
+                'messages: loop {
+                    if (*iter).next_message_offset == 0 {
+                        break 'messages;
+                    }
+                    count += 1;
+                    iter = channel_address.offset((*iter).next_message_offset as isize) as *const ChannelMessageHeader;
+                }
+                count
+            }
+        }
     }
 
     pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader) {
@@ -313,11 +354,10 @@ impl ConsoleChannel {
                 #[cfg(debug)]
                 assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
                 let mut iter = first_message;
-                while (*iter).call_id != call_id && (*iter).next_message_offset != 0 && !(*iter).is_writing {
+                while (*iter).call_id != call_id && (*iter).next_message_offset != 0 {
                     iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
                 }
-                if (*iter).call_id == call_id {
-                    assert!(!(*iter).pending_unlink);
+                if (*iter).call_id == call_id && !(*iter).is_writing && !(*iter).pending_unlink {
                     (*iter).pending_unlink = true;
                     Some(iter)
                 }
@@ -338,12 +378,21 @@ impl ConsoleChannel {
                 None
             }
             else {
-                let first_message = self.rx_channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
+                let mut iter = self.rx_channel_address.offset((*channel_header).first_message_offset as isize) as *mut ChannelMessageHeader;
+                while (*iter).next_message_offset != 0 && (*iter).pending_unlink {
+                    iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
+                }
+                let first_message = iter;
                 #[cfg(debug)]
                 assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
                 if !(*first_message).replace_pending {
-                    (*first_message).pending_unlink = true;
-                    Some(first_message)
+                    if (*first_message).is_writing || (*first_message).pending_unlink {
+                        None
+                    }
+                    else {
+                        (*first_message).pending_unlink = true;
+                        Some(first_message)
+                    }
                 }
                 else {
                     let mut last_of_kind = first_message;
@@ -362,8 +411,13 @@ impl ConsoleChannel {
                         }
                         iter = self.rx_channel_address.offset(next_message_offset as isize) as *mut ChannelMessageHeader;
                     }
-                    (*last_of_kind).pending_unlink = true;
-                    Some(last_of_kind)
+                    if (*last_of_kind).is_writing || (*last_of_kind).pending_unlink {
+                        None
+                    }
+                    else {
+                        (*last_of_kind).pending_unlink = true;
+                        Some(last_of_kind)
+                    }
                 }
             }
         }
