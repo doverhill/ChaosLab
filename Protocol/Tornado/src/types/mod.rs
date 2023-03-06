@@ -1,7 +1,9 @@
 mod component;
 pub use component::*;
-mod window;
-pub use window::*;
+mod application;
+pub use application::*;
+mod document;
+pub use document::*;
 mod vertical_layout;
 pub use vertical_layout::*;
 mod horizontal_layout;

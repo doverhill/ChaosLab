@@ -55,10 +55,10 @@ impl ServerApplication {
 
     fn process_console_client_event(&mut self, event: ConsoleClientChannelEvent) {
         match event {
-            ConsoleClientChannelEvent::ServerDisconnected(channel_handle) => {
+            ConsoleClientChannelEvent::ServerDisconnected(_channel_handle) => {
 
             },
-            ConsoleClientChannelEvent::ServerEvent(channel_handle, event) => {
+            ConsoleClientChannelEvent::ServerEvent(_channel_handle, event) => {
                 match event {
                     ConsoleClientEvent::PointerMoved(parameters) => {
                         self.console_client.draw_pixel_debug(&DrawPixelDebugParameters { position: parameters.position, color: Color { alpha: 255, red: 255, green: 0, blue: 0 } });
@@ -74,19 +74,19 @@ impl ServerApplication {
 
     fn process_tornado_server_event(&mut self, event: TornadoServerChannelEvent) {
         match event {
-            TornadoServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
+            TornadoServerChannelEvent::ClientConnected(_service_handle, channel_handle) => {
                 self.clients.insert(channel_handle, Client::new());
             }
-            TornadoServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
+            TornadoServerChannelEvent::ClientDisconnected(_service_handle, channel_handle) => {
                 self.clients.remove(&channel_handle);
             }
-            TornadoServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
+            TornadoServerChannelEvent::ClientRequest(_service_handle, _channel_handle, _call_id, request) => {
                 match request {
-                    TornadoServerRequest::SetRenderTree(parameters) => {
+                    TornadoServerRequest::SetRenderTree(_parameters) => {
                     }
-                    _ => {
-                        // not implemented
-                    }
+                    // _ => {
+                    //     // not implemented
+                    // }
                 }
             }
         }

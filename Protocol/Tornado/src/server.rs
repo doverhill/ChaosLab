@@ -114,7 +114,7 @@ impl TornadoServer {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle);
+            StormProcess::signal_channel(channel_handle).unwrap();
         }
     }
 

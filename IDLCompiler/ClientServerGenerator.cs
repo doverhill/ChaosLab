@@ -162,7 +162,7 @@ namespace IDLCompiler {
                     ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     ifBlock.AddLine("let size = unsafe { parameters.write_at(payload) };");
                     ifBlock.AddLine("channel.commit_message(size);");
-                    ifBlock.AddLine($"StormProcess::signal_channel(channel_handle);");
+                    ifBlock.AddLine($"StormProcess::signal_channel(channel_handle).unwrap();");
                 }
                 else
                 {
@@ -182,7 +182,7 @@ namespace IDLCompiler {
                     ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     ifBlock.AddLine("let size = unsafe { parameters.write_at(payload) };");
                     ifBlock.AddLine("channel.commit_message(size);");
-                    ifBlock.AddLine("StormProcess::signal_channel(channel_handle);");
+                    ifBlock.AddLine("StormProcess::signal_channel(channel_handle).unwrap();");
                 }
             }
         }
@@ -329,7 +329,7 @@ namespace IDLCompiler {
                 {
                     fnBlock.AddLine("self.channel.commit_message(0);");
                 }
-                fnBlock.AddLine($"StormProcess::signal_channel(self.channel_handle);");
+                fnBlock.AddLine($"StormProcess::signal_channel(self.channel_handle){(returnsType == null ? ".unwrap()" : "?")};");
 
                 if (returnsType != null)
                 {

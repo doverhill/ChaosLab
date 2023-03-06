@@ -17,7 +17,7 @@ fn main() {
     let mut process = StormProcess::new("Server.Tornado").unwrap();
 
     // connect to console service
-    let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();
+    let console_client = ConsoleClient::connect_first(&mut process).unwrap();
     
     // create tornado service
     let tornado_server = TornadoServer::create(&mut process, "Chaos", "Tornado server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();

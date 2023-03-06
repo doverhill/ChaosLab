@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lazy_static = "1.4"
 uuid = { version = "0.8.2", features = ["v4"] }
 winapi = { version = "0.3", features = [
         "ntdef",

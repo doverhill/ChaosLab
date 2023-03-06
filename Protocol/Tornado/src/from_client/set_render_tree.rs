@@ -11,7 +11,8 @@ use crate::enums::*;
 
 #[repr(C, u64)]
 pub enum SetRenderTreeParametersComponentsEnum {
-    TypeWindow(Window),
+    TypeApplication(Application),
+    TypeDocument(Document),
     TypeVerticalLayout(VerticalLayout),
     TypeHorizontalLayout(HorizontalLayout),
     TypeGridLayout(GridLayout),
@@ -28,7 +29,8 @@ struct SetRenderTreeParametersComponentsEnumStruct {
 
 #[repr(u64)]
 enum SetRenderTreeParametersComponentsEnumStructTag {
-    TypeWindow,
+    TypeApplication,
+    TypeDocument,
     TypeVerticalLayout,
     TypeHorizontalLayout,
     TypeGridLayout,
@@ -39,7 +41,8 @@ enum SetRenderTreeParametersComponentsEnumStructTag {
 
 #[repr(C)]
 union SetRenderTreeParametersComponentsEnumStructPayload {
-    payload_type_window: ManuallyDrop<Window>,
+    payload_type_application: ManuallyDrop<Application>,
+    payload_type_document: ManuallyDrop<Document>,
     payload_type_vertical_layout: ManuallyDrop<VerticalLayout>,
     payload_type_horizontal_layout: ManuallyDrop<HorizontalLayout>,
     payload_type_grid_layout: ManuallyDrop<GridLayout>,
@@ -59,7 +62,10 @@ impl SetRenderTreeParametersComponentsEnum {
     pub unsafe fn write_references_at(&self, pointer: *mut u8) -> usize {
         let mut pointer = pointer;
         match self {
-            SetRenderTreeParametersComponentsEnum::TypeWindow(value) => {
+            SetRenderTreeParametersComponentsEnum::TypeApplication(value) => {
+                value.write_references_at(pointer)
+            },
+            SetRenderTreeParametersComponentsEnum::TypeDocument(value) => {
                 value.write_references_at(pointer)
             },
             SetRenderTreeParametersComponentsEnum::TypeVerticalLayout(value) => {
@@ -86,8 +92,11 @@ impl SetRenderTreeParametersComponentsEnum {
     pub unsafe fn reconstruct_at(object_pointer: *mut SetRenderTreeParametersComponentsEnum, references_pointer: *mut u8) -> usize {
         let object = object_pointer as *mut SetRenderTreeParametersComponentsEnumStruct;
         match (*object).tag {
-            SetRenderTreeParametersComponentsEnumStructTag::TypeWindow => {
-                Window::reconstruct_at(addr_of_mut!((*object).payload.payload_type_window) as *mut Window, references_pointer)
+            SetRenderTreeParametersComponentsEnumStructTag::TypeApplication => {
+                Application::reconstruct_at(addr_of_mut!((*object).payload.payload_type_application) as *mut Application, references_pointer)
+            },
+            SetRenderTreeParametersComponentsEnumStructTag::TypeDocument => {
+                Document::reconstruct_at(addr_of_mut!((*object).payload.payload_type_document) as *mut Document, references_pointer)
             },
             SetRenderTreeParametersComponentsEnumStructTag::TypeVerticalLayout => {
                 VerticalLayout::reconstruct_at(addr_of_mut!((*object).payload.payload_type_vertical_layout) as *mut VerticalLayout, references_pointer)

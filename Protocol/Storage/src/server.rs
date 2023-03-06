@@ -160,7 +160,7 @@ impl StorageServer {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle);
+            StormProcess::signal_channel(channel_handle).unwrap();
         }
     }
 
@@ -171,7 +171,7 @@ impl StorageServer {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle);
+            StormProcess::signal_channel(channel_handle).unwrap();
         }
     }
     pub fn list_objects_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ListObjectsReturns) {
@@ -181,7 +181,7 @@ impl StorageServer {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle);
+            StormProcess::signal_channel(channel_handle).unwrap();
         }
     }
     pub fn lock_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &LockObjectReturns) {
@@ -191,7 +191,7 @@ impl StorageServer {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle);
+            StormProcess::signal_channel(channel_handle).unwrap();
         }
     }
     pub fn read_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ReadObjectReturns) {
@@ -201,7 +201,7 @@ impl StorageServer {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle);
+            StormProcess::signal_channel(channel_handle).unwrap();
         }
     }
     pub fn watch_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &WatchObjectReturns) {
@@ -211,7 +211,7 @@ impl StorageServer {
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle);
+            StormProcess::signal_channel(channel_handle).unwrap();
         }
     }
 }

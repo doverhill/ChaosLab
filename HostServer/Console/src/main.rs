@@ -6,17 +6,15 @@ mod application;
 use application::ServerApplication;
 mod helpers;
 
-use library_chaos::{StormEvent, StormProcess, StormError};
+use library_chaos::*;
 use protocol_console::*;
 use uuid::Uuid;
-use core::cell::RefCell;
-use std::rc::Rc;
 
 fn main() {
     let mut process = StormProcess::new("HostServer.Console").unwrap();
 
     // set up service
-    let mut console_server = ConsoleServer::create(
+    let console_server = ConsoleServer::create(
         &mut process,
         "Chaos",
         "SDL console host server",

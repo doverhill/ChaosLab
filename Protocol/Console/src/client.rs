@@ -134,7 +134,7 @@ impl ConsoleClient {
     pub fn get_capabilities(&mut self, process: &StormProcess) -> Result<FromChannel<GetCapabilitiesReturns>, StormError> {
         let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, false);
         self.channel.commit_message(0);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle)?;
 
         process.wait_for_channel_signal(self.channel_handle, 1000)?;
 
@@ -153,7 +153,7 @@ impl ConsoleClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn move_text_cursor(&mut self, parameters: &MoveTextCursorParameters) {
@@ -161,7 +161,7 @@ impl ConsoleClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn draw_image_patch(&mut self, parameters: &DrawImagePatchParameters) {
@@ -169,7 +169,7 @@ impl ConsoleClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn write_text(&mut self, parameters: &WriteTextParameters) {
@@ -177,7 +177,7 @@ impl ConsoleClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn write_objects(&mut self, parameters: &WriteObjectsParameters) {
@@ -185,7 +185,7 @@ impl ConsoleClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn draw_pixel_debug(&mut self, parameters: &DrawPixelDebugParameters) {
@@ -193,7 +193,7 @@ impl ConsoleClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
 }

@@ -1,9 +1,7 @@
 use crate::{ StormError, ServiceHandle, ChannelHandle, StormAction, StormEvent };
 
-use std::borrow::{Borrow, BorrowMut};
 use std::io::prelude::*;
 use std::net::{TcpStream, Shutdown};
-use std::sync::Mutex;
 use uuid::Uuid;
 use std::cell::RefCell;
 
@@ -94,17 +92,17 @@ pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_na
     })
 }
 
-pub fn channel_destroy(handle: ChannelHandle) -> Result<(), StormError> {
-    KERNEL_CONNECTION.with_borrow_mut(|connection| {
-        write_i32(connection, SyscallNumber::ChannelDestroy as i32);
-        write_u64(connection, handle.raw_handle());
+// pub fn channel_destroy(handle: ChannelHandle) -> Result<(), StormError> {
+//     KERNEL_CONNECTION.with_borrow_mut(|connection| {
+//         write_i32(connection, SyscallNumber::ChannelDestroy as i32);
+//         write_u64(connection, handle.raw_handle());
 
-        match StormError::from_i32(read_i32(connection)) {
-            StormError::None => Ok(()),
-            error => Err(error),
-        }
-    })
-}
+//         match StormError::from_i32(read_i32(connection)) {
+//             StormError::None => Ok(()),
+//             error => Err(error),
+//         }
+//     })
+// }
 
 pub fn channel_signal(handle: ChannelHandle) -> Result<(), StormError> {
     KERNEL_CONNECTION.with_borrow_mut(|connection| {

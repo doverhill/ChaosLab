@@ -98,7 +98,7 @@ impl StorageClient {
     pub fn get_capabilities(&mut self, process: &StormProcess) -> Result<FromChannel<GetCapabilitiesReturns>, StormError> {
         let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, false);
         self.channel.commit_message(0);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle)?;
 
         process.wait_for_channel_signal(self.channel_handle, 1000)?;
 
@@ -117,7 +117,7 @@ impl StorageClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle)?;
 
         process.wait_for_channel_signal(self.channel_handle, 1000)?;
 
@@ -136,7 +136,7 @@ impl StorageClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle)?;
 
         process.wait_for_channel_signal(self.channel_handle, 1000)?;
 
@@ -155,7 +155,7 @@ impl StorageClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn read_object(&mut self, process: &StormProcess, parameters: &ReadObjectParameters) -> Result<FromChannel<ReadObjectReturns>, StormError> {
@@ -163,7 +163,7 @@ impl StorageClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle)?;
 
         process.wait_for_channel_signal(self.channel_handle, 1000)?;
 
@@ -182,7 +182,7 @@ impl StorageClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn watch_object(&mut self, process: &StormProcess, parameters: &WatchObjectParameters) -> Result<FromChannel<WatchObjectReturns>, StormError> {
@@ -190,7 +190,7 @@ impl StorageClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle)?;
 
         process.wait_for_channel_signal(self.channel_handle, 1000)?;
 
@@ -209,7 +209,7 @@ impl StorageClient {
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
 }

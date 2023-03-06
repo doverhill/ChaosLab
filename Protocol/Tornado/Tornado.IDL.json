@@ -86,7 +86,7 @@
             "type": "call",
             "parameters": {
                 "components": {
-                    "type": "Window|VerticalLayout|HorizontalLayout|GridLayout|GridLayoutColumn|GridLayoutRow|Button",
+                    "type": "Application|Document|VerticalLayout|HorizontalLayout|GridLayout|GridLayoutColumn|GridLayoutRow|Button",
                     "array": true
                 }
             }

@@ -1,16 +1,14 @@
 use crate::helpers;
-use library_chaos::{ChannelHandle, ServiceHandle, StormEvent, StormProcess};
+use library_chaos::{ChannelHandle, StormEvent, StormProcess};
 use protocol_console::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::keyboard::Mod;
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::rect::Rect;
-use sdl2::render::{Canvas, Texture};
+use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::video::Window;
 use sdl2::Sdl;
-use sdl2::{EventPump, EventSubsystem};
 use std::cell::RefMut;
 use std::collections::HashMap;
 use std::thread;
@@ -18,12 +16,12 @@ use core::cell::RefCell;
 
 struct StormEventWrapper {
     event: StormEvent,
-    quit: bool,
+    _quit: bool,
 }
 
 pub struct Client<'a> {
     channel_handle: ChannelHandle,
-    name: String,
+    _name: String,
     pub surface: Surface<'a>,
     pub text_position: Point,
 }
@@ -32,7 +30,7 @@ impl<'a> Client<'a> {
     pub fn new(channel_handle: ChannelHandle, name: String, surface: Surface<'a>) -> Self {
         Self {
             channel_handle: channel_handle,
-            name: name,
+            _name: name,
             surface: surface,
             text_position: Point { x: 0, y: 0 },
         }
@@ -102,8 +100,8 @@ impl<'a> ServerApplication<'a> {
             let event = StormProcess::wait_for_event().unwrap();
             sender.push_custom_event(StormEventWrapper {
                 event: event,
-                quit: false,
-            });
+                _quit: false,
+            }).unwrap();
         });
 
         // main loop
@@ -162,7 +160,7 @@ impl<'a> ServerApplication<'a> {
                                 self.console_server.key_pressed(
                                     channel_handle,
                                     &KeyPressedParameters {
-                                        key_code: helpers::convert_key_code_SDL2Console(keycode),
+                                        key_code: helpers::convert_key_code_sdl_to_console(keycode),
                                     },
                                 );
                             }
@@ -176,7 +174,7 @@ impl<'a> ServerApplication<'a> {
 
     fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent) {
         match event {
-            ConsoleServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
+            ConsoleServerChannelEvent::ClientConnected(_service_handle, channel_handle) => {
                 let surface = Surface::new(
                     self.framebuffer_size.width as u32,
                     self.framebuffer_size.height as u32,
@@ -189,11 +187,11 @@ impl<'a> ServerApplication<'a> {
                 );
                 self.active_client_channel_handle = Some(channel_handle);
             }
-            ConsoleServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
+            ConsoleServerChannelEvent::ClientDisconnected(_service_handle, channel_handle) => {
                 self.clients.remove(&channel_handle);
             }
             ConsoleServerChannelEvent::ClientRequest(
-                service_handle,
+                _service_handle,
                 channel_handle,
                 call_id,
                 request,
@@ -246,7 +244,7 @@ impl<'a> ServerApplication<'a> {
                 let texture = texture_creator
                     .create_texture_from_surface(&client.surface)
                     .unwrap();
-                self.canvas.borrow_mut().copy(&texture, None, None);
+                self.canvas.borrow_mut().copy(&texture, None, None).unwrap();
                 self.canvas.borrow_mut().present();
             }
         }
