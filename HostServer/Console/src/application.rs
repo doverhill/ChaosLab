@@ -1,6 +1,5 @@
 use crate::helpers;
 use core::cell::RefCell;
-use std::path::Path;
 use library_chaos::{ChannelHandle, StormEvent, StormProcess};
 use protocol_console::*;
 use sdl2::event::Event;
@@ -10,11 +9,11 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::ttf::Font;
-use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::Window;
 use sdl2::Sdl;
 use std::cell::RefMut;
 use std::collections::HashMap;
+use std::path::Path;
 use std::thread;
 
 struct StormEventWrapper {
@@ -48,10 +47,6 @@ pub struct ServerApplication<'a> {
     clients: HashMap<ChannelHandle, RefCell<Client<'a>>>,
     sdl: Sdl,
     canvas: RefCell<Canvas<Window>>,
-    ttf_context: Sdl2TtfContext,
-    font: Font<'a, 'a>,
-    framebuffer_size: Size,
-    text_size: Size,
     active_client_channel_handle: Option<ChannelHandle>,
     active_console_number: isize,
 }
@@ -67,16 +62,6 @@ impl<'a> ServerApplication<'a> {
             .build()
             .unwrap();
 
-        let font_context = sdl2::ttf::init().unwrap();
-        let font_manager = FontManager::new(font_context);
-        let font_path = Path::new("ShareTechMono-Regular.ttf");
-        let mut font = ttf_context.load_font(font_path, 15).unwrap();
-        let (glyph_width, glyph_height) = font.size_of_char('M').unwrap();
-
-        let (width, height) = window.size();
-        let text_width = width / glyph_width;
-        let text_height = height / glyph_height;
-
         let mut canvas = window.into_canvas().accelerated().build().unwrap();
 
         canvas.set_draw_color(sdl2::pixels::Color::BLACK);
@@ -89,22 +74,30 @@ impl<'a> ServerApplication<'a> {
             clients: HashMap::new(),
             sdl: sdl,
             canvas: RefCell::new(canvas),
-            ttf_context: ttf_context,
-            font: font,
-            framebuffer_size: Size {
-                width: width as u64,
-                height: height as u64,
-            },
-            text_size: Size {
-                width: text_width as u64,
-                height: text_height as u64,
-            },
             active_client_channel_handle: None,
             active_console_number: -1,
         }
     }
 
     pub fn run(&mut self) {
+        let font_context = sdl2::ttf::init().unwrap();
+        let font_path = Path::new("ShareTechMono-Regular.ttf");
+        let font = font_context.load_font(font_path, 12).unwrap();
+        let (glyph_width, glyph_height) = font.size_of_char('M').unwrap();
+
+        let (width, height) = self.canvas.borrow().output_size().unwrap();
+        let text_width = width / glyph_width;
+        let text_height = height / glyph_height;
+
+        let framebuffer_size = Size {
+            width: width as u64,
+            height: height as u64,
+        };
+        let text_size = Size {
+            width: text_width as u64,
+            height: text_height as u64,
+        };
+
         // hack to get events from both sdl and storm:
         // spawn thread doing storm event wait - posting events to sdl event queue
         // on main thread, loop on sdl event queue and handle incoming events from both sources
@@ -131,7 +124,12 @@ impl<'a> ServerApplication<'a> {
                 while let Some(console_server_event) =
                     self.console_server.get_event(&mut self.process)
                 {
-                    self.process_console_server_event(console_server_event);
+                    self.process_console_server_event(
+                        console_server_event,
+                        framebuffer_size,
+                        text_size,
+                        &font,
+                    );
                 }
             } else {
                 match event {
@@ -189,10 +187,10 @@ impl<'a> ServerApplication<'a> {
         }
     }
 
-    fn add_client(&mut self, channel_handle: ChannelHandle) {
+    fn add_client(&mut self, channel_handle: ChannelHandle, framebuffer_size: Size) {
         let surface = Surface::new(
-            self.framebuffer_size.width as u32,
-            self.framebuffer_size.height as u32,
+            framebuffer_size.width as u32,
+            framebuffer_size.height as u32,
             PixelFormatEnum::ARGB32,
         )
         .unwrap();
@@ -291,10 +289,16 @@ impl<'a> ServerApplication<'a> {
         }
     }
 
-    fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent) {
+    fn process_console_server_event(
+        &mut self,
+        event: ConsoleServerChannelEvent,
+        framebuffer_size: Size,
+        text_size: Size,
+        font: &Font,
+    ) {
         match event {
             ConsoleServerChannelEvent::ClientConnected(_service_handle, channel_handle) => {
-                self.add_client(channel_handle);
+                self.add_client(channel_handle, framebuffer_size);
             }
             ConsoleServerChannelEvent::ClientDisconnected(_service_handle, channel_handle) => {
                 self.remove_client(channel_handle);
@@ -309,7 +313,7 @@ impl<'a> ServerApplication<'a> {
                     match request {
                         ConsoleServerRequest::WriteText(parameters) => {
                             println!("console: {}", parameters.text);
-                            helpers::draw_text(client.borrow_mut(), &parameters.text);
+                            helpers::draw_text(client.borrow_mut(), font, &parameters.text);
                             self.refresh(client.borrow_mut());
                         }
                         ConsoleServerRequest::GetCapabilities => {
@@ -318,8 +322,8 @@ impl<'a> ServerApplication<'a> {
                                 call_id,
                                 &GetCapabilitiesReturns {
                                     is_framebuffer: true,
-                                    framebuffer_size: self.framebuffer_size,
-                                    text_size: self.text_size,
+                                    framebuffer_size: framebuffer_size,
+                                    text_size: text_size,
                                 },
                             );
                         }
