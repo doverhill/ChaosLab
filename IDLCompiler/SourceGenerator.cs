@@ -111,6 +111,8 @@ namespace IDLCompiler
                     "use core::mem;\r\n" +
                     "use core::mem::ManuallyDrop;\r\n" +
                     "use core::ptr::addr_of_mut;\r\n" +
+                    "use alloc::vec::Vec;\r\n" +
+                    "use alloc::string::String;\r\n" +
                     (hasTypes ? "use crate::types::*;\r\n" : "") +
                     (hasEnums ? "use crate::enums::*;\r\n" : "") +
                     "\r\n" +

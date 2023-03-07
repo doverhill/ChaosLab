@@ -20,7 +20,6 @@ namespace IDLCompiler {
             source.AddLine("use crate::channel::*;");
             source.AddLine("use crate::message_ids::*;");
             source.AddLine("use alloc::collections::BTreeMap;");
-            source.AddLine("use alloc::vec::Vec;");
             source.AddBlank();
 
             var requestEnumBlock = source.AddBlock($"pub enum {structName}Request");
@@ -202,7 +201,6 @@ namespace IDLCompiler {
             source.AddLine("use crate::from_client::*;");
             source.AddLine("use crate::from_server::*;");
             source.AddLine("use crate::message_ids::*;");
-            source.AddLine("use alloc::vec::Vec;");
             source.AddBlank();
 
             var eventEnumBlock = source.AddBlock($"pub enum {structName}Event");

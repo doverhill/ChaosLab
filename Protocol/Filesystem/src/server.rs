@@ -6,6 +6,8 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
+use alloc::vec::Vec;
+use alloc::string::String;
 use crate::types::*;
 
 use alloc::boxed::Box;
@@ -17,10 +19,8 @@ use crate::from_server::*;
 use crate::channel::*;
 use crate::message_ids::*;
 use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
 
 pub enum FilesystemServerRequest {
-    GetCapabilities,
     ListObjects(FromChannel<ListObjectsParameters>),
     LockObject(FromChannel<LockObjectParameters>),
     UnlockObject(FromChannel<UnlockObjectParameters>),
@@ -77,10 +77,6 @@ impl FilesystemServer {
                         if let Some(message) = channel.find_message() {
                             unsafe {
                                 match (*message).message_id {
-                                    GET_CAPABILITIES_PARAMETERS => {
-                                        channel.unlink_message(message, false);
-                                        Some(FilesystemServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, FilesystemServerRequest::GetCapabilities))
-                                    },
                                     LIST_OBJECTS_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         ListObjectsParameters::reconstruct_at_inline(address);
@@ -164,16 +160,6 @@ impl FilesystemServer {
         }
     }
 
-    pub fn get_capabilities_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &GetCapabilitiesReturns) {
-        if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, false);
-            unsafe { (*message).call_id = call_id };
-            let payload = ChannelMessageHeader::get_payload_address(message);
-            let size = unsafe { parameters.write_at(payload) };
-            channel.commit_message(size);
-            StormProcess::signal_channel(channel_handle).unwrap();
-        }
-    }
     pub fn list_objects_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ListObjectsReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(LIST_OBJECTS_RETURNS, false);

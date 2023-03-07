@@ -6,7 +6,6 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
-
 use alloc::vec::Vec;
 use alloc::string::String;
 
@@ -52,9 +51,6 @@ impl ReadParameters {
     }
 }
 
-use alloc::vec::Vec;
-use alloc::string::String;
-
 pub struct ReadReturns {
     pub data: Vec<u8>,
 }
@@ -98,12 +94,6 @@ impl ReadReturns {
         core::ptr::write(addr_of_mut!((*object_pointer).data), ManuallyDrop::take(&mut assign));
         size += mem::size_of::<usize>() + len * mem::size_of::<u8>();
         let mut references_pointer = pointer.offset(len as isize * mem::size_of::<u8>() as isize);
-        for item in (*object_pointer).data.iter() {
-            let item_size = u8::reconstruct_at(pointer as *mut u8, references_pointer);
-            pointer = pointer.offset(mem::size_of::<u8>() as isize);
-            references_pointer = references_pointer.offset(item_size as isize);
-            size += item_size;
-        }
         pointer = references_pointer;
 
         size

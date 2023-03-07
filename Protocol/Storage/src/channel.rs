@@ -6,6 +6,8 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
+use alloc::vec::Vec;
+use alloc::string::String;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::ops::Deref;

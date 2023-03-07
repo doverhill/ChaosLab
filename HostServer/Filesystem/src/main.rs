@@ -19,7 +19,7 @@ fn main() {
         Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
     ).unwrap();
 
-    let mut server_application = ServerApplication::new(process, console_server);
+    let mut server_application = ServerApplication::new(process, filesystem_server);
     server_application.run();
 
     // process.borrow().end();

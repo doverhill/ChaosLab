@@ -35,10 +35,6 @@ namespace IDLCompiler
                 }
             }
 
-            source.AddLine("use alloc::vec::Vec;");
-            source.AddLine("use alloc::string::String;");
-            source.AddBlank();
-
             if (Copyable(type)) source.AddLine("#[derive(Copy, Clone)]");
             var enumBlock = source.AddBlock($"pub struct {type.Name}");
             foreach (var field in type.Fields.Values)
@@ -61,7 +57,6 @@ namespace IDLCompiler
             functionBlock.AddLine("let mut pointer = pointer;");
             functionBlock.AddLine("let mut size: usize = 0;");
 
-            // strings
             foreach (var field in type.Fields.Values)
             {
                 functionBlock.AddBlank();
@@ -185,7 +180,8 @@ namespace IDLCompiler
                         forBlock.AddLine("size += mem::size_of::< usize > () + len;");
 
                     }
-                    else
+                    else if (field.Type == IDLField.FieldType.CustomType ||
+                        field.Type == IDLField.FieldType.OneOfType)
                     {
                         var forBlock = functionBlock.AddBlock($"for item in (*object_pointer).{field.Name}.iter()");
                         forBlock.AddLine($"let item_size = {innerType}::reconstruct_at(pointer as *mut {innerType}, references_pointer);");

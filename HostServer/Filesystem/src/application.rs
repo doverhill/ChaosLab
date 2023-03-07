@@ -1,4 +1,5 @@
 use library_chaos::*;
+use protocol_filesystem::*;
 
 pub struct Client {
 }
@@ -38,19 +39,20 @@ impl ServerApplication {
 
     fn process_filesystem_server_event(&mut self, event: FilesystemServerChannelEvent) {
         match event {
-            TornadoServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
+            FilesystemServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
                 self.clients.add_client(service_handle, channel_handle, Client::new());
             }
-            TornadoServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
+            FilesystemServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
                 self.clients.remove_client(service_handle, channel_handle);
             }
-            TornadoServerChannelEvent::ClientRequest(_service_handle, _channel_handle, _call_id, request) => {
+            FilesystemServerChannelEvent::ClientRequest(_service_handle, channel_handle, call_id, request) => {
                 match request {
-                    TornadoServerRequest::SetRenderTree(_parameters) => {
+                    FilesystemServerRequest::ListObjects(parameters) => {
+                        // self.filesystem_server.list_objects_reply(channel_handle, call_id, result);
                     }
-                    // _ => {
-                    //     // not implemented
-                    // }
+                    _ => {
+                        // not implemented
+                    }
                 }
             }
         }

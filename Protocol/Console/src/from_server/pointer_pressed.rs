@@ -6,11 +6,10 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
-use crate::types::*;
-use crate::enums::*;
-
 use alloc::vec::Vec;
 use alloc::string::String;
+use crate::types::*;
+use crate::enums::*;
 
 pub struct PointerPressedParameters {
     pub position: Point,
@@ -66,12 +65,6 @@ impl PointerPressedParameters {
         core::ptr::write(addr_of_mut!((*object_pointer).buttons), ManuallyDrop::take(&mut assign));
         size += mem::size_of::<usize>() + len * mem::size_of::<PointerButton>();
         let mut references_pointer = pointer.offset(len as isize * mem::size_of::<PointerButton>() as isize);
-        for item in (*object_pointer).buttons.iter() {
-            let item_size = PointerButton::reconstruct_at(pointer as *mut PointerButton, references_pointer);
-            pointer = pointer.offset(mem::size_of::<PointerButton>() as isize);
-            references_pointer = references_pointer.offset(item_size as isize);
-            size += item_size;
-        }
         pointer = references_pointer;
 
         size

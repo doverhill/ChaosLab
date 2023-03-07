@@ -29,14 +29,6 @@
     },
 
     "from_client": {
-        "get_capabilities": {
-            "type": "call",
-            "returns": {
-                "block_size": {
-                    "type": "u64"
-                }
-            }
-        },
         "list_objects": {
             "type": "call",
             "parameters": {

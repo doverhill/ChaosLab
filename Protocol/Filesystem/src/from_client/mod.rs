@@ -1,5 +1,3 @@
-mod get_capabilities;
-pub use get_capabilities::*;
 mod list_objects;
 pub use list_objects::*;
 mod lock_object;

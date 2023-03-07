@@ -6,6 +6,8 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
+use alloc::vec::Vec;
+use alloc::string::String;
 
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
@@ -16,7 +18,6 @@ use crate::from_server::*;
 use crate::channel::*;
 use crate::message_ids::*;
 use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
 
 pub enum StorageServerRequest {
     GetCapabilities,

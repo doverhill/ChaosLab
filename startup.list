@@ -1,8 +1,9 @@
 # Host servers
-1500 HostServer\Console target\debug\hostserver_console.exe
+1000 HostServer\Filesystem target\debug\hostserver_filesystem.exe
+1000 HostServer\Console target\debug\hostserver_console.exe
 
 # Chaos servers
-1500 Server\Tornado target\debug\server_tornado.exe
+1000 Server\Tornado target\debug\server_tornado.exe
 
 # Applications
 1000 Application\Cluido target\debug\cluido.exe

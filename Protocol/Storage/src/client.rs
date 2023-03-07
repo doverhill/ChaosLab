@@ -6,6 +6,8 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
+use alloc::vec::Vec;
+use alloc::string::String;
 
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -16,7 +18,6 @@ use crate::channel::{StorageChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::message_ids::*;
-use alloc::vec::Vec;
 
 pub enum StorageClientEvent {
 }

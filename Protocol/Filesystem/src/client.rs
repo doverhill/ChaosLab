@@ -6,6 +6,8 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
+use alloc::vec::Vec;
+use alloc::string::String;
 use crate::types::*;
 
 use alloc::boxed::Box;
@@ -17,7 +19,6 @@ use crate::channel::{FilesystemChannel, ChannelMessageHeader, FromChannel};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::message_ids::*;
-use alloc::vec::Vec;
 
 pub enum FilesystemClientEvent {
     WatchedObjectChanged(FromChannel<WatchedObjectChangedParameters>),
@@ -92,23 +93,6 @@ impl FilesystemClient {
         }
         else {
             None
-        }
-    }
-
-    pub fn get_capabilities(&mut self, process: &StormProcess) -> Result<FromChannel<GetCapabilitiesReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, false);
-        self.channel.commit_message(0);
-        StormProcess::signal_channel(self.channel_handle)?;
-
-        process.wait_for_channel_signal(self.channel_handle, 1000)?;
-
-        if let Some(message) = self.channel.find_specific_message(call_id) {
-            let payload = ChannelMessageHeader::get_payload_address(message);
-            unsafe { GetCapabilitiesReturns::reconstruct_at_inline(payload); }
-            Ok(FromChannel::new(self.channel.rx_channel_address, message))
-        }
-        else {
-            Err(StormError::NotFound)
         }
     }
 
