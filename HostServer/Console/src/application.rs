@@ -6,6 +6,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::keyboard::Mod;
 use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::ttf::Font;
@@ -57,7 +58,7 @@ impl<'a> ServerApplication<'a> {
         let sdl = sdl2::init().unwrap();
         let video_subsystem = sdl.video().unwrap();
         let window = video_subsystem
-            .window("Chaos console", 800, 600)
+            .window("Chaos console", 1600, 900)
             // .fullscreen_desktop()
             .build()
             .unwrap();
@@ -82,7 +83,7 @@ impl<'a> ServerApplication<'a> {
     pub fn run(&mut self) {
         let font_context = sdl2::ttf::init().unwrap();
         let font_path = Path::new("ShareTechMono-Regular.ttf");
-        let font = font_context.load_font(font_path, 12).unwrap();
+        let font = font_context.load_font(font_path, 13).unwrap();
         let (glyph_width, glyph_height) = font.size_of_char('M').unwrap();
 
         let (width, height) = self.canvas.borrow().output_size().unwrap();
@@ -188,12 +189,21 @@ impl<'a> ServerApplication<'a> {
     }
 
     fn add_client(&mut self, channel_handle: ChannelHandle, framebuffer_size: Size) {
-        let surface = Surface::new(
+        let mut surface = Surface::new(
             framebuffer_size.width as u32,
             framebuffer_size.height as u32,
             PixelFormatEnum::ARGB32,
         )
         .unwrap();
+        surface.fill_rect(
+            Rect::new(0, 0, framebuffer_size.width as u32, framebuffer_size.height as u32),
+            helpers::convert_color_console_to_sdl(Color {
+                alpha: 255,
+                red: 0,
+                green: 0,
+                blue: 0,
+            }),
+        ).unwrap();
         self.clients.insert(
             channel_handle,
             RefCell::new(Client::new(channel_handle, "unnamed".to_string(), surface)),
