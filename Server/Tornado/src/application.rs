@@ -1,4 +1,3 @@
-use alloc::collections::BTreeMap;
 use alloc::format;
 use library_chaos::*;
 use protocol_console::*;
@@ -16,7 +15,7 @@ pub struct ServerApplication {
     process: StormProcess,
     tornado_server: TornadoServer,
     console_client: ConsoleClient,
-    clients: BTreeMap<ChannelHandle, Client>,
+    clients: ClientStore<Client>,
 }
 
 impl ServerApplication {
@@ -29,7 +28,7 @@ impl ServerApplication {
             process: process,
             tornado_server: tornado_server,
             console_client: console_client,
-            clients: BTreeMap::new(),
+            clients: ClientStore::new(),
         }
     }
 
@@ -74,11 +73,11 @@ impl ServerApplication {
 
     fn process_tornado_server_event(&mut self, event: TornadoServerChannelEvent) {
         match event {
-            TornadoServerChannelEvent::ClientConnected(_service_handle, channel_handle) => {
-                self.clients.insert(channel_handle, Client::new());
+            TornadoServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
+                self.clients.add_client(service_handle, channel_handle, Client::new());
             }
-            TornadoServerChannelEvent::ClientDisconnected(_service_handle, channel_handle) => {
-                self.clients.remove(&channel_handle);
+            TornadoServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
+                self.clients.remove_client(service_handle, channel_handle);
             }
             TornadoServerChannelEvent::ClientRequest(_service_handle, _channel_handle, _call_id, request) => {
                 match request {

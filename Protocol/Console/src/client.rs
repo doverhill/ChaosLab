@@ -163,8 +163,20 @@ impl ConsoleClient {
         StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
-    pub fn move_text_cursor(&mut self, parameters: &MoveTextCursorParameters) {
-        let (call_id, message) = self.channel.prepare_message(MOVE_TEXT_CURSOR_PARAMETERS, false);
+    pub fn save_text_cursor_position(&mut self) {
+        let (call_id, message) = self.channel.prepare_message(SAVE_TEXT_CURSOR_POSITION_PARAMETERS, false);
+        self.channel.commit_message(0);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
+    }
+
+    pub fn load_text_cursor_position(&mut self) {
+        let (call_id, message) = self.channel.prepare_message(LOAD_TEXT_CURSOR_POSITION_PARAMETERS, false);
+        self.channel.commit_message(0);
+        StormProcess::signal_channel(self.channel_handle).unwrap();
+    }
+
+    pub fn set_text_cursor_position(&mut self, parameters: &SetTextCursorPositionParameters) {
+        let (call_id, message) = self.channel.prepare_message(SET_TEXT_CURSOR_POSITION_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

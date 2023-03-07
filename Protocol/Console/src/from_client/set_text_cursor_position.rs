@@ -12,17 +12,17 @@ use crate::enums::*;
 use alloc::vec::Vec;
 use alloc::string::String;
 
-pub struct MoveTextCursorParameters {
+pub struct SetTextCursorPositionParameters {
     pub position: Point,
 }
 
-impl MoveTextCursorParameters {
+impl SetTextCursorPositionParameters {
     pub unsafe fn write_at(&self, pointer: *mut u8) -> usize {
         let mut pointer = pointer;
-        core::ptr::copy(self, pointer as *mut MoveTextCursorParameters, 1);
-        pointer = pointer.offset(mem::size_of::<MoveTextCursorParameters>() as isize);
+        core::ptr::copy(self, pointer as *mut SetTextCursorPositionParameters, 1);
+        pointer = pointer.offset(mem::size_of::<SetTextCursorPositionParameters>() as isize);
 
-        mem::size_of::<MoveTextCursorParameters>() + self.write_references_at(pointer)
+        mem::size_of::<SetTextCursorPositionParameters>() + self.write_references_at(pointer)
     }
 
     pub unsafe fn write_references_at(&self, pointer: *mut u8) -> usize {
@@ -38,10 +38,10 @@ impl MoveTextCursorParameters {
     }
 
     pub unsafe fn reconstruct_at_inline(object_pointer: *mut u8) -> usize {
-        mem::size_of::<MoveTextCursorParameters>() + Self::reconstruct_at(object_pointer as *mut MoveTextCursorParameters, object_pointer.offset(mem::size_of::<MoveTextCursorParameters>() as isize))
+        mem::size_of::<SetTextCursorPositionParameters>() + Self::reconstruct_at(object_pointer as *mut SetTextCursorPositionParameters, object_pointer.offset(mem::size_of::<SetTextCursorPositionParameters>() as isize))
     }
 
-    pub unsafe fn reconstruct_at(object_pointer: *mut MoveTextCursorParameters, references_pointer: *mut u8) -> usize {
+    pub unsafe fn reconstruct_at(object_pointer: *mut SetTextCursorPositionParameters, references_pointer: *mut u8) -> usize {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 

@@ -137,7 +137,13 @@
                 }
             }
         },
-        "move_text_cursor": {
+        "save_text_cursor_position": {
+            "type": "call"
+        },
+        "load_text_cursor_position": {
+            "type": "call"
+        },
+        "set_text_cursor_position": {
             "type": "call",
             "parameters": {
                 "position": {

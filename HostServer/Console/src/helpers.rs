@@ -87,6 +87,7 @@ pub fn draw_text(
 
         if client.text_position.y == text_size.height as i64 {
             // FIXME scroll here
+            client.saved_text_position.y -= 1;
             client.text_position.y -= 1;
         }
     }

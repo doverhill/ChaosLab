@@ -23,7 +23,9 @@ use alloc::vec::Vec;
 pub enum ConsoleServerRequest {
     GetCapabilities,
     SetTextColor(FromChannel<SetTextColorParameters>),
-    MoveTextCursor(FromChannel<MoveTextCursorParameters>),
+    SaveTextCursorPosition,
+    LoadTextCursorPosition,
+    SetTextCursorPosition(FromChannel<SetTextCursorPositionParameters>),
     DrawImagePatch(FromChannel<DrawImagePatchParameters>),
     WriteText(FromChannel<WriteTextParameters>),
     WriteObjects(FromChannel<WriteObjectsParameters>),
@@ -87,10 +89,18 @@ impl ConsoleServer {
                                         let request = ConsoleServerRequest::SetTextColor(FromChannel::new(channel.rx_channel_address, message));
                                         Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
-                                    MOVE_TEXT_CURSOR_PARAMETERS => {
+                                    SAVE_TEXT_CURSOR_POSITION_PARAMETERS => {
+                                        channel.unlink_message(message, false);
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, ConsoleServerRequest::SaveTextCursorPosition))
+                                    },
+                                    LOAD_TEXT_CURSOR_POSITION_PARAMETERS => {
+                                        channel.unlink_message(message, false);
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, ConsoleServerRequest::LoadTextCursorPosition))
+                                    },
+                                    SET_TEXT_CURSOR_POSITION_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
-                                        MoveTextCursorParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleServerRequest::MoveTextCursor(FromChannel::new(channel.rx_channel_address, message));
+                                        SetTextCursorPositionParameters::reconstruct_at_inline(address);
+                                        let request = ConsoleServerRequest::SetTextCursorPosition(FromChannel::new(channel.rx_channel_address, message));
                                         Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     DRAW_IMAGE_PATCH_PARAMETERS => {
