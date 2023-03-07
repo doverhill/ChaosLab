@@ -5,6 +5,10 @@ Set-Location HostServer\Console
 cargo build
 Set-Location ..\..
 
+Set-Location HostServer\Filesystem
+cargo build
+Set-Location ..\..
+
 Set-Location Server\Tornado
 cargo build
 Set-Location ..\..

@@ -6,7 +6,6 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
-use crate::types::*;
 
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -20,7 +19,6 @@ use crate::message_ids::*;
 use alloc::vec::Vec;
 
 pub enum StorageClientEvent {
-    WatchedObjectChanged(FromChannel<WatchedObjectChangedParameters>),
 }
 
 pub enum StorageClientChannelEvent {
@@ -67,12 +65,6 @@ impl StorageClient {
                         if let Some(message) = self.channel.find_message() {
                             unsafe {
                                 match (*message).message_id {
-                                    WATCHED_OBJECT_CHANGED_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        WatchedObjectChangedParameters::reconstruct_at_inline(address);
-                                        let request = StorageClientEvent::WatchedObjectChanged(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(StorageClientChannelEvent::ServerEvent(channel_handle, request))
-                                    },
                                     _ => { panic!("StorageClient: Unknown message received"); }
                                 }
                             }
@@ -112,8 +104,8 @@ impl StorageClient {
         }
     }
 
-    pub fn list_objects(&mut self, process: &StormProcess, parameters: &ListObjectsParameters) -> Result<FromChannel<ListObjectsReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(LIST_OBJECTS_PARAMETERS, false);
+    pub fn read(&mut self, process: &StormProcess, parameters: &ReadParameters) -> Result<FromChannel<ReadReturns>, StormError> {
+        let (call_id, message) = self.channel.prepare_message(READ_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -123,7 +115,7 @@ impl StorageClient {
 
         if let Some(message) = self.channel.find_specific_message(call_id) {
             let payload = ChannelMessageHeader::get_payload_address(message);
-            unsafe { ListObjectsReturns::reconstruct_at_inline(payload); }
+            unsafe { ReadReturns::reconstruct_at_inline(payload); }
             Ok(FromChannel::new(self.channel.rx_channel_address, message))
         }
         else {
@@ -131,81 +123,8 @@ impl StorageClient {
         }
     }
 
-    pub fn lock_object(&mut self, process: &StormProcess, parameters: &LockObjectParameters) -> Result<FromChannel<LockObjectReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(LOCK_OBJECT_PARAMETERS, false);
-        let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = unsafe { parameters.write_at(payload) };
-        self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle)?;
-
-        process.wait_for_channel_signal(self.channel_handle, 1000)?;
-
-        if let Some(message) = self.channel.find_specific_message(call_id) {
-            let payload = ChannelMessageHeader::get_payload_address(message);
-            unsafe { LockObjectReturns::reconstruct_at_inline(payload); }
-            Ok(FromChannel::new(self.channel.rx_channel_address, message))
-        }
-        else {
-            Err(StormError::NotFound)
-        }
-    }
-
-    pub fn unlock_object(&mut self, parameters: &UnlockObjectParameters) {
-        let (call_id, message) = self.channel.prepare_message(UNLOCK_OBJECT_PARAMETERS, false);
-        let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = unsafe { parameters.write_at(payload) };
-        self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle).unwrap();
-    }
-
-    pub fn read_object(&mut self, process: &StormProcess, parameters: &ReadObjectParameters) -> Result<FromChannel<ReadObjectReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(READ_OBJECT_PARAMETERS, false);
-        let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = unsafe { parameters.write_at(payload) };
-        self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle)?;
-
-        process.wait_for_channel_signal(self.channel_handle, 1000)?;
-
-        if let Some(message) = self.channel.find_specific_message(call_id) {
-            let payload = ChannelMessageHeader::get_payload_address(message);
-            unsafe { ReadObjectReturns::reconstruct_at_inline(payload); }
-            Ok(FromChannel::new(self.channel.rx_channel_address, message))
-        }
-        else {
-            Err(StormError::NotFound)
-        }
-    }
-
-    pub fn write_object(&mut self, parameters: &WriteObjectParameters) {
-        let (call_id, message) = self.channel.prepare_message(WRITE_OBJECT_PARAMETERS, false);
-        let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = unsafe { parameters.write_at(payload) };
-        self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle).unwrap();
-    }
-
-    pub fn watch_object(&mut self, process: &StormProcess, parameters: &WatchObjectParameters) -> Result<FromChannel<WatchObjectReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(WATCH_OBJECT_PARAMETERS, false);
-        let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = unsafe { parameters.write_at(payload) };
-        self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle)?;
-
-        process.wait_for_channel_signal(self.channel_handle, 1000)?;
-
-        if let Some(message) = self.channel.find_specific_message(call_id) {
-            let payload = ChannelMessageHeader::get_payload_address(message);
-            unsafe { WatchObjectReturns::reconstruct_at_inline(payload); }
-            Ok(FromChannel::new(self.channel.rx_channel_address, message))
-        }
-        else {
-            Err(StormError::NotFound)
-        }
-    }
-
-    pub fn unwatch_object(&mut self, parameters: &UnwatchObjectParameters) {
-        let (call_id, message) = self.channel.prepare_message(UNWATCH_OBJECT_PARAMETERS, false);
+    pub fn write(&mut self, parameters: &WriteParameters) {
+        let (call_id, message) = self.channel.prepare_message(WRITE_PARAMETERS, false);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

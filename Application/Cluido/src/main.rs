@@ -28,7 +28,7 @@ fn main() {
 
         let exit = handle_command(&mut process, &mut console_client, command);
 
-        if (exit) {
+        if exit {
             break 'repl;
         }
     }
@@ -36,7 +36,7 @@ fn main() {
     process.end();
 }
 
-fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient, command_line: String) -> bool {
+fn handle_command(_process: &mut StormProcess, console_client: &mut ConsoleClient, command_line: String) -> bool {
     let mut parts = command_line.split_whitespace();
 
     if let Some(command) = parts.next() {
@@ -70,10 +70,10 @@ fn read_line(process: &mut StormProcess, console_client: &mut ConsoleClient) -> 
         console_client.register_event(event);
         while let Some(console_client_event) = console_client.get_event(process) {
             match console_client_event {
-                ConsoleClientChannelEvent::ServerDisconnected(channel_handle) => {
+                ConsoleClientChannelEvent::ServerDisconnected(_) => {
                     // not implemented
                 }
-                ConsoleClientChannelEvent::ServerEvent(channel_handle, event) => {
+                ConsoleClientChannelEvent::ServerEvent(_, event) => {
                     match event {
                         ConsoleClientEvent::CharacterInput(parameters) => {
                             line.push(char::from_u32(parameters.character as u32).unwrap());

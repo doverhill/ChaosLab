@@ -17,6 +17,9 @@
 		},
 		{
 			"path": "Application/Cluido"
+		},
+		{
+			"path": "HostServer/Filesystem"
 		}
 	],
 	"settings": {}

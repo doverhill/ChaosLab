@@ -6,6 +6,7 @@
 use core::mem;
 use core::mem::ManuallyDrop;
 use core::ptr::addr_of_mut;
+use crate::types::*;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::ops::Deref;
@@ -128,17 +129,17 @@ impl Drop for ChannelLock {
     }
 }
 
-pub struct StorageChannel {
+pub struct FilesystemChannel {
     pub rx_channel_address: *mut u8,
     tx_channel_address: *mut u8,
     call_id: u64,
 }
 
-impl StorageChannel {
+impl FilesystemChannel {
     pub fn new(channel_address_0: *mut u8, channel_address_1: *mut u8, is_server: bool) -> Self {
         unsafe {
             if is_server {
-                StorageChannel {
+                FilesystemChannel {
                     rx_channel_address: channel_address_0,
                     tx_channel_address: channel_address_1,
                     call_id: 1,
@@ -147,7 +148,7 @@ impl StorageChannel {
             else {
                 Self::initialize(channel_address_0);
                 Self::initialize(channel_address_1);
-                StorageChannel {
+                FilesystemChannel {
                     rx_channel_address: channel_address_1,
                     tx_channel_address: channel_address_0,
                     call_id: 1,
@@ -160,14 +161,17 @@ impl StorageChannel {
         let channel_header = channel_address as *mut ChannelHeader;
         (*channel_header).lock = AtomicBool::new(false);
         (*channel_header).channel_magic = ChannelHeader::MAGIC;
-        (*channel_header).protocol_name[0] = 7;
-        (*channel_header).protocol_name[1] = 's' as u8;
-        (*channel_header).protocol_name[2] = 't' as u8;
-        (*channel_header).protocol_name[3] = 'o' as u8;
-        (*channel_header).protocol_name[4] = 'r' as u8;
-        (*channel_header).protocol_name[5] = 'a' as u8;
-        (*channel_header).protocol_name[6] = 'g' as u8;
-        (*channel_header).protocol_name[7] = 'e' as u8;
+        (*channel_header).protocol_name[0] = 10;
+        (*channel_header).protocol_name[1] = 'f' as u8;
+        (*channel_header).protocol_name[2] = 'i' as u8;
+        (*channel_header).protocol_name[3] = 'l' as u8;
+        (*channel_header).protocol_name[4] = 'e' as u8;
+        (*channel_header).protocol_name[5] = 's' as u8;
+        (*channel_header).protocol_name[6] = 'y' as u8;
+        (*channel_header).protocol_name[7] = 's' as u8;
+        (*channel_header).protocol_name[8] = 't' as u8;
+        (*channel_header).protocol_name[9] = 'e' as u8;
+        (*channel_header).protocol_name[10] = 'm' as u8;
         (*channel_header).protocol_version = ProtocolVersion {
             major: 1,
             minor: 0,
@@ -183,9 +187,9 @@ impl StorageChannel {
     pub fn check_compatible(&self) -> bool {
         unsafe {
             let channel_header = self.rx_channel_address as *mut ChannelHeader;
-            let rx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 's' as u8 && (*channel_header).protocol_name[2] == 't' as u8 && (*channel_header).protocol_name[3] == 'o' as u8 && (*channel_header).protocol_name[4] == 'r' as u8 && (*channel_header).protocol_name[5] == 'a' as u8 && (*channel_header).protocol_name[6] == 'g' as u8 && (*channel_header).protocol_name[7] == 'e' as u8;
+            let rx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 10 && (*channel_header).protocol_name[1] == 'f' as u8 && (*channel_header).protocol_name[2] == 'i' as u8 && (*channel_header).protocol_name[3] == 'l' as u8 && (*channel_header).protocol_name[4] == 'e' as u8 && (*channel_header).protocol_name[5] == 's' as u8 && (*channel_header).protocol_name[6] == 'y' as u8 && (*channel_header).protocol_name[7] == 's' as u8 && (*channel_header).protocol_name[8] == 't' as u8 && (*channel_header).protocol_name[9] == 'e' as u8 && (*channel_header).protocol_name[10] == 'm' as u8;
             let channel_header = self.tx_channel_address as *mut ChannelHeader;
-            let tx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 's' as u8 && (*channel_header).protocol_name[2] == 't' as u8 && (*channel_header).protocol_name[3] == 'o' as u8 && (*channel_header).protocol_name[4] == 'r' as u8 && (*channel_header).protocol_name[5] == 'a' as u8 && (*channel_header).protocol_name[6] == 'g' as u8 && (*channel_header).protocol_name[7] == 'e' as u8;
+            let tx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 10 && (*channel_header).protocol_name[1] == 'f' as u8 && (*channel_header).protocol_name[2] == 'i' as u8 && (*channel_header).protocol_name[3] == 'l' as u8 && (*channel_header).protocol_name[4] == 'e' as u8 && (*channel_header).protocol_name[5] == 's' as u8 && (*channel_header).protocol_name[6] == 'y' as u8 && (*channel_header).protocol_name[7] == 's' as u8 && (*channel_header).protocol_name[8] == 't' as u8 && (*channel_header).protocol_name[9] == 'e' as u8 && (*channel_header).protocol_name[10] == 'm' as u8;
             rx_compatible && tx_compatible
         }
     }

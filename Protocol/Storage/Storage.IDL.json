@@ -4,30 +4,6 @@
         "version": 1
     },
 
-    "types": {
-        "StorageObject": {
-            "fields": {
-                "name": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                }
-            }
-        },
-        "Directory": {
-            "inherits_from": "StorageObject"
-        },
-        "File": {
-            "inherits_from": "StorageObject",
-            "fields": {
-                "size": {
-                    "type": "u64"
-                }
-            }
-        }
-    },
-
     "from_client": {
         "get_capabilities": {
             "type": "call",
@@ -37,57 +13,13 @@
                 }
             }
         },
-        "list_objects": {
+        "read": {
             "type": "call",
             "parameters": {
-                "path": {
-                    "type": "string"
-                },
-                "pattern": {
-                    "type": "string"
-                },
-                "recursive": {
-                    "type": "bool"
-                }
-            },
-            "returns": {
-                "objects": {
-                    "type": "Directory|File",
-                    "array": true
-                }
-            }
-        },
-        "lock_object": {
-            "type": "call",
-            "parameters": {
-                "object": {
-                    "type": "StorageObject"
-                }
-            },
-            "returns": {
-                "lock_id": {
-                    "type": "u64"
-                }
-            }
-        },
-        "unlock_object": {
-            "type": "call",
-            "parameters": {
-                "lock_id": {
-                    "type": "u64"
-                }
-            }
-        },
-        "read_object": {
-            "type": "call",
-            "parameters": {
-                "object": {
-                    "type": "StorageObject"
-                },
-                "position": {
+                "block_index": {
                     "type": "u64"
                 },
-                "length": {
+                "block_count": {
                     "type": "u64"
                 }
             },
@@ -98,53 +30,18 @@
                 }
             }
         },
-        "write_object": {
+        "write": {
             "type": "call",
             "parameters": {
-                "object": {
-                    "type": "StorageObject"
-                },
-                "position": {
+                "block_index": {
                     "type": "u64"
                 },
-                "length": {
+                "block_count": {
                     "type": "u64"
                 },
                 "data": {
                     "type": "u8",
                     "array": true
-                }
-            }
-        },
-        "watch_object": {
-            "type": "call",
-            "parameters": {
-                "object": {
-                    "type": "StorageObject"
-                }
-            },
-            "returns": {
-                "watch_id": {
-                    "type": "u64"
-                }
-            }
-        },
-        "unwatch_object": {
-            "type": "call",
-            "parameters": {
-                "watch_id": {
-                    "type": "u64"
-                }
-            }
-        }
-    },
-
-    "from_server": {
-        "watched_object_changed": {
-            "type": "event",
-            "parameters": {
-                "watch_id": {
-                    "type": "u64"
                 }
             }
         }

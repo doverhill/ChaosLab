@@ -1,8 +1,12 @@
 extern crate alloc;
 extern crate library_chaos;
 
+mod types;
+pub use types::*;
 mod from_client;
 pub use from_client::*;
+mod from_server;
+pub use from_server::*;
 mod message_ids;
 pub use message_ids::*;
 mod channel;
@@ -13,6 +17,6 @@ mod client;
 pub use client::*;
 mod code;
 pub use code::*;
-pub static STORAGE_PROTOCOL_NAME: &str = "storage";
+pub static FILESYSTEM_PROTOCOL_NAME: &str = "filesystem";
 
 
