@@ -23,6 +23,7 @@ use alloc::vec::Vec;
 pub enum ConsoleClientEvent {
     KeyPressed(FromChannel<KeyPressedParameters>),
     KeyReleased(FromChannel<KeyReleasedParameters>),
+    CharacterInput(FromChannel<CharacterInputParameters>),
     PointerMoved(FromChannel<PointerMovedParameters>),
     PointerPressed(FromChannel<PointerPressedParameters>),
     PointerReleased(FromChannel<PointerReleasedParameters>),
@@ -83,6 +84,12 @@ impl ConsoleClient {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         KeyReleasedParameters::reconstruct_at_inline(address);
                                         let request = ConsoleClientEvent::KeyReleased(FromChannel::new(self.channel.rx_channel_address, message));
+                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
+                                    },
+                                    CHARACTER_INPUT_PARAMETERS => {
+                                        let address = ChannelMessageHeader::get_payload_address(message);
+                                        CharacterInputParameters::reconstruct_at_inline(address);
+                                        let request = ConsoleClientEvent::CharacterInput(FromChannel::new(self.channel.rx_channel_address, message));
                                         Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
                                     },
                                     POINTER_MOVED_PARAMETERS => {

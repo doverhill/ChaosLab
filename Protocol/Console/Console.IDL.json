@@ -5,7 +5,7 @@
     },
 
     "enums": {
-        "KeyCode": [ "A", "B", "C", "D", "E" ],
+        "KeyCode": [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "Enter", "Backspace", "LeftArrow", "RightArrow", "UpArrow", "DownArrow", "Delete", "Home", "End" ],
         "PointerButton": [ "Left", "Right", "Middle" ]
     },
 
@@ -197,6 +197,14 @@
             "parameters": {
                 "key_code": {
                     "type": "KeyCode"
+                }
+            }
+        },
+        "character_input": {
+            "type": "event",
+            "parameters": {
+                "character": {
+                    "type": "u64"
                 }
             }
         },

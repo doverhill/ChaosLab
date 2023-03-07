@@ -168,6 +168,16 @@ impl ConsoleServer {
         }
     }
 
+    pub fn character_input(&mut self, channel_handle: ChannelHandle, parameters: &CharacterInputParameters) {
+        if let Some(channel) = self.channels.get_mut(&channel_handle) {
+            let (_, message) = channel.prepare_message(CHARACTER_INPUT_PARAMETERS, false);
+            let payload = ChannelMessageHeader::get_payload_address(message);
+            let size = unsafe { parameters.write_at(payload) };
+            channel.commit_message(size);
+            StormProcess::signal_channel(channel_handle).unwrap();
+        }
+    }
+
     pub fn pointer_moved(&mut self, channel_handle: ChannelHandle, parameters: &PointerMovedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
             let (_, message) = channel.prepare_message(POINTER_MOVED_PARAMETERS, true);

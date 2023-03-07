@@ -59,7 +59,7 @@ impl<'a> ServerApplication<'a> {
         let video_subsystem = sdl.video().unwrap();
         let window = video_subsystem
             .window("Chaos console", 1600, 900)
-            // .fullscreen_desktop()
+            //  .fullscreen_desktop()
             .build()
             .unwrap();
 
@@ -85,6 +85,10 @@ impl<'a> ServerApplication<'a> {
         let font_path = Path::new("ShareTechMono-Regular.ttf");
         let font = font_context.load_font(font_path, 13).unwrap();
         let (glyph_width, glyph_height) = font.size_of_char('M').unwrap();
+        let glyph_size = Size {
+            width: glyph_width as u64,
+            height: glyph_height as u64,
+        };
 
         let (width, height) = self.canvas.borrow().output_size().unwrap();
         let text_width = width / glyph_width;
@@ -127,6 +131,7 @@ impl<'a> ServerApplication<'a> {
                 {
                     self.process_console_server_event(
                         console_server_event,
+                        glyph_size,
                         framebuffer_size,
                         text_size,
                         &font,
@@ -153,6 +158,13 @@ impl<'a> ServerApplication<'a> {
                         ..
                     } => {
                         break 'main_loop;
+                    }
+                    Event::TextInput { text, .. } => 
+                    {
+                        if let Some(channel_handle) = self.active_client_channel_handle {
+                            let character = text.chars().nth(0).unwrap() as u64;
+                            self.console_server.character_input(channel_handle, &CharacterInputParameters { character: character });
+                        }
                     }
                     Event::KeyDown {
                         keycode: Some(keycode),
@@ -195,15 +207,22 @@ impl<'a> ServerApplication<'a> {
             PixelFormatEnum::ARGB32,
         )
         .unwrap();
-        surface.fill_rect(
-            Rect::new(0, 0, framebuffer_size.width as u32, framebuffer_size.height as u32),
-            helpers::convert_color_console_to_sdl(Color {
-                alpha: 255,
-                red: 0,
-                green: 0,
-                blue: 0,
-            }),
-        ).unwrap();
+        surface
+            .fill_rect(
+                Rect::new(
+                    0,
+                    0,
+                    framebuffer_size.width as u32,
+                    framebuffer_size.height as u32,
+                ),
+                helpers::convert_color_console_to_sdl(Color {
+                    alpha: 255,
+                    red: 0,
+                    green: 0,
+                    blue: 0,
+                }),
+            )
+            .unwrap();
         self.clients.insert(
             channel_handle,
             RefCell::new(Client::new(channel_handle, "unnamed".to_string(), surface)),
@@ -302,6 +321,7 @@ impl<'a> ServerApplication<'a> {
     fn process_console_server_event(
         &mut self,
         event: ConsoleServerChannelEvent,
+        glyph_size: Size,
         framebuffer_size: Size,
         text_size: Size,
         font: &Font,
@@ -322,8 +342,13 @@ impl<'a> ServerApplication<'a> {
                 if let Some(client) = self.clients.get(&channel_handle) {
                     match request {
                         ConsoleServerRequest::WriteText(parameters) => {
-                            println!("console: {}", parameters.text);
-                            helpers::draw_text(client.borrow_mut(), font, &parameters.text);
+                            helpers::draw_text(
+                                client.borrow_mut(),
+                                glyph_size,
+                                text_size,
+                                font,
+                                &parameters.text,
+                            );
                             self.refresh(client.borrow_mut());
                         }
                         ConsoleServerRequest::GetCapabilities => {

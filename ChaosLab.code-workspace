@@ -16,7 +16,7 @@
 			"path": "Server/Tornado"
 		},
 		{
-			"path": "Experiments/Tests/TestConsole"
+			"path": "Application/Cluido"
 		}
 	],
 	"settings": {}
