@@ -9,6 +9,8 @@ use sdl2::keyboard::Mod;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::Canvas;
 use sdl2::surface::Surface;
+use sdl2::ttf::Font;
+use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::Window;
 use sdl2::Sdl;
 use std::cell::RefMut;
@@ -46,6 +48,8 @@ pub struct ServerApplication<'a> {
     clients: HashMap<ChannelHandle, RefCell<Client<'a>>>,
     sdl: Sdl,
     canvas: RefCell<Canvas<Window>>,
+    ttf_context: Sdl2TtfContext,
+    font: Font<'a, 'a>,
     framebuffer_size: Size,
     text_size: Size,
     active_client_channel_handle: Option<ChannelHandle>,
@@ -63,7 +67,8 @@ impl<'a> ServerApplication<'a> {
             .build()
             .unwrap();
 
-        let ttf_context = sdl2::ttf::init().unwrap();
+        let font_context = sdl2::ttf::init().unwrap();
+        let font_manager = FontManager::new(font_context);
         let font_path = Path::new("ShareTechMono-Regular.ttf");
         let mut font = ttf_context.load_font(font_path, 15).unwrap();
         let (glyph_width, glyph_height) = font.size_of_char('M').unwrap();
@@ -84,6 +89,8 @@ impl<'a> ServerApplication<'a> {
             clients: HashMap::new(),
             sdl: sdl,
             canvas: RefCell::new(canvas),
+            ttf_context: ttf_context,
+            font: font,
             framebuffer_size: Size {
                 width: width as u64,
                 height: height as u64,
