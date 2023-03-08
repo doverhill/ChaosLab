@@ -1,11 +1,11 @@
-use crate::{syscalls, ChannelHandle, ServiceHandle, StormAction, StormError, StormEvent, channel::Channel, service::Service};
+use crate::{channel::Channel, service::Service, syscalls, ChannelHandle, ServiceHandle, StormAction, StormError, StormEvent};
 
 use std::collections::HashMap;
 use uuid::Uuid;
 
 #[allow(dead_code)]
 pub struct StormProcess {
-// pub struct StormProcess<'a> {
+    // pub struct StormProcess<'a> {
     name: String,
     services: HashMap<ServiceHandle, Service>,
     channels: HashMap<ChannelHandle, Channel>,
@@ -14,14 +14,14 @@ pub struct StormProcess {
 }
 
 impl Drop for StormProcess {
-// impl<'a> Drop for StormProcess<'a> {
+    // impl<'a> Drop for StormProcess<'a> {
     fn drop(&mut self) {
         self.end();
     }
 }
 
 impl StormProcess {
-// impl<'a> StormProcess<'a> {
+    // impl<'a> StormProcess<'a> {
     pub fn new(name: &str) -> Result<Self, StormError> {
         syscalls::process_set_info(name)?;
 
@@ -34,13 +34,7 @@ impl StormProcess {
         })
     }
 
-    pub fn create_service(
-        &mut self,
-        protocol_name: &str,
-        vendor_name: &str,
-        device_name: &str,
-        device_id: Uuid,
-    ) -> Result<ServiceHandle, StormError> {
+    pub fn create_service(&mut self, protocol_name: &str, vendor_name: &str, device_name: &str, device_id: Uuid) -> Result<ServiceHandle, StormError> {
         let handle = syscalls::service_create(protocol_name, vendor_name, device_name, device_id)?;
         self.services.insert(handle, Service::new());
         Ok(handle)
@@ -102,14 +96,7 @@ impl StormProcess {
     //     }
     // }
 
-    pub fn connect_to_service(
-        &mut self,
-        protocol_name: &str,
-        vendor_name: Option<&str>,
-        device_name: Option<&str>,
-        device_id: Option<Uuid>,
-        initial_size: usize,
-    ) -> Result<ChannelHandle, StormError> {
+    pub fn connect_to_service(&mut self, protocol_name: &str, vendor_name: Option<&str>, device_name: Option<&str>, device_id: Option<Uuid>, initial_size: usize) -> Result<ChannelHandle, StormError> {
         let handle = syscalls::service_connect(protocol_name, vendor_name, device_name, device_id)?;
         self.initialize_channel(handle, initial_size);
         // let channel = Channel::new(handle, initial_size);
@@ -127,14 +114,12 @@ impl StormProcess {
             Some(channel) => {
                 if id == 0 {
                     Ok(channel.map_pointer_0)
-                }
-                else if id == 1 {
+                } else if id == 1 {
                     Ok(channel.map_pointer_1)
-                }
-                else {
+                } else {
                     Err(StormError::NotFound)
                 }
-            },
+            }
             None => Err(StormError::NotFound),
         }
     }
@@ -150,27 +135,15 @@ impl StormProcess {
     // }
 
     pub fn emit_debug(information_text: &str) -> Result<(), StormError> {
-        syscalls::process_emit(
-            syscalls::EmitType::Debug,
-            StormError::None,
-            Some(information_text),
-        )
+        syscalls::process_emit(syscalls::EmitType::Debug, StormError::None, Some(information_text))
     }
 
     pub fn emit_information(information_text: &str) -> Result<(), StormError> {
-        syscalls::process_emit(
-            syscalls::EmitType::Information,
-            StormError::None,
-            Some(information_text),
-        )
+        syscalls::process_emit(syscalls::EmitType::Information, StormError::None, Some(information_text))
     }
 
     pub fn emit_warning(information_text: &str) -> Result<(), StormError> {
-        syscalls::process_emit(
-            syscalls::EmitType::Warning,
-            StormError::None,
-            Some(information_text),
-        )
+        syscalls::process_emit(syscalls::EmitType::Warning, StormError::None, Some(information_text))
     }
 
     pub fn emit_error(error: StormError, information_text: &str) -> Result<(), StormError> {
@@ -189,14 +162,12 @@ impl StormProcess {
         syscalls::event_wait(None, None, -1)
     }
 
-
-
     // pub fn process_event(&mut self, event: StormEvent) {
     //     match event {
     //         StormEvent::ServiceConnected(service_handle, channel_handle) => {
     //             let channel = Channel::new(channel_handle, initial_size);
     //             self.channels.insert(handle, channel);
-        
+
     //         },
     //         StormEvent::ChannelMessaged(channel_handle, message_id) => {
     //             if let Some(channel) = self.channels.get_mut(&channel_handle) {

@@ -12,12 +12,7 @@ fn main() {
     let mut process = StormProcess::new("HostServer.Filesystem").unwrap();
 
     // set up service
-    let filesystem_server = FilesystemServer::create(
-        &mut process,
-        "Chaos",
-        "Filesystem host server",
-        Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-    ).unwrap();
+    let filesystem_server = FilesystemServer::create(&mut process, "Chaos", "Filesystem host server", Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()).unwrap();
 
     let mut server_application = ServerApplication::new(process, filesystem_server);
     server_application.run();

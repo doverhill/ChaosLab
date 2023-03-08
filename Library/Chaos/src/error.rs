@@ -7,7 +7,7 @@ pub enum StormError {
     Timeout = 4,
     Cancelled = 5,
     AlreadyExists = 6,
-    General = 7
+    General = 7,
 }
 
 impl StormError {
@@ -21,7 +21,7 @@ impl StormError {
             5 => Self::Cancelled,
             6 => Self::AlreadyExists,
             7 => Self::General,
-            _ => Self::General
+            _ => Self::General,
         }
     }
 
@@ -34,7 +34,7 @@ impl StormError {
             Self::Timeout => 4,
             Self::Cancelled => 5,
             Self::AlreadyExists => 6,
-            Self::General => 7
+            Self::General => 7,
         }
     }
 }

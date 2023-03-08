@@ -39,13 +39,7 @@ pub fn convert_key_code_sdl_to_console(keycode: SdlKeycode) -> KeyCode {
     }
 }
 
-pub fn draw_text(
-    mut client: RefMut<Client>,
-    glyph_size: Size,
-    text_size: Size,
-    font: &Font,
-    text: &String,
-) {
+pub fn draw_text(mut client: RefMut<Client>, glyph_size: Size, text_size: Size, font: &Font, text: &String) {
     for character in text.chars() {
         if character == '\n' {
             client.text_position.x = 0;
@@ -67,16 +61,8 @@ pub fn draw_text(
                 green: 128,
                 blue: 255,
             });
-            let surface = rendering
-                .shaded(foreground_color, background_color)
-                .unwrap();
-            surface
-                .blit(
-                    None,
-                    &mut client.surface,
-                    Rect::new(x as i32, y as i32, 0, 0),
-                )
-                .unwrap();
+            let surface = rendering.shaded(foreground_color, background_color).unwrap();
+            surface.blit(None, &mut client.surface, Rect::new(x as i32, y as i32, 0, 0)).unwrap();
 
             client.text_position.x += 1;
             if client.text_position.x == text_size.width as i64 {
@@ -96,9 +82,6 @@ pub fn draw_text(
 pub fn draw_pixel(mut client: RefMut<Client>, color: Color, position: Point) {
     client
         .surface
-        .fill_rect(
-            Rect::new(position.x as i32, position.y as i32, 1, 1),
-            convert_color_console_to_sdl(color),
-        )
+        .fill_rect(Rect::new(position.x as i32, position.y as i32, 1, 1), convert_color_console_to_sdl(color))
         .unwrap();
 }

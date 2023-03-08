@@ -2,14 +2,14 @@ use crate::ChannelHandle;
 use ::winapi::{
     shared::ntdef::NULL,
     um::{
-        handleapi::{ CloseHandle, INVALID_HANDLE_VALUE },
-        memoryapi::{ CreateFileMappingW, MapViewOfFile, UnmapViewOfFile, FILE_MAP_ALL_ACCESS },
-        winnt::{ HANDLE, PAGE_READWRITE }
-    }
+        handleapi::{CloseHandle, INVALID_HANDLE_VALUE},
+        memoryapi::{CreateFileMappingW, MapViewOfFile, UnmapViewOfFile, FILE_MAP_ALL_ACCESS},
+        winnt::{HANDLE, PAGE_READWRITE},
+    },
 };
 use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
 use std::iter::once;
+use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
 
 pub struct Channel {
@@ -79,16 +79,7 @@ impl Channel {
         let low_size: u32 = (size & 0xFFFF_FFFF_usize) as u32;
         let unique_id: Vec<u16> = OsStr::new(name).encode_wide().chain(once(0)).collect();
 
-        let map_handle = unsafe {
-            CreateFileMappingW(
-                INVALID_HANDLE_VALUE,
-                null_mut(),
-                PAGE_READWRITE,
-                high_size,
-                low_size,
-                unique_id.as_ptr(),
-            )
-        };
+        let map_handle = unsafe { CreateFileMappingW(INVALID_HANDLE_VALUE, null_mut(), PAGE_READWRITE, high_size, low_size, unique_id.as_ptr()) };
 
         if map_handle == NULL {
             return (None, null_mut());

@@ -1,11 +1,11 @@
-use crate::{ServiceHandle, ChannelHandle};
+use crate::{ChannelHandle, ServiceHandle};
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum StormAction {
     // None = 0,
     ServiceConnected = 1,
     ChannelSignalled = 2,
-    ChannelDestroyed = 3
+    ChannelDestroyed = 3,
 }
 
 impl StormAction {
@@ -14,7 +14,7 @@ impl StormAction {
             // Self::None => 0,
             Self::ServiceConnected => 1,
             Self::ChannelSignalled => 2,
-            Self::ChannelDestroyed => 3
+            Self::ChannelDestroyed => 3,
         }
     }
 
@@ -24,7 +24,7 @@ impl StormAction {
             1 => Self::ServiceConnected,
             2 => Self::ChannelSignalled,
             3 => Self::ChannelDestroyed,
-            _ => panic!("Unknown action")
+            _ => panic!("Unknown action"),
         }
     }
 }
@@ -33,5 +33,5 @@ impl StormAction {
 pub enum StormEvent {
     ServiceConnected(ServiceHandle, ChannelHandle),
     ChannelSignalled(ChannelHandle),
-    ChannelDestroyed(ChannelHandle)
+    ChannelDestroyed(ChannelHandle),
 }

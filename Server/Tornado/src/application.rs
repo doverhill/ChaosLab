@@ -19,11 +19,7 @@ pub struct ServerApplication {
 }
 
 impl ServerApplication {
-    pub fn new(
-        process: StormProcess,
-        tornado_server: TornadoServer,
-        console_client: ConsoleClient,
-    ) -> Self {
+    pub fn new(process: StormProcess, tornado_server: TornadoServer, console_client: ConsoleClient) -> Self {
         Self {
             process: process,
             tornado_server: tornado_server,
@@ -35,7 +31,10 @@ impl ServerApplication {
     pub fn run(&mut self) {
         let console_info = self.console_client.get_capabilities(&self.process).unwrap();
         self.console_client.write_text(&WriteTextParameters {
-            text: format!("Tornado running at {}x{}, {}x{} text", console_info.framebuffer_size.width, console_info.framebuffer_size.height, console_info.text_size.width, console_info.text_size.height)
+            text: format!(
+                "Tornado running at {}x{}, {}x{} text",
+                console_info.framebuffer_size.width, console_info.framebuffer_size.height, console_info.text_size.width, console_info.text_size.height
+            ),
         });
 
         // main event loop
@@ -54,20 +53,26 @@ impl ServerApplication {
 
     fn process_console_client_event(&mut self, event: ConsoleClientChannelEvent) {
         match event {
-            ConsoleClientChannelEvent::ServerDisconnected(_channel_handle) => {
-
-            },
+            ConsoleClientChannelEvent::ServerDisconnected(_channel_handle) => {}
             ConsoleClientChannelEvent::ServerEvent(_channel_handle, event) => {
                 match event {
                     ConsoleClientEvent::PointerMoved(parameters) => {
-                        self.console_client.draw_pixel_debug(&DrawPixelDebugParameters { position: parameters.position, color: Color { alpha: 255, red: 255, green: 0, blue: 0 } });
+                        self.console_client.draw_pixel_debug(&DrawPixelDebugParameters {
+                            position: parameters.position,
+                            color: Color {
+                                alpha: 255,
+                                red: 255,
+                                green: 0,
+                                blue: 0,
+                            },
+                        });
                         // self.console_client.write_text(&WriteTextParameters { text: format!("tornado: pointer moved {}, {}", parameters.position.x, parameters.position.y) });
-                    },
+                    }
                     _ => {
                         // not implemented
                     }
                 }
-            },
+            }
         }
     }
 
@@ -81,11 +86,9 @@ impl ServerApplication {
             }
             TornadoServerChannelEvent::ClientRequest(_service_handle, _channel_handle, _call_id, request) => {
                 match request {
-                    TornadoServerRequest::SetRenderTree(_parameters) => {
-                    }
-                    // _ => {
-                    //     // not implemented
-                    // }
+                    TornadoServerRequest::SetRenderTree(_parameters) => {} // _ => {
+                                                                           //     // not implemented
+                                                                           // }
                 }
             }
         }

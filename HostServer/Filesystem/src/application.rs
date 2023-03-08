@@ -1,13 +1,11 @@
 use library_chaos::*;
 use protocol_filesystem::*;
 
-pub struct Client {
-}
+pub struct Client {}
 
 impl Client {
     pub fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
 }
 

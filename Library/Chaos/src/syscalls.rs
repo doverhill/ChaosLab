@@ -1,9 +1,9 @@
-use crate::{ StormError, ServiceHandle, ChannelHandle, StormAction, StormEvent };
+use crate::{ChannelHandle, ServiceHandle, StormAction, StormError, StormEvent};
 
-use std::io::prelude::*;
-use std::net::{TcpStream, Shutdown};
-use uuid::Uuid;
 use std::cell::RefCell;
+use std::io::prelude::*;
+use std::net::{Shutdown, TcpStream};
+use uuid::Uuid;
 
 #[allow(dead_code)]
 enum SyscallNumber {
@@ -22,7 +22,7 @@ enum SyscallNumber {
     ProcessEmit = 43,
 
     ThreadCreate = 50,
-    ThreadDestroy = 51
+    ThreadDestroy = 51,
 }
 
 #[allow(dead_code)]
@@ -30,7 +30,7 @@ pub enum EmitType {
     Error = 1,
     Warning = 2,
     Information = 3,
-    Debug = 4
+    Debug = 4,
 }
 
 thread_local! {
@@ -54,12 +54,11 @@ pub fn service_create(protocol_name: &str, vendor_name: &str, device_name: &str,
         write_text(connection, Some(vendor_name));
         write_text(connection, Some(device_name));
         write_uuid(connection, Some(device_id));
-    
+
         let result = StormError::from_i32(read_i32(connection));
         if result == StormError::None {
             Ok(ServiceHandle(read_u64(connection)))
-        }
-        else {
+        } else {
             Err(result)
         }
     })
@@ -138,7 +137,7 @@ pub fn event_wait(handle: Option<u64>, action: Option<StormAction>, timeout_mill
                     StormAction::ChannelSignalled => StormEvent::ChannelSignalled(ChannelHandle(target_handle)),
                     StormAction::ChannelDestroyed => StormEvent::ChannelDestroyed(ChannelHandle(target_handle)),
                 })
-            },
+            }
             error => Err(error),
         }
     })
@@ -195,8 +194,7 @@ fn write_optional_i32(connection: &TcpStream, value: Option<i32>) {
     if let Some(value) = value {
         write_bool(connection, true);
         write_i32(connection, value);
-    }
-    else {
+    } else {
         write_bool(connection, false);
     }
 }
@@ -213,8 +211,7 @@ fn write_optional_u64(connection: &TcpStream, value: Option<u64>) {
     if let Some(value) = value {
         write_bool(connection, true);
         write_u64(connection, value);
-    }
-    else {
+    } else {
         write_bool(connection, false);
     }
 }
@@ -233,7 +230,7 @@ fn write_text(mut connection: &TcpStream, text: Option<&str>) {
             write_bool(connection, true);
             write_u32(connection, value.len() as u32);
             connection.write(value.as_bytes()).unwrap();
-        },
+        }
         None => {
             write_bool(connection, false);
         }
@@ -245,7 +242,7 @@ fn write_uuid(mut connection: &TcpStream, uuid: Option<Uuid>) {
         Some(value) => {
             write_bool(connection, true);
             connection.write(value.as_bytes()).unwrap();
-        },
+        }
         None => {
             write_bool(connection, false);
         }

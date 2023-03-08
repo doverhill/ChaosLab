@@ -5,8 +5,7 @@ pub struct Service {
 
 impl Service {
     pub fn new() -> Self {
-        Service {
-        }
+        Service {}
     }
 
     // pub fn attach_observer(&mut self, observer: &'a mut SO) {

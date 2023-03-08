@@ -59,11 +59,7 @@ impl<'a> ServerApplication<'a> {
         // set up video
         let sdl = sdl2::init().unwrap();
         let video_subsystem = sdl.video().unwrap();
-        let window = video_subsystem
-            .window("Chaos console", 1600, 1000)
-            //  .fullscreen_desktop()
-            .build()
-            .unwrap();
+        let window = video_subsystem.window("Chaos console", 1600, 1000).fullscreen_desktop().build().unwrap();
 
         let mut canvas = window.into_canvas().accelerated().build().unwrap();
 
@@ -221,8 +217,7 @@ impl<'a> ServerApplication<'a> {
     fn get_console_number(&self, for_channel_handle: ChannelHandle) -> isize {
         if let Some((_, _, client)) = self.clients.first_matching(|_, channel_handle, _| for_channel_handle == *channel_handle) {
             client.borrow().console_number
-        }
-        else {
+        } else {
             0
         }
     }
@@ -230,8 +225,7 @@ impl<'a> ServerApplication<'a> {
     fn get_channel_handle(&self, for_console_number: isize) -> Option<ChannelHandle> {
         if let Some((_, channel_handle, _)) = self.clients.first_matching(|_, _, client| for_console_number == client.borrow().console_number) {
             Some(*channel_handle)
-        }
-        else {
+        } else {
             None
         }
     }
@@ -239,8 +233,7 @@ impl<'a> ServerApplication<'a> {
     fn get_active_client(&self) -> Option<&RefCell<Client<'a>>> {
         if let Some((_, _, client)) = self.clients.first_matching(|_, _, client| self.active_console_number == client.borrow().console_number) {
             Some(client)
-        }
-        else {
+        } else {
             None
         }
     }
