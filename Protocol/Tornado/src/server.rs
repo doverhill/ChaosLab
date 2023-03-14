@@ -14,7 +14,7 @@ use crate::enums::*;
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{TornadoChannel, ChannelMessageHeader};
+use crate::channel::{TornadoChannel, ChannelMessageHeader, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::channel::*;
@@ -111,7 +111,7 @@ impl TornadoServer {
 
     pub fn component_clicked(&mut self, channel_handle: ChannelHandle, parameters: &ComponentClickedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(COMPONENT_CLICKED_PARAMETERS, Coalesce::Never);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);

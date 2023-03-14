@@ -132,7 +132,7 @@ namespace IDLCompiler
                 Console.ForegroundColor = ConsoleColor.Blue;
                 Console.Write($"{call.Key}");
                 Console.ForegroundColor = ConsoleColor.Gray;
-                Console.WriteLine($": Type={call.Value.Type}");
+                Console.WriteLine($": Coalesce={call.Value.Coalesce}");
                 Console.WriteLine(Indent(3) + "PARAMETERS:");
                 foreach (var p in call.Value.Parameters)
                 {
@@ -151,7 +151,7 @@ namespace IDLCompiler
                 Console.ForegroundColor = ConsoleColor.Blue;
                 Console.Write($"{call.Key}");
                 Console.ForegroundColor = ConsoleColor.Gray;
-                Console.WriteLine($": Type={call.Value.Type}");
+                Console.WriteLine($": Coalesce={call.Value.Coalesce}");
                 Console.WriteLine(Indent(3) + "PARAMETERS:");
                 foreach (var p in call.Value.Parameters)
                 {

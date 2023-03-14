@@ -18,6 +18,13 @@ namespace IDLCompiler
             source.AddLine("use core::marker::PhantomData;");
             source.AddBlank();
 
+            source.AddLine("#[derive(PartialEq, Copy, Clone)]");
+            var coalesceEnum = source.AddBlock("pub enum Coalesce");
+            coalesceEnum.AddLine("Never,");
+            coalesceEnum.AddLine("Consecutive,");
+            coalesceEnum.AddLine("All,");
+            source.AddBlank();
+
             var fromChannelStruct = source.AddBlock("pub struct FromChannel<T>");
             fromChannelStruct.AddLine("channel_address: *mut u8,");
             fromChannelStruct.AddLine("message_address: *mut ChannelMessageHeader,");
@@ -94,7 +101,7 @@ namespace IDLCompiler
             messageHeader.AddLine("message_length: usize,");
             messageHeader.AddLine("previous_message_offset: usize,");
             messageHeader.AddLine("next_message_offset: usize,");
-            messageHeader.AddLine("replace_pending: bool,");
+            messageHeader.AddLine("coalesce: Coalesce,");
             messageHeader.AddLine("is_writing: bool,");
             messageHeader.AddLine("pending_unlink: bool,");
 
@@ -204,7 +211,7 @@ namespace IDLCompiler
             GenerateCount(channelImpl, "rx");
             GenerateCount(channelImpl, "tx");
 
-            var prepareFunctionBlock = channelImpl.AddBlock("pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader)");
+            var prepareFunctionBlock = channelImpl.AddBlock("pub fn prepare_message(&mut self, message_id: u64, coalesce: Coalesce) -> (u64, *mut ChannelMessageHeader)");
             //prepareFunctionBlock.AddLine("self.dump_tx(\"prepare_message BEFORE\");");
             unsafeBlock = prepareFunctionBlock.AddBlock("unsafe");
             unsafeBlock.AddLine("let channel_header = self.tx_channel_address as *mut ChannelHeader;");
@@ -234,7 +241,7 @@ namespace IDLCompiler
             unsafeBlock.AddLine("(*message).message_magic = ChannelMessageHeader::MAGIC;");
             unsafeBlock.AddLine("(*message).message_id = message_id;");
             unsafeBlock.AddLine("(*message).call_id = call_id;");
-            unsafeBlock.AddLine("(*message).replace_pending = replace_pending;");
+            unsafeBlock.AddLine("(*message).coalesce = coalesce;");
             unsafeBlock.AddLine("(*message).message_length = 0;");
             unsafeBlock.AddLine("(*message).next_message_offset = 0;");
             unsafeBlock.AddLine("(*message).is_writing = true;");
@@ -308,7 +315,8 @@ namespace IDLCompiler
             elseBlock.AddLine("let first_message = iter;");
             elseBlock.AddLine("#[cfg(debug)]");
             elseBlock.AddLine("assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);");
-            ifBlock = elseBlock.AddBlock("if !(*first_message).replace_pending");
+            elseBlock.AddLine("let coalesce = (*first_message).coalesce;");
+            ifBlock = elseBlock.AddBlock("if coalesce == Coalesce::Never");
             var innerIfBlock = ifBlock.AddBlock("if (*first_message).is_writing || (*first_message).pending_unlink");
             innerIfBlock.AddLine("None");
             var innerElseBlock = ifBlock.AddBlock("else");
@@ -317,7 +325,7 @@ namespace IDLCompiler
             elseBlock = elseBlock.AddBlock("else");
             elseBlock.AddLine("let mut last_of_kind = first_message;");
             elseBlock.AddLine("let mut iter = first_message;");
-            whileBlock = elseBlock.AddBlock("while (*iter).next_message_offset != 0 && !(*iter).is_writing");
+            whileBlock = elseBlock.AddBlock("while (*iter).next_message_offset != 0 && !(*iter).is_writing && (coalesce == Coalesce::All || (*iter).message_id == (*first_message).message_id)");
             whileBlock.AddLine("iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;");
             ifBlock = whileBlock.AddBlock("if (*iter).message_id == (*first_message).message_id && !(*iter).pending_unlink");
             ifBlock.AddLine("last_of_kind = iter;");

@@ -113,7 +113,7 @@
 
     "from_client": {
         "get_capabilities": {
-            "type": "call",
+            "coalesce": "never",
             "returns": {
                 "is_framebuffer": {
                     "type": "bool"
@@ -127,7 +127,7 @@
             }
         },
         "set_text_color": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "foreground": {
                     "type": "Color"
@@ -138,13 +138,13 @@
             }
         },
         "save_text_cursor_position": {
-            "type": "call"
+            "coalesce": "never"
         },
         "load_text_cursor_position": {
-            "type": "call"
+            "coalesce": "never"
         },
         "set_text_cursor_position": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "position": {
                     "type": "Point"
@@ -152,7 +152,7 @@
             }
         },
         "draw_image_patch": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "image_patch": {
                     "type": "ImagePatch"
@@ -160,7 +160,7 @@
             }
         },
         "write_text": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "text": {
                     "type": "string"
@@ -168,7 +168,7 @@
             }
         },
         "write_objects": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "objects": {
                     "type": "Table|Map",
@@ -177,7 +177,7 @@
             }
         },
         "draw_pixel_debug": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "position": {
                     "type": "Point"
@@ -191,7 +191,7 @@
     
     "from_server": {
         "key_pressed": {
-            "type": "event",
+            "coalesce": "never",
             "parameters": {
                 "key_code": {
                     "type": "KeyCode"
@@ -199,7 +199,7 @@
             }
         },
         "key_released": {
-            "type": "event",
+            "coalesce": "never",
             "parameters": {
                 "key_code": {
                     "type": "KeyCode"
@@ -207,7 +207,7 @@
             }
         },
         "character_input": {
-            "type": "event",
+            "coalesce": "never",
             "parameters": {
                 "character": {
                     "type": "u64"
@@ -215,7 +215,7 @@
             }
         },
         "pointer_moved": {
-            "type": "single_event",
+            "coalesce": "consecutive",
             "parameters": {
                 "position": {
                     "type": "Point"
@@ -223,7 +223,7 @@
             }
         },
         "pointer_pressed": {
-            "type": "event",
+            "coalesce": "never",
             "parameters": {
                 "position": {
                     "type": "Point"
@@ -235,7 +235,7 @@
             }
         },
         "pointer_released": {
-            "type": "event",
+            "coalesce": "never",
             "parameters": {
                 "position": {
                     "type": "Point"
@@ -247,7 +247,7 @@
             }
         },
         "size_changed": {
-            "type": "event",
+            "coalesce": "consecutive",
             "parameters": {
                 "framebuffer_size": {
                     "type": "Size"

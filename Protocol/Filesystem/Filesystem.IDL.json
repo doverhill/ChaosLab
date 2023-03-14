@@ -30,7 +30,7 @@
 
     "from_client": {
         "list_objects": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "path": {
                     "type": "string"
@@ -50,7 +50,7 @@
             }
         },
         "lock_object": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "object": {
                     "type": "Object"
@@ -63,7 +63,7 @@
             }
         },
         "unlock_object": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "lock_id": {
                     "type": "u64"
@@ -71,7 +71,7 @@
             }
         },
         "read_object": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "object": {
                     "type": "Object"
@@ -91,7 +91,7 @@
             }
         },
         "write_object": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "object": {
                     "type": "Object"
@@ -109,7 +109,7 @@
             }
         },
         "watch_object": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "object": {
                     "type": "Object"
@@ -122,7 +122,7 @@
             }
         },
         "unwatch_object": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "watch_id": {
                     "type": "u64"
@@ -133,7 +133,7 @@
 
     "from_server": {
         "watched_object_changed": {
-            "type": "event",
+            "coalesce": "consecutive",
             "parameters": {
                 "watch_id": {
                     "type": "u64"

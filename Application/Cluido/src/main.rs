@@ -4,6 +4,7 @@ extern crate library_chaos;
 extern crate protocol_console;
 extern crate protocol_filesystem;
 
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
@@ -20,7 +21,7 @@ struct Environment {
 struct Command {
     pub name: String,
     pub short_help_text: String,
-    pub handler: dyn FnMut(&Environment, &String) -> CommandResult,
+    pub handler: Box<dyn FnMut(&mut Environment, &String) -> CommandResult>,
 }
 
 enum CommandResult {
@@ -44,10 +45,10 @@ fn main() {
     };
 
     let commands: Vec<Command> = vec![
-        Command { name: "exit".to_string(), short_help_text: "Exit cluido".to_string(), handler: exit_handler },
-        Command { name: "help".to_string(), short_help_text: "Show list of commands".to_string(), handler: help_handler },
-        Command { name: "list-items".to_string(), short_help_text: "List items in current path".to_string(), handler: list_items_handler },
-        Command { name: "set-path".to_string(), short_help_text: "Change current path".to_string(), handler: set_path_handler },
+        Command { name: "exit".to_string(), short_help_text: "Exit cluido".to_string(), handler: Box::new(exit_handler) },
+        Command { name: "help".to_string(), short_help_text: "Show list of commands".to_string(), handler: Box::new(help_handler) },
+        Command { name: "list-items".to_string(), short_help_text: "List items in current path".to_string(), handler: Box::new(list_items_handler) },
+        Command { name: "set-path".to_string(), short_help_text: "Change current path".to_string(), handler: Box::new(set_path_handler) },
     ];
     
     'repl: loop {

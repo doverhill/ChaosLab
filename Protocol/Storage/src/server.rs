@@ -12,7 +12,7 @@ use alloc::string::String;
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{StorageChannel, ChannelMessageHeader};
+use crate::channel::{StorageChannel, ChannelMessageHeader, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::channel::*;
@@ -121,7 +121,7 @@ impl StorageServer {
 
     pub fn get_capabilities_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &GetCapabilitiesReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, false);
+            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
@@ -131,7 +131,7 @@ impl StorageServer {
     }
     pub fn read_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ReadReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(READ_RETURNS, false);
+            let (_, message) = channel.prepare_message(READ_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };

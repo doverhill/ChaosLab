@@ -14,7 +14,7 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{StorageChannel, ChannelMessageHeader, FromChannel};
+use crate::channel::{StorageChannel, ChannelMessageHeader, FromChannel, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::message_ids::*;
@@ -89,7 +89,7 @@ impl StorageClient {
     }
 
     pub fn get_capabilities(&mut self, process: &StormProcess) -> Result<FromChannel<GetCapabilitiesReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, Coalesce::Never);
         self.channel.commit_message(0);
         StormProcess::signal_channel(self.channel_handle)?;
 
@@ -106,7 +106,7 @@ impl StorageClient {
     }
 
     pub fn read(&mut self, process: &StormProcess, parameters: &ReadParameters) -> Result<FromChannel<ReadReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(READ_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(READ_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -125,7 +125,7 @@ impl StorageClient {
     }
 
     pub fn write(&mut self, parameters: &WriteParameters) {
-        let (call_id, message) = self.channel.prepare_message(WRITE_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(WRITE_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

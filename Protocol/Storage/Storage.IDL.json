@@ -6,7 +6,7 @@
 
     "from_client": {
         "get_capabilities": {
-            "type": "call",
+            "coalesce": "never",
             "returns": {
                 "block_size": {
                     "type": "u64"
@@ -14,7 +14,7 @@
             }
         },
         "read": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "block_index": {
                     "type": "u64"
@@ -31,7 +31,7 @@
             }
         },
         "write": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "block_index": {
                     "type": "u64"

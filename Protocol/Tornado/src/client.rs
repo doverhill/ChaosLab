@@ -16,7 +16,7 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{TornadoChannel, ChannelMessageHeader, FromChannel};
+use crate::channel::{TornadoChannel, ChannelMessageHeader, FromChannel, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::message_ids::*;
@@ -98,7 +98,7 @@ impl TornadoClient {
     }
 
     pub fn set_render_tree(&mut self, parameters: &SetRenderTreeParameters) {
-        let (call_id, message) = self.channel.prepare_message(SET_RENDER_TREE_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(SET_RENDER_TREE_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

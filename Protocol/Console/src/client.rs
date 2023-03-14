@@ -16,7 +16,7 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{ConsoleChannel, ChannelMessageHeader, FromChannel};
+use crate::channel::{ConsoleChannel, ChannelMessageHeader, FromChannel, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::message_ids::*;
@@ -140,7 +140,7 @@ impl ConsoleClient {
     }
 
     pub fn get_capabilities(&mut self, process: &StormProcess) -> Result<FromChannel<GetCapabilitiesReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, Coalesce::Never);
         self.channel.commit_message(0);
         StormProcess::signal_channel(self.channel_handle)?;
 
@@ -157,7 +157,7 @@ impl ConsoleClient {
     }
 
     pub fn set_text_color(&mut self, parameters: &SetTextColorParameters) {
-        let (call_id, message) = self.channel.prepare_message(SET_TEXT_COLOR_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(SET_TEXT_COLOR_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -165,19 +165,19 @@ impl ConsoleClient {
     }
 
     pub fn save_text_cursor_position(&mut self) {
-        let (call_id, message) = self.channel.prepare_message(SAVE_TEXT_CURSOR_POSITION_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(SAVE_TEXT_CURSOR_POSITION_PARAMETERS, Coalesce::Never);
         self.channel.commit_message(0);
         StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn load_text_cursor_position(&mut self) {
-        let (call_id, message) = self.channel.prepare_message(LOAD_TEXT_CURSOR_POSITION_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(LOAD_TEXT_CURSOR_POSITION_PARAMETERS, Coalesce::Never);
         self.channel.commit_message(0);
         StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
     pub fn set_text_cursor_position(&mut self, parameters: &SetTextCursorPositionParameters) {
-        let (call_id, message) = self.channel.prepare_message(SET_TEXT_CURSOR_POSITION_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(SET_TEXT_CURSOR_POSITION_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -185,7 +185,7 @@ impl ConsoleClient {
     }
 
     pub fn draw_image_patch(&mut self, parameters: &DrawImagePatchParameters) {
-        let (call_id, message) = self.channel.prepare_message(DRAW_IMAGE_PATCH_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(DRAW_IMAGE_PATCH_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -193,7 +193,7 @@ impl ConsoleClient {
     }
 
     pub fn write_text(&mut self, parameters: &WriteTextParameters) {
-        let (call_id, message) = self.channel.prepare_message(WRITE_TEXT_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(WRITE_TEXT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -201,7 +201,7 @@ impl ConsoleClient {
     }
 
     pub fn write_objects(&mut self, parameters: &WriteObjectsParameters) {
-        let (call_id, message) = self.channel.prepare_message(WRITE_OBJECTS_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(WRITE_OBJECTS_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -209,7 +209,7 @@ impl ConsoleClient {
     }
 
     pub fn draw_pixel_debug(&mut self, parameters: &DrawPixelDebugParameters) {
-        let (call_id, message) = self.channel.prepare_message(DRAW_PIXEL_DEBUG_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(DRAW_PIXEL_DEBUG_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

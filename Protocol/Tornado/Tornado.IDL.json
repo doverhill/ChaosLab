@@ -83,7 +83,7 @@
 
     "from_client": {
         "set_render_tree": {
-            "type": "call",
+            "coalesce": "never",
             "parameters": {
                 "components": {
                     "type": "Application|Document|VerticalLayout|HorizontalLayout|GridLayout|GridLayoutColumn|GridLayoutRow|Button",
@@ -95,7 +95,7 @@
 
     "from_server": {
         "component_clicked": {
-            "type": "event",
+            "coalesce": "never",
             "parameters": {
                 "component_id": {
                     "type": "u64"

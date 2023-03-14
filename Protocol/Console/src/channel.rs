@@ -15,6 +15,13 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use core::ops::Deref;
 use core::marker::PhantomData;
 
+#[derive(PartialEq, Copy, Clone)]
+pub enum Coalesce {
+    Never,
+    Consecutive,
+    All,
+}
+
 pub struct FromChannel<T> {
     channel_address: *mut u8,
     message_address: *mut ChannelMessageHeader,
@@ -95,7 +102,7 @@ pub struct ChannelMessageHeader {
     message_length: usize,
     previous_message_offset: usize,
     next_message_offset: usize,
-    replace_pending: bool,
+    coalesce: Coalesce,
     is_writing: bool,
     pending_unlink: bool,
 }
@@ -284,7 +291,7 @@ impl ConsoleChannel {
         }
     }
 
-    pub fn prepare_message(&mut self, message_id: u64, replace_pending: bool) -> (u64, *mut ChannelMessageHeader) {
+    pub fn prepare_message(&mut self, message_id: u64, coalesce: Coalesce) -> (u64, *mut ChannelMessageHeader) {
         unsafe {
             let channel_header = self.tx_channel_address as *mut ChannelHeader;
             let lock = ChannelLock::get("prepare_message", self.tx_channel_address);
@@ -313,7 +320,7 @@ impl ConsoleChannel {
             (*message).message_magic = ChannelMessageHeader::MAGIC;
             (*message).message_id = message_id;
             (*message).call_id = call_id;
-            (*message).replace_pending = replace_pending;
+            (*message).coalesce = coalesce;
             (*message).message_length = 0;
             (*message).next_message_offset = 0;
             (*message).is_writing = true;
@@ -383,7 +390,8 @@ impl ConsoleChannel {
                 let first_message = iter;
                 #[cfg(debug)]
                 assert!((*first_message).message_magic == ChannelMessageHeader::MAGIC);
-                if !(*first_message).replace_pending {
+                let coalesce = (*first_message).coalesce;
+                if coalesce == Coalesce::Never {
                     if (*first_message).is_writing || (*first_message).pending_unlink {
                         None
                     }
@@ -395,7 +403,7 @@ impl ConsoleChannel {
                 else {
                     let mut last_of_kind = first_message;
                     let mut iter = first_message;
-                    while (*iter).next_message_offset != 0 && !(*iter).is_writing {
+                    while (*iter).next_message_offset != 0 && !(*iter).is_writing && (coalesce == Coalesce::All || (*iter).message_id == (*first_message).message_id) {
                         iter = self.rx_channel_address.offset((*iter).next_message_offset as isize) as *mut ChannelMessageHeader;
                         if (*iter).message_id == (*first_message).message_id && !(*iter).pending_unlink {
                             last_of_kind = iter;

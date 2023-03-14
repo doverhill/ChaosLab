@@ -7,22 +7,29 @@ namespace IDLCompiler
 {
     public class IDLCall
     {
-        public enum CallType
-        {
-            Event,
-            SingleEvent,
-            Call
+        //public enum CallType
+        //{
+        //    Event,
+        //    SingleEvent,
+        //    Call
+        //}
+
+        public enum CoalesceType {
+            Never,
+            Consecutive,
+            All
         }
 
-        [JsonPropertyName("type")]
-        public string NamedType;
+        [JsonPropertyName("coalesce")]
+        public CoalesceType Coalesce;
         [JsonPropertyName("parameters")]
         public Dictionary<string, IDLField> Parameters;
         [JsonPropertyName("returns")]
         public Dictionary<string, IDLField> ReturnValues;
 
         public string Name;
-        public CallType Type;
+        //public CallType Type;
+        //public CoalesceType Coalesce;
 
         public void Validate(string name, Dictionary<string, EnumList> customEnumLists, Dictionary<string, IDLType> customTypes)
         {
@@ -31,14 +38,14 @@ namespace IDLCompiler
 
             Name = name;
 
-            if (string.IsNullOrEmpty(NamedType)) throw new ArgumentException($"Type for call '{name}' is missing");
-            Type = NamedType switch
-            {
-                "event" => CallType.Event,
-                "single_event" => CallType.SingleEvent,
-                "call" => CallType.Call,
-                _ => throw new ArgumentException($"Unknown call type '{NamedType}' for call '{name}'")
-            };
+            //if (string.IsNullOrEmpty(NamedType)) throw new ArgumentException($"Type for call '{name}' is missing");
+            //Type = NamedType switch
+            //{
+            //    "event" => CallType.Event,
+            //    "single_event" => CallType.SingleEvent,
+            //    "call" => CallType.Call,
+            //    _ => throw new ArgumentException($"Unknown call type '{NamedType}' for call '{name}'")
+            //};
 
             if (Parameters == null) Parameters = new();
             foreach (var parameter in Parameters)
@@ -72,11 +79,11 @@ namespace IDLCompiler
 
         public (IDLType, string) ToReturnsType(bool fromServer)
         {
-            if (fromServer)
-            {
-                if (Type != CallType.Event && Type != CallType.SingleEvent) throw new Exception($"{Name}: Only event types are supported in server->client calls");
-                if (ReturnValues.Count > 0) throw new Exception($"{Name}: Return values not allowed in server->client events");
-            }
+            //if (fromServer)
+            //{
+            //    if (Type != CallType.Event && Type != CallType.SingleEvent) throw new Exception($"{Name}: Only event types are supported in server->client calls");
+            //    if (ReturnValues.Count > 0) throw new Exception($"{Name}: Return values not allowed in server->client events");
+            //}
 
             var casedString = CasedString.FromSnake(Name);
             var name = casedString.ToPascal() + "Returns";

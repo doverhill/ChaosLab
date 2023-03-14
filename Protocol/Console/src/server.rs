@@ -14,7 +14,7 @@ use crate::enums::*;
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{ConsoleChannel, ChannelMessageHeader};
+use crate::channel::{ConsoleChannel, ChannelMessageHeader, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::channel::*;
@@ -161,7 +161,7 @@ impl ConsoleServer {
 
     pub fn key_pressed(&mut self, channel_handle: ChannelHandle, parameters: &KeyPressedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(KEY_PRESSED_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(KEY_PRESSED_PARAMETERS, Coalesce::Never);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -171,7 +171,7 @@ impl ConsoleServer {
 
     pub fn key_released(&mut self, channel_handle: ChannelHandle, parameters: &KeyReleasedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(KEY_RELEASED_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(KEY_RELEASED_PARAMETERS, Coalesce::Never);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -181,7 +181,7 @@ impl ConsoleServer {
 
     pub fn character_input(&mut self, channel_handle: ChannelHandle, parameters: &CharacterInputParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(CHARACTER_INPUT_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(CHARACTER_INPUT_PARAMETERS, Coalesce::Never);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -191,7 +191,7 @@ impl ConsoleServer {
 
     pub fn pointer_moved(&mut self, channel_handle: ChannelHandle, parameters: &PointerMovedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(POINTER_MOVED_PARAMETERS, true);
+            let (_, message) = channel.prepare_message(POINTER_MOVED_PARAMETERS, Coalesce::Consecutive);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -201,7 +201,7 @@ impl ConsoleServer {
 
     pub fn pointer_pressed(&mut self, channel_handle: ChannelHandle, parameters: &PointerPressedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(POINTER_PRESSED_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(POINTER_PRESSED_PARAMETERS, Coalesce::Never);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -211,7 +211,7 @@ impl ConsoleServer {
 
     pub fn pointer_released(&mut self, channel_handle: ChannelHandle, parameters: &PointerReleasedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(POINTER_RELEASED_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(POINTER_RELEASED_PARAMETERS, Coalesce::Never);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -221,7 +221,7 @@ impl ConsoleServer {
 
     pub fn size_changed(&mut self, channel_handle: ChannelHandle, parameters: &SizeChangedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(SIZE_CHANGED_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(SIZE_CHANGED_PARAMETERS, Coalesce::Consecutive);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -231,7 +231,7 @@ impl ConsoleServer {
 
     pub fn get_capabilities_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &GetCapabilitiesReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, false);
+            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };

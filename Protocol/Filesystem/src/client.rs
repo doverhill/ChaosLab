@@ -15,7 +15,7 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{FilesystemChannel, ChannelMessageHeader, FromChannel};
+use crate::channel::{FilesystemChannel, ChannelMessageHeader, FromChannel, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::message_ids::*;
@@ -97,7 +97,7 @@ impl FilesystemClient {
     }
 
     pub fn list_objects(&mut self, process: &StormProcess, parameters: &ListObjectsParameters) -> Result<FromChannel<ListObjectsReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(LIST_OBJECTS_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(LIST_OBJECTS_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -116,7 +116,7 @@ impl FilesystemClient {
     }
 
     pub fn lock_object(&mut self, process: &StormProcess, parameters: &LockObjectParameters) -> Result<FromChannel<LockObjectReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(LOCK_OBJECT_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(LOCK_OBJECT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -135,7 +135,7 @@ impl FilesystemClient {
     }
 
     pub fn unlock_object(&mut self, parameters: &UnlockObjectParameters) {
-        let (call_id, message) = self.channel.prepare_message(UNLOCK_OBJECT_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(UNLOCK_OBJECT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -143,7 +143,7 @@ impl FilesystemClient {
     }
 
     pub fn read_object(&mut self, process: &StormProcess, parameters: &ReadObjectParameters) -> Result<FromChannel<ReadObjectReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(READ_OBJECT_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(READ_OBJECT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -162,7 +162,7 @@ impl FilesystemClient {
     }
 
     pub fn write_object(&mut self, parameters: &WriteObjectParameters) {
-        let (call_id, message) = self.channel.prepare_message(WRITE_OBJECT_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(WRITE_OBJECT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -170,7 +170,7 @@ impl FilesystemClient {
     }
 
     pub fn watch_object(&mut self, process: &StormProcess, parameters: &WatchObjectParameters) -> Result<FromChannel<WatchObjectReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(WATCH_OBJECT_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(WATCH_OBJECT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);
@@ -189,7 +189,7 @@ impl FilesystemClient {
     }
 
     pub fn unwatch_object(&mut self, parameters: &UnwatchObjectParameters) {
-        let (call_id, message) = self.channel.prepare_message(UNWATCH_OBJECT_PARAMETERS, false);
+        let (call_id, message) = self.channel.prepare_message(UNWATCH_OBJECT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

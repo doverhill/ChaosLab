@@ -14,7 +14,7 @@ namespace IDLCompiler {
             source.AddLine("use alloc::boxed::Box;");
             source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};");
             source.AddLine("use uuid::Uuid;");
-            source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader};""");
+            source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader, Coalesce};""");
             source.AddLine("use crate::from_client::*;");
             source.AddLine("use crate::from_server::*;");
             source.AddLine("use crate::channel::*;");
@@ -155,7 +155,7 @@ namespace IDLCompiler {
                 //fnBlock.AddLine($"println!(\"{structName}::{call.Name}\");");
                 ifBlock = fnBlock.AddBlock("if let Some(channel) = self.channels.get_mut(&channel_handle)");
                 //ifBlock.AddLine("println!(\"found channel\");");
-                ifBlock.AddLine($"let (_, message) = channel.prepare_message({parametersMessageName}, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
+                ifBlock.AddLine($"let (_, message) = channel.prepare_message({parametersMessageName}, Coalesce::{call.Coalesce});");
                 if (parametersType != null)
                 {
                     ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
@@ -176,7 +176,7 @@ namespace IDLCompiler {
                 if (returnsType != null) {
                     var fnBlock = implBlock.AddBlock($"pub fn {call.Name}_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &{returnsType.Name})");
                     ifBlock = fnBlock.AddBlock("if let Some(channel) = self.channels.get_mut(&channel_handle)");
-                    ifBlock.AddLine($"let (_, message) = channel.prepare_message({returnsMessageName}, false);");
+                    ifBlock.AddLine($"let (_, message) = channel.prepare_message({returnsMessageName}, Coalesce::Never);");
                     ifBlock.AddLine("unsafe { (*message).call_id = call_id };");
                     ifBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");
                     ifBlock.AddLine("let size = unsafe { parameters.write_at(payload) };");
@@ -197,7 +197,7 @@ namespace IDLCompiler {
             source.AddLine("use core::cell::RefCell;");
             source.AddLine("use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};");
             source.AddLine("use uuid::Uuid;");
-            source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader, FromChannel};""");
+            source.AddLine($$"""use crate::channel::{{{channelName}}, ChannelMessageHeader, FromChannel, Coalesce};""");
             source.AddLine("use crate::from_client::*;");
             source.AddLine("use crate::from_server::*;");
             source.AddLine("use crate::message_ids::*;");
@@ -316,7 +316,7 @@ namespace IDLCompiler {
                 }
 
                 var fnBlock = implBlock.AddBlock($"pub fn {call.Name}(&mut self{parameters}){returns}");
-                fnBlock.AddLine($"let (call_id, message) = self.channel.prepare_message({parametersMessageName}, {(call.Type == IDLCall.CallType.SingleEvent ? "true" : "false")});");
+                fnBlock.AddLine($"let (call_id, message) = self.channel.prepare_message({parametersMessageName}, Coalesce::{call.Coalesce});");
                 if (parametersType != null)
                 {
                     fnBlock.AddLine("let payload = ChannelMessageHeader::get_payload_address(message);");

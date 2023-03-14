@@ -13,7 +13,7 @@ use crate::types::*;
 use alloc::boxed::Box;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{FilesystemChannel, ChannelMessageHeader};
+use crate::channel::{FilesystemChannel, ChannelMessageHeader, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::channel::*;
@@ -152,7 +152,7 @@ impl FilesystemServer {
 
     pub fn watched_object_changed(&mut self, channel_handle: ChannelHandle, parameters: &WatchedObjectChangedParameters) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, false);
+            let (_, message) = channel.prepare_message(WATCHED_OBJECT_CHANGED_PARAMETERS, Coalesce::Consecutive);
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
             channel.commit_message(size);
@@ -162,7 +162,7 @@ impl FilesystemServer {
 
     pub fn list_objects_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ListObjectsReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(LIST_OBJECTS_RETURNS, false);
+            let (_, message) = channel.prepare_message(LIST_OBJECTS_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
@@ -172,7 +172,7 @@ impl FilesystemServer {
     }
     pub fn lock_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &LockObjectReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(LOCK_OBJECT_RETURNS, false);
+            let (_, message) = channel.prepare_message(LOCK_OBJECT_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
@@ -182,7 +182,7 @@ impl FilesystemServer {
     }
     pub fn read_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &ReadObjectReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(READ_OBJECT_RETURNS, false);
+            let (_, message) = channel.prepare_message(READ_OBJECT_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
@@ -192,7 +192,7 @@ impl FilesystemServer {
     }
     pub fn watch_object_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &WatchObjectReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(WATCH_OBJECT_RETURNS, false);
+            let (_, message) = channel.prepare_message(WATCH_OBJECT_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };
