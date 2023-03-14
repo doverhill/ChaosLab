@@ -48,9 +48,11 @@ impl ServerApplication {
                     FilesystemServerRequest::ListObjects(parameters) => {
                         let result = ListObjectsReturns {
                             objects: vec![
-                                ListObjectsReturnsObjectsEnum::File {
-                                    name: "file.txt".to_string()
-                                }
+                                ListObjectsReturnsObjectsEnum::TypeFile(File {
+                                    name: "file.txt".to_string(),
+                                    path: "//".to_string(),
+                                    size: 33
+                                })
                             ]
                         };
                         self.filesystem_server.list_objects_reply(channel_handle, call_id, &result);
