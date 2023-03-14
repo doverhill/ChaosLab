@@ -46,7 +46,14 @@ impl ServerApplication {
             FilesystemServerChannelEvent::ClientRequest(_service_handle, channel_handle, call_id, request) => {
                 match request {
                     FilesystemServerRequest::ListObjects(parameters) => {
-                        // self.filesystem_server.list_objects_reply(channel_handle, call_id, result);
+                        let result = ListObjectsReturns {
+                            objects: vec![
+                                ListObjectsReturnsObjectsEnum::File {
+                                    name: "file.txt".to_string()
+                                }
+                            ]
+                        };
+                        self.filesystem_server.list_objects_reply(channel_handle, call_id, &result);
                     }
                     _ => {
                         // not implemented

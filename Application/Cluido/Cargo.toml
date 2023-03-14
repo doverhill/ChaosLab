@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 library_chaos = { path = "../../Library/Chaos" }
 protocol_console = { path = "../../Protocol/Console" }
+protocol_filesystem = { path = "../../Protocol/Filesystem" }
 

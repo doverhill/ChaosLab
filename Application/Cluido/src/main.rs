@@ -2,12 +2,18 @@
 extern crate alloc;
 extern crate library_chaos;
 extern crate protocol_console;
+extern crate protocol_filesystem;
 
 use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
 use library_chaos::*;
 use protocol_console::*;
+use protocol_filesystem::*;
+
+struct Environment {
+    pub path: String,
+}
 
 fn main() {
     // set up process and server state
@@ -20,13 +26,17 @@ fn main() {
         text: format!("Welcome to Chaos and Cluido {}\n\n", env!("CARGO_PKG_VERSION")),
     });
 
+    let mut environment = Environment {
+        path: "//".to_string()
+    };
+
     'repl: loop {
         console_client.write_text(&WriteTextParameters { text: "> ".to_string() });
 
         let command = read_line(&mut process, &mut console_client);
         console_client.write_text(&WriteTextParameters { text: "\n".to_string() });
 
-        let exit = handle_command(&mut process, &mut console_client, command);
+        let exit = handle_command(&mut process, &mut console_client, &mut environment, command);
 
         if exit {
             break 'repl;
@@ -36,7 +46,7 @@ fn main() {
     process.end();
 }
 
-fn handle_command(_process: &mut StormProcess, console_client: &mut ConsoleClient, command_line: String) -> bool {
+fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, command_line: String) -> bool {
     let mut parts = command_line.split_whitespace();
 
     if let Some(command) = parts.next() {
@@ -45,6 +55,25 @@ fn handle_command(_process: &mut StormProcess, console_client: &mut ConsoleClien
                 console_client.write_text(&WriteTextParameters {
                     text: "This is a help string\n".to_string(),
                 });
+            }
+            "list-items" => {
+                let mut filesystem_client = FilesystemClient::connect_first(process).unwrap();
+                let pattern = "*".to_string();
+                let recursive = false;
+                let list_result = filesystem_client.list_objects(process, &ListObjectsParameters { path: environment.path.clone(), pattern: pattern, recursive: recursive }).unwrap();
+                for result in list_result.objects.iter() {
+                    match result {
+                        ListObjectsReturnsObjectsEnum::TypeDirectory(directory) => {
+                            console_client.write_text(&WriteTextParameters { text: format!("D {}\n", directory.name) });
+                        }
+                        ListObjectsReturnsObjectsEnum::TypeFile(file) => {
+                            console_client.write_text(&WriteTextParameters { text: format!("F {}\t{}", file.name, file.size) });
+                        }
+                    }
+                }
+            }
+            "set-path" => {
+
             }
             "exit" => {
                 return true;
