@@ -119,8 +119,16 @@ impl<'a> ServerApplication<'a> {
 
             if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
                 self.console_server.register_event(wrapper.event);
+
+                let mut needs_refresh = false;
                 while let Some(console_server_event) = self.console_server.get_event(&mut self.process) {
-                    self.process_console_server_event(console_server_event, glyph_size, framebuffer_size, text_size, &font);
+                    if self.process_console_server_event(console_server_event, glyph_size, framebuffer_size, text_size, &font) {
+                        needs_refresh = true;
+                    }
+                }
+
+                if needs_refresh {
+                    self.refresh_active(self.console_server.service_handle);
                 }
             } else {
                 match event {
@@ -170,10 +178,10 @@ impl<'a> ServerApplication<'a> {
                         if keymod.contains(Mod::LSHIFTMOD | Mod::LCTRLMOD | Mod::LALTMOD) {
                             match keycode {
                                 Keycode::Left => {
-                                    self.focus_previous_client();
+                                    self.focus_previous_client(self.console_server.service_handle);
                                 }
                                 Keycode::Right => {
-                                    self.focus_next_client();
+                                    self.focus_next_client(self.console_server.service_handle);
                                 }
                                 _ => {}
                             }
@@ -225,9 +233,10 @@ impl<'a> ServerApplication<'a> {
                     let (_, active_channel_handle, _) = self.clients.first().unwrap();
                     self.active_client_channel_handle = Some(*active_channel_handle);
                     self.active_console_number = self.get_console_number(*active_channel_handle);
-                    if let Some(active_client) = self.get_active_client() {
-                        self.refresh(active_client.borrow_mut());
-                    }
+                    self.refresh_active(service_handle);
+                    // if let Some(active_client) = self.get_active_client() {
+                    //     self.refresh(active_client.borrow_mut());
+                    // }
                 } else {
                     self.active_client_channel_handle = None;
                     self.active_console_number = -1;
@@ -252,13 +261,13 @@ impl<'a> ServerApplication<'a> {
         }
     }
 
-    fn get_active_client(&self) -> Option<&RefCell<Client<'a>>> {
-        if let Some((_, _, client)) = self.clients.first_matching(|_, _, client| self.active_console_number == client.borrow().console_number) {
-            Some(client)
-        } else {
-            None
-        }
-    }
+    // fn get_active_client(&self) -> Option<&RefCell<Client<'a>>> {
+    //     if let Some((_, _, client)) = self.clients.first_matching(|_, _, client| self.active_console_number == client.borrow().console_number) {
+    //         Some(client)
+    //     } else {
+    //         None
+    //     }
+    // }
 
     fn reindex_clients(&mut self) {
         let mut index: isize = 0;
@@ -269,33 +278,37 @@ impl<'a> ServerApplication<'a> {
         self.clients.for_each_mut(assign);
     }
 
-    fn focus_previous_client(&mut self) {
+    fn focus_previous_client(&mut self, service_handle: ServiceHandle) {
         if self.clients.client_count() > 1 {
             self.active_console_number -= 1;
             if self.active_console_number < 0 {
                 self.active_console_number = self.clients.client_count() as isize - 1;
             }
             self.active_client_channel_handle = self.get_channel_handle(self.active_console_number);
-            if let Some(active_client) = self.get_active_client() {
-                self.refresh(active_client.borrow_mut());
-            }
+            self.refresh_active(service_handle);
+            // if let Some(active_client) = self.get_active_client() {
+            //     self.refresh(active_client.borrow_mut());
+            // }
         }
     }
 
-    fn focus_next_client(&mut self) {
+    fn focus_next_client(&mut self, service_handle: ServiceHandle) {
         if self.clients.client_count() > 1 {
             self.active_console_number += 1;
             if self.active_console_number == self.clients.client_count() as isize {
                 self.active_console_number = 0;
             }
             self.active_client_channel_handle = self.get_channel_handle(self.active_console_number);
-            if let Some(active_client) = self.get_active_client() {
-                self.refresh(active_client.borrow_mut());
-            }
+            self.refresh_active(service_handle);
+            // if let Some(active_client) = self.get_active_client() {
+            //     self.refresh(active_client.borrow_mut());
+            // }
         }
     }
 
-    fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent, glyph_size: Size, framebuffer_size: Size, text_size: Size, font: &Font) {
+    fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent, glyph_size: Size, framebuffer_size: Size, text_size: Size, font: &Font) -> bool {
+        let mut needs_refresh = false;
+
         match event {
             ConsoleServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
                 self.add_client(service_handle, channel_handle, framebuffer_size);
@@ -308,7 +321,9 @@ impl<'a> ServerApplication<'a> {
                     match request {
                         ConsoleServerRequest::WriteText(parameters) => {
                             helpers::draw_text(client.borrow_mut(), glyph_size, text_size, font, &parameters.text);
-                            self.refresh(client.borrow_mut());
+                            if let Some(active_channel_handle) = self.active_client_channel_handle {
+                                needs_refresh = active_channel_handle == channel_handle;
+                            } 
                         }
                         ConsoleServerRequest::SaveTextCursorPosition => {
                             let mut borrowed = client.borrow_mut();
@@ -331,7 +346,9 @@ impl<'a> ServerApplication<'a> {
                         }
                         ConsoleServerRequest::DrawPixelDebug(parameters) => {
                             helpers::draw_pixel(client.borrow_mut(), parameters.color, parameters.position);
-                            self.refresh(client.borrow_mut());
+                            if let Some(active_channel_handle) = self.active_client_channel_handle {
+                                needs_refresh = active_channel_handle == channel_handle;
+                            } 
                         }
                         _ => {
                             // not implemented
@@ -340,13 +357,15 @@ impl<'a> ServerApplication<'a> {
                 }
             }
         }
+
+        needs_refresh
     }
 
-    fn refresh(&self, client: RefMut<Client>) {
+    fn refresh_active(&self, service_handle: ServiceHandle) {
         if let Some(active_channel_handle) = self.active_client_channel_handle {
-            if client.channel_handle == active_channel_handle {
+            if let Some(client) = self.clients.get_client(service_handle, active_channel_handle) {
                 let texture_creator = self.canvas.borrow().texture_creator();
-                let texture = texture_creator.create_texture_from_surface(&client.surface).unwrap();
+                let texture = texture_creator.create_texture_from_surface(&client.borrow().surface).unwrap();
                 self.canvas.borrow_mut().copy(&texture, None, None).unwrap();
                 self.canvas.borrow_mut().present();
             }

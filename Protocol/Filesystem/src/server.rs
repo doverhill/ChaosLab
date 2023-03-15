@@ -38,7 +38,7 @@ pub enum FilesystemServerChannelEvent {
 
 pub struct FilesystemServer {
     current_event: Option<StormEvent>,
-    service_handle: ServiceHandle,
+    pub service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, FilesystemChannel>,
 }
 

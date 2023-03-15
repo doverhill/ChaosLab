@@ -46,7 +46,7 @@ namespace IDLCompiler {
 
             var structBlock = source.AddBlock($"pub struct {structName}");
             structBlock.AddLine("current_event: Option<StormEvent>,");
-            structBlock.AddLine("service_handle: ServiceHandle,");
+            structBlock.AddLine("pub service_handle: ServiceHandle,");
             structBlock.AddLine($"channels: BTreeMap<ChannelHandle, {channelName}>,");
 
             source.AddBlank();

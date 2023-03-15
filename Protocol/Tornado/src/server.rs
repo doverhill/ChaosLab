@@ -33,7 +33,7 @@ pub enum TornadoServerChannelEvent {
 
 pub struct TornadoServer {
     current_event: Option<StormEvent>,
-    service_handle: ServiceHandle,
+    pub service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, TornadoChannel>,
 }
 

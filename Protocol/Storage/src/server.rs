@@ -33,7 +33,7 @@ pub enum StorageServerChannelEvent {
 
 pub struct StorageServer {
     current_event: Option<StormEvent>,
-    service_handle: ServiceHandle,
+    pub service_handle: ServiceHandle,
     channels: BTreeMap<ChannelHandle, StorageChannel>,
 }
 
