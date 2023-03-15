@@ -49,7 +49,12 @@ pub fn convert_mount_button_sdl_to_console(mouse_button: MouseButton) -> Pointer
     }
 }
 
-pub fn draw_text(mut client: RefMut<Client>, glyph_size: Size, text_size: Size, font: &Font, text: &String) {
+pub fn draw_text(mut client: RefMut<Client>, glyph_size: Size, text_size: Size, font: &Font, text: &String) -> Rect {
+    let mut min_x = i64::MAX;
+    let mut min_y = i64::MAX;
+    let mut max_x = 0i64;
+    let mut max_y = 0i64;
+
     for character in text.chars() {
         if character == '\n' {
             client.text_position.x = 0;
@@ -57,6 +62,19 @@ pub fn draw_text(mut client: RefMut<Client>, glyph_size: Size, text_size: Size, 
         } else {
             let x = client.text_position.x as u64 * glyph_size.width;
             let y = client.text_position.y as u64 * glyph_size.height;
+
+            if client.text_position.x < min_x {
+                min_x = client.text_position.x;
+            }
+            if client.text_position.x > max_x {
+                max_x = client.text_position.x;
+            }
+            if client.text_position.y < min_y {
+                min_y = client.text_position.y;
+            }
+            if client.text_position.y > max_y {
+                max_y = client.text_position.y;
+            }
 
             let rendering = font.render_char(character);
             let foreground_color = convert_color_console_to_sdl(Color {
@@ -87,11 +105,15 @@ pub fn draw_text(mut client: RefMut<Client>, glyph_size: Size, text_size: Size, 
             client.text_position.y -= 1;
         }
     }
+
+    Rect::new(min_x as i32 * glyph_size.width as i32, min_y as i32 * glyph_size.height as i32, (max_x - min_x + 1) as u32 * glyph_size.width as u32, (max_y - min_y + 1) as u32 * glyph_size.height as u32)
 }
 
-pub fn draw_pixel(mut client: RefMut<Client>, color: Color, position: Point) {
+pub fn draw_pixel(mut client: RefMut<Client>, color: Color, position: Point) -> Rect {
+    let pixel = Rect::new(position.x as i32, position.y as i32, 1, 1);
     client
         .surface
-        .fill_rect(Rect::new(position.x as i32, position.y as i32, 1, 1), convert_color_console_to_sdl(color))
+        .fill_rect(pixel, convert_color_console_to_sdl(color))
         .unwrap();
+    pixel
 }

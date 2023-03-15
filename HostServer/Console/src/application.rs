@@ -3,6 +3,7 @@ use core::cell::RefCell;
 use library_chaos::ServiceHandle;
 use library_chaos::{ChannelHandle, ClientStore, StormEvent, StormProcess};
 use protocol_console::*;
+use crate::dirty_patches::DirtyPatches;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::keyboard::Mod;
@@ -13,7 +14,6 @@ use sdl2::surface::Surface;
 use sdl2::ttf::Font;
 use sdl2::video::Window;
 use sdl2::Sdl;
-use std::cell::RefMut;
 use std::path::Path;
 use std::thread;
 
@@ -120,15 +120,15 @@ impl<'a> ServerApplication<'a> {
             if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
                 self.console_server.register_event(wrapper.event);
 
-                let mut needs_refresh = false;
+                let mut dirty_patches = DirtyPatches::new();
                 while let Some(console_server_event) = self.console_server.get_event(&mut self.process) {
-                    if self.process_console_server_event(console_server_event, glyph_size, framebuffer_size, text_size, &font) {
-                        needs_refresh = true;
+                    if let Some(patch) = self.process_console_server_event(console_server_event, glyph_size, framebuffer_size, text_size, &font) {
+                        dirty_patches.add_dirty(patch);
                     }
                 }
 
-                if needs_refresh {
-                    self.refresh_active(self.console_server.service_handle);
+                if dirty_patches.patches.len() > 0 {
+                    self.refresh_active(self.console_server.service_handle, Some(dirty_patches));
                 }
             } else {
                 match event {
@@ -233,7 +233,7 @@ impl<'a> ServerApplication<'a> {
                     let (_, active_channel_handle, _) = self.clients.first().unwrap();
                     self.active_client_channel_handle = Some(*active_channel_handle);
                     self.active_console_number = self.get_console_number(*active_channel_handle);
-                    self.refresh_active(service_handle);
+                    self.refresh_active(service_handle, None);
                     // if let Some(active_client) = self.get_active_client() {
                     //     self.refresh(active_client.borrow_mut());
                     // }
@@ -285,7 +285,7 @@ impl<'a> ServerApplication<'a> {
                 self.active_console_number = self.clients.client_count() as isize - 1;
             }
             self.active_client_channel_handle = self.get_channel_handle(self.active_console_number);
-            self.refresh_active(service_handle);
+            self.refresh_active(service_handle, None);
             // if let Some(active_client) = self.get_active_client() {
             //     self.refresh(active_client.borrow_mut());
             // }
@@ -299,15 +299,15 @@ impl<'a> ServerApplication<'a> {
                 self.active_console_number = 0;
             }
             self.active_client_channel_handle = self.get_channel_handle(self.active_console_number);
-            self.refresh_active(service_handle);
+            self.refresh_active(service_handle, None);
             // if let Some(active_client) = self.get_active_client() {
             //     self.refresh(active_client.borrow_mut());
             // }
         }
     }
 
-    fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent, glyph_size: Size, framebuffer_size: Size, text_size: Size, font: &Font) -> bool {
-        let mut needs_refresh = false;
+    fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent, glyph_size: Size, framebuffer_size: Size, text_size: Size, font: &Font) -> Option<Rect> {
+        let mut dirty_patch: Option<Rect> = None;
 
         match event {
             ConsoleServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
@@ -320,9 +320,11 @@ impl<'a> ServerApplication<'a> {
                 if let Some(client) = self.clients.get_client(service_handle, channel_handle) {
                     match request {
                         ConsoleServerRequest::WriteText(parameters) => {
-                            helpers::draw_text(client.borrow_mut(), glyph_size, text_size, font, &parameters.text);
+                            let patch = helpers::draw_text(client.borrow_mut(), glyph_size, text_size, font, &parameters.text);
                             if let Some(active_channel_handle) = self.active_client_channel_handle {
-                                needs_refresh = active_channel_handle == channel_handle;
+                                if active_channel_handle == channel_handle {
+                                    dirty_patch = Some(patch);
+                                }
                             } 
                         }
                         ConsoleServerRequest::SaveTextCursorPosition => {
@@ -345,9 +347,11 @@ impl<'a> ServerApplication<'a> {
                             );
                         }
                         ConsoleServerRequest::DrawPixelDebug(parameters) => {
-                            helpers::draw_pixel(client.borrow_mut(), parameters.color, parameters.position);
+                            let patch = helpers::draw_pixel(client.borrow_mut(), parameters.color, parameters.position);
                             if let Some(active_channel_handle) = self.active_client_channel_handle {
-                                needs_refresh = active_channel_handle == channel_handle;
+                                if active_channel_handle == channel_handle {
+                                    dirty_patch = Some(patch);
+                                }
                             } 
                         }
                         _ => {
@@ -358,16 +362,23 @@ impl<'a> ServerApplication<'a> {
             }
         }
 
-        needs_refresh
+        dirty_patch
     }
 
-    fn refresh_active(&self, service_handle: ServiceHandle) {
+    fn refresh_active(&self, service_handle: ServiceHandle, dirty: Option<DirtyPatches>) {
         if let Some(active_channel_handle) = self.active_client_channel_handle {
             if let Some(client) = self.clients.get_client(service_handle, active_channel_handle) {
-                let canvas = self.canvas.borrow_mut();
+                let mut canvas = self.canvas.borrow_mut();
                 let texture_creator = canvas.texture_creator();
                 let texture = texture_creator.create_texture_from_surface(&client.borrow().surface).unwrap();
-                canvas.copy(&texture, None, None).unwrap();
+                if let Some(dirty_patches) = dirty {
+                    for patch in dirty_patches.patches {
+                        canvas.copy(&texture, patch, patch).unwrap();
+                    }
+                }
+                else {
+                    canvas.copy(&texture, None, None).unwrap();
+                }
                 canvas.present();
             }
         }

@@ -5,6 +5,7 @@ extern crate sdl2;
 mod application;
 use application::ServerApplication;
 mod helpers;
+mod dirty_patches;
 
 use library_chaos::*;
 use protocol_console::*;
