@@ -21,7 +21,7 @@ struct Environment {
 struct Command {
     pub name: String,
     pub short_help_text: String,
-    pub handler: Box<dyn FnMut(&mut StormProcess, &mut ConsoleClient, &mut Environment, &Vec<Command>, &String) -> CommandResult>,
+    pub handler: Box<dyn Fn(&mut StormProcess, &mut ConsoleClient, &mut Environment, &Vec<Command>, &String) -> CommandResult>,
 }
 
 enum CommandResult {
@@ -46,7 +46,7 @@ fn main() {
         path: "//".to_string()
     };
 
-    let mut commands: Vec<Command> = vec![
+    let commands: Vec<Command> = vec![
         Command { name: "exit".to_string(), short_help_text: "Exit cluido".to_string(), handler: Box::new(exit_handler) },
         Command { name: "help".to_string(), short_help_text: "Show list of commands".to_string(), handler: Box::new(help_handler) },
         Command { name: "list-items".to_string(), short_help_text: "List items in current path".to_string(), handler: Box::new(list_items_handler) },
@@ -59,13 +59,13 @@ fn main() {
         let command = read_line(&mut process, &mut console_client);
         console_client.write_text(&WriteTextParameters { text: "\n".to_string() });
 
-        let result = handle_command(&mut process, &mut console_client, &mut environment, &mut commands, command);
+        let result = handle_command(&mut process, &mut console_client, &mut environment, &commands, command);
 
         match result {
             CommandResult::None => {}
             CommandResult::Success => {}
             CommandResult::Fail => {
-                console_client.write_text(&WriteTextParameters { text: "Command caused an error".to_string() });
+                console_client.write_text(&WriteTextParameters { text: "Command caused an error\n".to_string() });
             }
             CommandResult::ExitCluido => {
                 break 'repl;
@@ -86,7 +86,7 @@ fn help_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, 
     });
 
     for command in commands.iter() {
-        console_client.write_text(&WriteTextParameters { text: format!("{} - {}", command.name, command.short_help_text) });
+        console_client.write_text(&WriteTextParameters { text: format!("{} - {}\n", command.name, command.short_help_text) });
     }
 
     CommandResult::Success
@@ -115,11 +115,11 @@ fn set_path_handler(process: &mut StormProcess, console_client: &mut ConsoleClie
     CommandResult::Fail
 }
 
-fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &mut Vec<Command>, command_line: String) -> CommandResult {
+fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: String) -> CommandResult {
     let mut parts = command_line.split_whitespace();
 
     if let Some(first_word) = parts.next() {
-        if let Some(command) = commands.iter_mut().find(|c| c.name == first_word) {
+        if let Some(command) = commands.iter().find(|c| c.name == first_word) {
             (command.handler)(process, console_client, environment, commands, &command_line)
         }
         else {
