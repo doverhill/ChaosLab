@@ -364,10 +364,11 @@ impl<'a> ServerApplication<'a> {
     fn refresh_active(&self, service_handle: ServiceHandle) {
         if let Some(active_channel_handle) = self.active_client_channel_handle {
             if let Some(client) = self.clients.get_client(service_handle, active_channel_handle) {
-                let texture_creator = self.canvas.borrow().texture_creator();
+                let canvas = self.canvas.borrow_mut();
+                let texture_creator = canvas.texture_creator();
                 let texture = texture_creator.create_texture_from_surface(&client.borrow().surface).unwrap();
-                self.canvas.borrow_mut().copy(&texture, None, None).unwrap();
-                self.canvas.borrow_mut().present();
+                canvas.copy(&texture, None, None).unwrap();
+                canvas.present();
             }
         }
     }
