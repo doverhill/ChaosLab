@@ -21,12 +21,14 @@ struct Environment {
 struct Command {
     pub name: String,
     pub short_help_text: String,
-    pub handler: Box<dyn FnMut(&mut Environment, &String) -> CommandResult>,
+    pub handler: Box<dyn FnMut(&mut StormProcess, &mut ConsoleClient, &mut Environment, &Vec<Command>, &String) -> CommandResult>,
 }
 
 enum CommandResult {
+    None,
     Success,
-    Fail
+    Fail,
+    ExitCluido,
 }
 
 fn main() {
@@ -44,7 +46,7 @@ fn main() {
         path: "//".to_string()
     };
 
-    let commands: Vec<Command> = vec![
+    let mut commands: Vec<Command> = vec![
         Command { name: "exit".to_string(), short_help_text: "Exit cluido".to_string(), handler: Box::new(exit_handler) },
         Command { name: "help".to_string(), short_help_text: "Show list of commands".to_string(), handler: Box::new(help_handler) },
         Command { name: "list-items".to_string(), short_help_text: "List items in current path".to_string(), handler: Box::new(list_items_handler) },
@@ -57,73 +59,76 @@ fn main() {
         let command = read_line(&mut process, &mut console_client);
         console_client.write_text(&WriteTextParameters { text: "\n".to_string() });
 
-        let exit = handle_command(&mut process, &mut console_client, &mut environment, &commands, command);
+        let result = handle_command(&mut process, &mut console_client, &mut environment, &mut commands, command);
 
-        if exit {
-            break 'repl;
+        match result {
+            CommandResult::None => {}
+            CommandResult::Success => {}
+            CommandResult::Fail => {
+                console_client.write_text(&WriteTextParameters { text: "Command caused an error".to_string() });
+            }
+            CommandResult::ExitCluido => {
+                break 'repl;
+            }
         }
     }
 
     process.end();
 }
 
-fn exit_handler(environment: &mut Environment, command: &String) -> CommandResult {
-    CommandResult::Fail
+fn exit_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+    CommandResult::ExitCluido
 }
 
-fn help_handler(environment: &mut Environment, command: &String) -> CommandResult {
-    CommandResult::Fail
+fn help_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+    console_client.write_text(&WriteTextParameters {
+        text: "Available commands are:\n".to_string(),
+    });
+
+    for command in commands.iter() {
+        console_client.write_text(&WriteTextParameters { text: format!("{} - {}", command.name, command.short_help_text) });
+    }
+
+    CommandResult::Success
 }
 
-fn list_items_handler(environment: &mut Environment, command: &String) -> CommandResult {
-    CommandResult::Fail
-}
-
-fn set_path_handler(environment: &mut Environment, command: &String) -> CommandResult {
-    CommandResult::Fail
-}
-
-fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: String) -> bool {
-    let mut parts = command_line.split_whitespace();
-
-    if let Some(command) = parts.next() {
-        match command {
-            "help" => {
-                console_client.write_text(&WriteTextParameters {
-                    text: "This is a help string\n".to_string(),
-                });
+fn list_items_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+    let mut filesystem_client = FilesystemClient::connect_first(process).unwrap();
+    let pattern = "*".to_string();
+    let recursive = false;
+    let list_result = filesystem_client.list_objects(process, &ListObjectsParameters { path: environment.path.clone(), pattern: pattern, recursive: recursive }).unwrap();
+    for result in list_result.objects.iter() {
+        match result {
+            ListObjectsReturnsObjectsEnum::TypeDirectory(directory) => {
+                console_client.write_text(&WriteTextParameters { text: format!("D {}\n", directory.name) });
             }
-            "list-items" => {
-                let mut filesystem_client = FilesystemClient::connect_first(process).unwrap();
-                let pattern = "*".to_string();
-                let recursive = false;
-                let list_result = filesystem_client.list_objects(process, &ListObjectsParameters { path: environment.path.clone(), pattern: pattern, recursive: recursive }).unwrap();
-                for result in list_result.objects.iter() {
-                    match result {
-                        ListObjectsReturnsObjectsEnum::TypeDirectory(directory) => {
-                            console_client.write_text(&WriteTextParameters { text: format!("D {}\n", directory.name) });
-                        }
-                        ListObjectsReturnsObjectsEnum::TypeFile(file) => {
-                            console_client.write_text(&WriteTextParameters { text: format!("F {} size: {}\n", file.name, file.size) });
-                        }
-                    }
-                }
-            }
-            "set-path" => {
-
-            }
-            "exit" => {
-                return true;
-            }
-            _ => {
-                console_client.write_text(&WriteTextParameters {
-                    text: "Unknown command. Try the help command.\n".to_string(),
-                });
+            ListObjectsReturnsObjectsEnum::TypeFile(file) => {
+                console_client.write_text(&WriteTextParameters { text: format!("F {} size: {}\n", file.name, file.size) });
             }
         }
     }
 
-    false
+    CommandResult::Success
+}
+
+fn set_path_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+    CommandResult::Fail
+}
+
+fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &mut Vec<Command>, command_line: String) -> CommandResult {
+    let mut parts = command_line.split_whitespace();
+
+    if let Some(first_word) = parts.next() {
+        if let Some(command) = commands.iter_mut().find(|c| c.name == first_word) {
+            (command.handler)(process, console_client, environment, commands, &command_line)
+        }
+        else {
+            help_handler(process, console_client, environment, commands, &command_line)
+        }
+    }
+    else {
+        CommandResult::None
+    }
 }
 
 fn read_line(process: &mut StormProcess, console_client: &mut ConsoleClient) -> String {

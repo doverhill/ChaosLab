@@ -66,7 +66,18 @@ impl ServerApplication {
                                 blue: 0,
                             },
                         });
-                        // self.console_client.write_text(&WriteTextParameters { text: format!("tornado: pointer moved {}, {}", parameters.position.x, parameters.position.y) });
+                    }
+                    ConsoleClientEvent::PointerPressed(parameters) => {
+                        self.console_client.draw_pixel_debug(&DrawPixelDebugParameters {
+                            position: parameters.position,
+                            color: Color {
+                                alpha: 255,
+                                red: 0,
+                                green: 255,
+                                blue: 0,
+                            },
+                        });
+                        self.console_client.write_text(&WriteTextParameters { text: format!("tornado: pointer clicked at {}, {}", parameters.position.x, parameters.position.y) });
                     }
                     _ => {
                         // not implemented

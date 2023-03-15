@@ -134,6 +134,28 @@ impl<'a> ServerApplication<'a> {
                             );
                         }
                     }
+                    Event::MouseButtonDown { mouse_btn, clicks, x, y, .. } => {
+                        if let Some(channel_handle) = self.active_client_channel_handle {
+                            self.console_server.pointer_pressed(
+                                channel_handle,
+                                &PointerPressedParameters {
+                                    position: Point { x: x as i64, y: y as i64 },
+                                    buttons: vec![helpers::convert_mount_button_sdl_to_console(mouse_btn)],
+                                },
+                            );
+                        }
+                    }
+                    Event::MouseButtonUp { mouse_btn, clicks, x, y, .. } => {
+                        if let Some(channel_handle) = self.active_client_channel_handle {
+                            self.console_server.pointer_released(
+                                channel_handle,
+                                &PointerReleasedParameters {
+                                    position: Point { x: x as i64, y: y as i64 },
+                                    buttons: vec![helpers::convert_mount_button_sdl_to_console(mouse_btn)],
+                                },
+                            );
+                        }
+                    }
                     Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                         break 'main_loop;
                     }

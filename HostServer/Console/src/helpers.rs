@@ -3,6 +3,7 @@ use std::cell::RefMut;
 use crate::application::Client;
 use protocol_console::*;
 use sdl2::keyboard::Keycode as SdlKeycode;
+use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color as SdlColor;
 use sdl2::rect::Rect;
 use sdl2::ttf::Font;
@@ -36,6 +37,15 @@ pub fn convert_key_code_sdl_to_console(keycode: SdlKeycode) -> KeyCode {
         SdlKeycode::Left => KeyCode::LeftArrow,
         SdlKeycode::Right => KeyCode::RightArrow,
         _ => KeyCode::B,
+    }
+}
+
+pub fn convert_mount_button_sdl_to_console(mouse_button: MouseButton) -> PointerButton {
+    match mouse_button {
+        MouseButton::Left => PointerButton::Left,
+        MouseButton::Middle => PointerButton::Middle,
+        MouseButton::Right => PointerButton::Right,
+        _ => PointerButton::Left
     }
 }
 
