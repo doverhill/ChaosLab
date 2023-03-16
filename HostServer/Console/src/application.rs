@@ -354,6 +354,14 @@ impl<'a> ServerApplication<'a> {
                                 }
                             } 
                         }
+                        ConsoleServerRequest::DrawImagePatch(parameters) => {
+                            let patch = helpers::draw_image(client.borrow_mut(), &parameters.image_patch.image, parameters.image_patch.position);
+                            if let Some(active_channel_handle) = self.active_client_channel_handle {
+                                if active_channel_handle == channel_handle {
+                                    dirty_patch = Some(patch);
+                                }
+                            } 
+                        }
                         _ => {
                             // not implemented
                         }

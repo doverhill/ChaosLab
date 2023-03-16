@@ -1,5 +1,6 @@
 use alloc::format;
 use library_chaos::*;
+use library_graphics::*;
 use protocol_console::*;
 use protocol_tornado::*;
 
@@ -35,6 +36,44 @@ impl ServerApplication {
                 "Tornado running at {}x{}, {}x{} text",
                 console_info.framebuffer_size.width, console_info.framebuffer_size.height, console_info.text_size.width, console_info.text_size.height
             ),
+        });
+
+        let mut painter = ImagePainter::new(
+            100,
+            100,
+            Color {
+                alpha: 255,
+                red: 128,
+                green: 128,
+                blue: 128,
+            },
+        );
+        painter.draw_filled_box_sized(
+            Point { x: 20, y: 20 },
+            Size { width: 50, height: 20 },
+            Color {
+                alpha: 255,
+                red: 200,
+                green: 0,
+                blue: 0,
+            },
+        );
+        painter.draw_frame_sized(
+            Point { x: 40, y: 30 },
+            Size { width: 50, height: 20 },
+            Color {
+                alpha: 255,
+                red: 0,
+                green: 200,
+                blue: 0,
+            },
+        );
+
+        self.console_client.draw_image_patch(&DrawImagePatchParameters {
+            image_patch: ImagePatch {
+                image: painter.to_image(),
+                position: Point { x: 200, y: 200 },
+            },
         });
 
         // main event loop
@@ -77,7 +116,9 @@ impl ServerApplication {
                                 blue: 0,
                             },
                         });
-                        self.console_client.write_text(&WriteTextParameters { text: format!("tornado: pointer clicked at {}, {}", parameters.position.x, parameters.position.y) });
+                        self.console_client.write_text(&WriteTextParameters {
+                            text: format!("tornado: pointer clicked at {}, {}", parameters.position.x, parameters.position.y),
+                        });
                     }
                     _ => {
                         // not implemented

@@ -6,6 +6,7 @@ use sdl2::keyboard::Keycode as SdlKeycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color as SdlColor;
 use sdl2::rect::Rect;
+use sdl2::surface::Surface;
 use sdl2::ttf::Font;
 
 pub fn convert_color_console_to_sdl(color: Color) -> SdlColor {
@@ -46,6 +47,14 @@ pub fn convert_mount_button_sdl_to_console(mouse_button: MouseButton) -> Pointer
         MouseButton::Middle => PointerButton::Middle,
         MouseButton::Right => PointerButton::Right,
         _ => PointerButton::Left
+    }
+}
+
+pub fn convert_image_to_surface<'a>(image: &'a Image) -> Surface<'a> {
+    unsafe {
+        let data_pointer = image.pixels.as_ptr() as *mut u8;
+        let slice = core::slice::from_raw_parts_mut(data_pointer, image.size.width as usize * image.size.height as usize);
+        Surface::from_data(slice, image.size.width as u32, image.size.height as u32, image.size.width as u32 * 4, sdl2::pixels::PixelFormatEnum::ARGB32).unwrap()
     }
 }
 
@@ -116,4 +125,10 @@ pub fn draw_pixel(mut client: RefMut<Client>, color: Color, position: Point) -> 
         .fill_rect(pixel, convert_color_console_to_sdl(color))
         .unwrap();
     pixel
+}
+
+pub fn draw_image(mut client: RefMut<Client>, image: &Image, position: Point) -> Rect {
+    let surface = convert_image_to_surface(image);
+    surface.blit(None, &mut client.surface, Rect::new(position.x as i32, position.y as i32, 0, 0)).unwrap();
+    Rect::new(position.x as i32, position.y as i32, image.size.width as u32, image.size.height as u32)
 }

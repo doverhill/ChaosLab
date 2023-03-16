@@ -1,12 +1,13 @@
 #![no_std]
 extern crate alloc;
 extern crate library_chaos;
+extern crate library_graphics;
 extern crate protocol_console;
 extern crate protocol_tornado;
 
 mod application;
-use application::ServerApplication;
 
+use application::ServerApplication;
 use library_chaos::StormProcess;
 use protocol_console::*;
 use protocol_tornado::*;
