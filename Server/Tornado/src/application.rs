@@ -38,44 +38,6 @@ impl ServerApplication {
             ),
         });
 
-        let mut painter = ImagePainter::new(
-            100,
-            100,
-            Color {
-                alpha: 255,
-                red: 128,
-                green: 128,
-                blue: 128,
-            },
-        );
-        painter.draw_filled_box_sized(
-            Point { x: 20, y: 20 },
-            Size { width: 50, height: 20 },
-            Color {
-                alpha: 255,
-                red: 200,
-                green: 0,
-                blue: 0,
-            },
-        );
-        painter.draw_frame_sized(
-            Point { x: 40, y: 30 },
-            Size { width: 50, height: 20 },
-            Color {
-                alpha: 255,
-                red: 0,
-                green: 200,
-                blue: 0,
-            },
-        );
-
-        self.console_client.draw_image_patch(&DrawImagePatchParameters {
-            image_patch: ImagePatch {
-                image: painter.to_image(),
-                position: Point { x: 200, y: 200 },
-            },
-        });
-
         // main event loop
         loop {
             let event = StormProcess::wait_for_event().unwrap();
@@ -96,15 +58,53 @@ impl ServerApplication {
             ConsoleClientChannelEvent::ServerEvent(_channel_handle, event) => {
                 match event {
                     ConsoleClientEvent::PointerMoved(parameters) => {
-                        self.console_client.draw_pixel_debug(&DrawPixelDebugParameters {
-                            position: parameters.position,
-                            color: Color {
+                        let mut painter = ImagePainter::new(
+                            100,
+                            100,
+                            Color {
                                 alpha: 255,
-                                red: 255,
+                                red: 128,
+                                green: 128,
+                                blue: 128,
+                            },
+                        );
+                        painter.draw_filled_box_sized(
+                            Point { x: 20, y: 20 },
+                            Size { width: 50, height: 20 },
+                            Color {
+                                alpha: 255,
+                                red: 200,
                                 green: 0,
                                 blue: 0,
                             },
+                        );
+                        painter.draw_frame_sized(
+                            Point { x: 40, y: 30 },
+                            Size { width: 50, height: 20 },
+                            Color {
+                                alpha: 255,
+                                red: 0,
+                                green: 200,
+                                blue: 0,
+                            },
+                        );
+                
+                        self.console_client.draw_image_patch(&DrawImagePatchParameters {
+                            image_patch: ImagePatch {
+                                image: painter.to_image(),
+                                position: parameters.position,
+                            },
                         });
+
+                        // self.console_client.draw_pixel_debug(&DrawPixelDebugParameters {
+                        //     position: parameters.position,
+                        //     color: Color {
+                        //         alpha: 255,
+                        //         red: 255,
+                        //         green: 0,
+                        //         blue: 0,
+                        //     },
+                        // });
                     }
                     ConsoleClientEvent::PointerPressed(parameters) => {
                         self.console_client.draw_pixel_debug(&DrawPixelDebugParameters {

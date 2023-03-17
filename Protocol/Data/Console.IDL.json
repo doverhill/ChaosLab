@@ -1,0 +1,261 @@
+{
+    "protocol": {
+        "name": "console",
+        "version": 1
+    },
+
+    "enums": {
+        "KeyCode": [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "Enter", "Backspace", "LeftArrow", "RightArrow", "UpArrow", "DownArrow", "Delete", "Home", "End" ],
+        "PointerButton": [ "Left", "Right", "Middle" ]
+    },
+
+    "types": {
+        "Color": {
+            "fields": {
+                "alpha": {
+                    "type": "u8"
+                },
+                "red": {
+                    "type": "u8"
+                },
+                "green": {
+                    "type": "u8"
+                },
+                "blue": {
+                    "type": "u8"
+                }
+            }
+        },
+        "Point": {
+            "fields": {
+                "x": {
+                    "type": "i64"
+                },
+                "y": {
+                    "type": "i64"
+                }
+            }
+        },
+        "Size": {
+            "fields": {
+                "width": {
+                    "type": "u64"
+                },
+                "height": {
+                    "type": "u64"
+                }
+            }
+        },
+        "Image": {
+            "fields": {
+                "size": {
+                    "type": "Size"
+                },
+                "pixels": {
+                    "type": "Color",
+                    "array": true
+                }
+            }
+        },
+        "ImagePatch": {
+            "fields": {
+                "image": {
+                    "type": "Image"
+                },
+                "position": {
+                    "type": "Point"
+                }
+            }
+        },
+        "Object": {
+            "fields": {
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            }
+        },
+        "MapField": {
+            "fields": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "i64|bool|string|none"
+                }
+            }
+        },
+        "Map": {
+            "inherits_from": "Object",
+            "fields": {
+                "fields": {
+                    "type": "MapField",
+                    "array": true
+                }
+            }
+        },
+        "Table": {
+            "inherits_from": "Object",
+            "fields": {
+                "columns": {
+                    "type": "string",
+                    "array": true
+                },
+                "rows": {
+                    "type": "Map",
+                    "array": true
+                }
+            }
+        }
+    },
+
+    "from_client": {
+        "get_capabilities": {
+            "coalesce": "never",
+            "returns": {
+                "is_framebuffer": {
+                    "type": "bool"
+                },
+                "framebuffer_size": {
+                    "type": "Size"
+                },
+                "text_size": {
+                    "type": "Size"
+                }
+            }
+        },
+        "set_text_color": {
+            "coalesce": "never",
+            "parameters": {
+                "foreground": {
+                    "type": "Color"
+                },
+                "background": {
+                    "type": "Color"
+                }
+            }
+        },
+        "save_text_cursor_position": {
+            "coalesce": "never"
+        },
+        "load_text_cursor_position": {
+            "coalesce": "never"
+        },
+        "set_text_cursor_position": {
+            "coalesce": "never",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                }
+            }
+        },
+        "draw_image_patch": {
+            "coalesce": "never",
+            "parameters": {
+                "image_patch": {
+                    "type": "ImagePatch"
+                }
+            }
+        },
+        "write_text": {
+            "coalesce": "never",
+            "parameters": {
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "write_objects": {
+            "coalesce": "never",
+            "parameters": {
+                "objects": {
+                    "type": "Table|Map",
+                    "array": true
+                }
+            }
+        },
+        "draw_pixel_debug": {
+            "coalesce": "never",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                },
+                "color": {
+                    "type": "Color"
+                }
+            }
+        }
+    },
+    
+    "from_server": {
+        "key_pressed": {
+            "coalesce": "never",
+            "parameters": {
+                "key_code": {
+                    "type": "KeyCode"
+                }
+            }
+        },
+        "key_released": {
+            "coalesce": "never",
+            "parameters": {
+                "key_code": {
+                    "type": "KeyCode"
+                }
+            }
+        },
+        "character_input": {
+            "coalesce": "never",
+            "parameters": {
+                "character": {
+                    "type": "u64"
+                }
+            }
+        },
+        "pointer_moved": {
+            "coalesce": "consecutive",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                }
+            }
+        },
+        "pointer_pressed": {
+            "coalesce": "never",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                },
+                "buttons": {
+                    "type": "PointerButton",
+                    "array": true
+                }
+            }
+        },
+        "pointer_released": {
+            "coalesce": "never",
+            "parameters": {
+                "position": {
+                    "type": "Point"
+                },
+                "buttons": {
+                    "type": "PointerButton",
+                    "array": true
+                }
+            }
+        },
+        "size_changed": {
+            "coalesce": "consecutive",
+            "parameters": {
+                "framebuffer_size": {
+                    "type": "Size"
+                },
+                "text_size": {
+                    "type": "Size"
+                }
+            }
+        }
+    }
+}
