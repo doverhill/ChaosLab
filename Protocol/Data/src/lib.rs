@@ -19,6 +19,6 @@ mod client;
 pub use client::*;
 mod code;
 pub use code::*;
-pub static CONSOLE_PROTOCOL_NAME: &str = "console";
+pub static DATA_PROTOCOL_NAME: &str = "data";
 
 

@@ -30,11 +30,11 @@ impl ServerApplication {
     }
 
     pub fn run(&mut self) {
-        let console_info = self.console_client.get_capabilities(&self.process).unwrap();
-        self.console_client.write_text(&WriteTextParameters {
+        let console_info = self.console_client.get_console_capabilities(&self.process).unwrap();
+        self.console_client.write_console_text(&WriteConsoleTextParameters {
             text: format!(
-                "Tornado running at {}x{}, {}x{} text",
-                console_info.framebuffer_size.width, console_info.framebuffer_size.height, console_info.text_size.width, console_info.text_size.height
+                "Tornado running at {}x{}",
+                console_info.framebuffer_size.width, console_info.framebuffer_size.height
             ),
         });
 
@@ -116,7 +116,7 @@ impl ServerApplication {
                                 blue: 0,
                             },
                         });
-                        self.console_client.write_text(&WriteTextParameters {
+                        self.console_client.write_console_text(&WriteConsoleTextParameters {
                             text: format!("tornado: pointer clicked at {}, {}", parameters.position.x, parameters.position.y),
                         });
                     }

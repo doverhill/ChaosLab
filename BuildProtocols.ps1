@@ -7,6 +7,10 @@ Set-Location Protocol\Console
 ..\..\build\IDLCompiler Console.IDL.json
 Set-Location ..\..
 
+Set-Location Protocol\Data
+..\..\build\IDLCompiler Data.IDL.json
+Set-Location ..\..
+
 Set-Location Protocol\Storage
 ..\..\build\IDLCompiler Storage.IDL.json
 Set-Location ..\..

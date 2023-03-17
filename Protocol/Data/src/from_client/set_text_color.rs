@@ -12,8 +12,8 @@ use crate::types::*;
 use crate::enums::*;
 
 pub struct SetTextColorParameters {
-    pub foreground: Color,
-    pub background: Color,
+    pub foreground: TextColor,
+    pub background: TextColor,
 }
 
 impl SetTextColorParameters {
@@ -51,12 +51,12 @@ impl SetTextColorParameters {
         let mut size: usize = 0;
 
         // CustomType foreground
-        let len = Color::reconstruct_at(addr_of_mut!((*object_pointer).foreground), pointer);
+        let len = TextColor::reconstruct_at(addr_of_mut!((*object_pointer).foreground), pointer);
         pointer = pointer.offset(len as isize);
         size += len;
 
         // CustomType background
-        let len = Color::reconstruct_at(addr_of_mut!((*object_pointer).background), pointer);
+        let len = TextColor::reconstruct_at(addr_of_mut!((*object_pointer).background), pointer);
         pointer = pointer.offset(len as isize);
         size += len;
 

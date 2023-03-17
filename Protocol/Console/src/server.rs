@@ -22,14 +22,9 @@ use crate::message_ids::*;
 use alloc::collections::BTreeMap;
 
 pub enum ConsoleServerRequest {
-    GetCapabilities,
-    SetTextColor(FromChannel<SetTextColorParameters>),
-    SaveTextCursorPosition,
-    LoadTextCursorPosition,
-    SetTextCursorPosition(FromChannel<SetTextCursorPositionParameters>),
+    GetConsoleCapabilities,
+    WriteConsoleText(FromChannel<WriteConsoleTextParameters>),
     DrawImagePatch(FromChannel<DrawImagePatchParameters>),
-    WriteText(FromChannel<WriteTextParameters>),
-    WriteObjects(FromChannel<WriteObjectsParameters>),
     DrawPixelDebug(FromChannel<DrawPixelDebugParameters>),
 }
 
@@ -80,46 +75,20 @@ impl ConsoleServer {
                         if let Some(message) = channel.find_message() {
                             unsafe {
                                 match (*message).message_id {
-                                    GET_CAPABILITIES_PARAMETERS => {
+                                    GET_CONSOLE_CAPABILITIES_PARAMETERS => {
                                         channel.unlink_message(message, false);
-                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, ConsoleServerRequest::GetCapabilities))
+                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, ConsoleServerRequest::GetConsoleCapabilities))
                                     },
-                                    SET_TEXT_COLOR_PARAMETERS => {
+                                    WRITE_CONSOLE_TEXT_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
-                                        SetTextColorParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleServerRequest::SetTextColor(FromChannel::new(channel.rx_channel_address, message));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
-                                    },
-                                    SAVE_TEXT_CURSOR_POSITION_PARAMETERS => {
-                                        channel.unlink_message(message, false);
-                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, ConsoleServerRequest::SaveTextCursorPosition))
-                                    },
-                                    LOAD_TEXT_CURSOR_POSITION_PARAMETERS => {
-                                        channel.unlink_message(message, false);
-                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, ConsoleServerRequest::LoadTextCursorPosition))
-                                    },
-                                    SET_TEXT_CURSOR_POSITION_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        SetTextCursorPositionParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleServerRequest::SetTextCursorPosition(FromChannel::new(channel.rx_channel_address, message));
+                                        WriteConsoleTextParameters::reconstruct_at_inline(address);
+                                        let request = ConsoleServerRequest::WriteConsoleText(FromChannel::new(channel.rx_channel_address, message));
                                         Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     DRAW_IMAGE_PATCH_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         DrawImagePatchParameters::reconstruct_at_inline(address);
                                         let request = ConsoleServerRequest::DrawImagePatch(FromChannel::new(channel.rx_channel_address, message));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
-                                    },
-                                    WRITE_TEXT_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        WriteTextParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleServerRequest::WriteText(FromChannel::new(channel.rx_channel_address, message));
-                                        Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
-                                    },
-                                    WRITE_OBJECTS_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        WriteObjectsParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleServerRequest::WriteObjects(FromChannel::new(channel.rx_channel_address, message));
                                         Some(ConsoleServerChannelEvent::ClientRequest(self.service_handle, channel_handle, (*message).call_id, request))
                                     },
                                     DRAW_PIXEL_DEBUG_PARAMETERS => {
@@ -229,9 +198,9 @@ impl ConsoleServer {
         }
     }
 
-    pub fn get_capabilities_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &GetCapabilitiesReturns) {
+    pub fn get_console_capabilities_reply(&mut self, channel_handle: ChannelHandle, call_id: u64, parameters: &GetConsoleCapabilitiesReturns) {
         if let Some(channel) = self.channels.get_mut(&channel_handle) {
-            let (_, message) = channel.prepare_message(GET_CAPABILITIES_RETURNS, Coalesce::Never);
+            let (_, message) = channel.prepare_message(GET_CONSOLE_CAPABILITIES_RETURNS, Coalesce::Never);
             unsafe { (*message).call_id = call_id };
             let payload = ChannelMessageHeader::get_payload_address(message);
             let size = unsafe { parameters.write_at(payload) };

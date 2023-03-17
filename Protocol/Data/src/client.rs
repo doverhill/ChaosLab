@@ -16,36 +16,32 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use library_chaos::{StormProcess, ServiceHandle, ChannelHandle, StormError, StormEvent};
 use uuid::Uuid;
-use crate::channel::{ConsoleChannel, ChannelMessageHeader, FromChannel, Coalesce};
+use crate::channel::{DataChannel, ChannelMessageHeader, FromChannel, Coalesce};
 use crate::from_client::*;
 use crate::from_server::*;
 use crate::message_ids::*;
 
-pub enum ConsoleClientEvent {
-    KeyPressed(FromChannel<KeyPressedParameters>),
-    KeyReleased(FromChannel<KeyReleasedParameters>),
-    CharacterInput(FromChannel<CharacterInputParameters>),
-    PointerMoved(FromChannel<PointerMovedParameters>),
-    PointerPressed(FromChannel<PointerPressedParameters>),
-    PointerReleased(FromChannel<PointerReleasedParameters>),
+pub enum DataClientEvent {
+    Characters(FromChannel<CharactersParameters>),
+    Commands(FromChannel<CommandsParameters>),
     SizeChanged(FromChannel<SizeChangedParameters>),
 }
 
-pub enum ConsoleClientChannelEvent {
+pub enum DataClientChannelEvent {
     ServerDisconnected(ChannelHandle),
-    ServerEvent(ChannelHandle, ConsoleClientEvent),
+    ServerEvent(ChannelHandle, DataClientEvent),
 }
 
-pub struct ConsoleClient {
+pub struct DataClient {
     current_event: Option<StormEvent>,
     channel_handle: ChannelHandle,
-    channel: ConsoleChannel,
+    channel: DataChannel,
 }
 
-impl ConsoleClient {
+impl DataClient {
     pub fn connect_first(process: &mut StormProcess) -> Result<Self, StormError> {
-        let channel_handle = process.connect_to_service("console", None, None, None, 1048576)?;
-        let channel = ConsoleChannel::new(process.get_channel_address(channel_handle, 0).unwrap(), process.get_channel_address(channel_handle, 1).unwrap(), false);
+        let channel_handle = process.connect_to_service("data", None, None, None, 1048576)?;
+        let channel = DataChannel::new(process.get_channel_address(channel_handle, 0).unwrap(), process.get_channel_address(channel_handle, 1).unwrap(), false);
         Ok(Self {
             current_event: None,
             channel_handle: channel_handle,
@@ -57,14 +53,14 @@ impl ConsoleClient {
         self.current_event = Some(event);
     }
 
-    pub fn get_event(&mut self, process: &StormProcess) -> Option<ConsoleClientChannelEvent> {
+    pub fn get_event(&mut self, process: &StormProcess) -> Option<DataClientChannelEvent> {
         if let Some(current_event) = self.current_event {
             match current_event {
                 StormEvent::ChannelDestroyed(channel_handle) => {
                     self.current_event = None;
                     if channel_handle == self.channel_handle {
-                        println!("ConsoleClient: server disconnected");
-                        Some(ConsoleClientChannelEvent::ServerDisconnected(channel_handle))
+                        println!("DataClient: server disconnected");
+                        Some(DataClientChannelEvent::ServerDisconnected(channel_handle))
                     }
                     else {
                         None
@@ -75,49 +71,25 @@ impl ConsoleClient {
                         if let Some(message) = self.channel.find_message() {
                             unsafe {
                                 match (*message).message_id {
-                                    KEY_PRESSED_PARAMETERS => {
+                                    CHARACTERS_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
-                                        KeyPressedParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleClientEvent::KeyPressed(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
+                                        CharactersParameters::reconstruct_at_inline(address);
+                                        let request = DataClientEvent::Characters(FromChannel::new(self.channel.rx_channel_address, message));
+                                        Some(DataClientChannelEvent::ServerEvent(channel_handle, request))
                                     },
-                                    KEY_RELEASED_PARAMETERS => {
+                                    COMMANDS_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
-                                        KeyReleasedParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleClientEvent::KeyReleased(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
-                                    },
-                                    CHARACTER_INPUT_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        CharacterInputParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleClientEvent::CharacterInput(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
-                                    },
-                                    POINTER_MOVED_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        PointerMovedParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleClientEvent::PointerMoved(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
-                                    },
-                                    POINTER_PRESSED_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        PointerPressedParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleClientEvent::PointerPressed(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
-                                    },
-                                    POINTER_RELEASED_PARAMETERS => {
-                                        let address = ChannelMessageHeader::get_payload_address(message);
-                                        PointerReleasedParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleClientEvent::PointerReleased(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
+                                        CommandsParameters::reconstruct_at_inline(address);
+                                        let request = DataClientEvent::Commands(FromChannel::new(self.channel.rx_channel_address, message));
+                                        Some(DataClientChannelEvent::ServerEvent(channel_handle, request))
                                     },
                                     SIZE_CHANGED_PARAMETERS => {
                                         let address = ChannelMessageHeader::get_payload_address(message);
                                         SizeChangedParameters::reconstruct_at_inline(address);
-                                        let request = ConsoleClientEvent::SizeChanged(FromChannel::new(self.channel.rx_channel_address, message));
-                                        Some(ConsoleClientChannelEvent::ServerEvent(channel_handle, request))
+                                        let request = DataClientEvent::SizeChanged(FromChannel::new(self.channel.rx_channel_address, message));
+                                        Some(DataClientChannelEvent::ServerEvent(channel_handle, request))
                                     },
-                                    _ => { panic!("ConsoleClient: Unknown message received"); }
+                                    _ => { panic!("DataClient: Unknown message received"); }
                                 }
                             }
                         }
@@ -131,7 +103,7 @@ impl ConsoleClient {
                         None
                     }
                 }
-                _ => { panic!("ConsoleClient: Unexpected storm event type"); }
+                _ => { panic!("DataClient: Unexpected storm event type"); }
             }
         }
         else {
@@ -139,8 +111,8 @@ impl ConsoleClient {
         }
     }
 
-    pub fn get_capabilities(&mut self, process: &StormProcess) -> Result<FromChannel<GetCapabilitiesReturns>, StormError> {
-        let (call_id, message) = self.channel.prepare_message(GET_CAPABILITIES_PARAMETERS, Coalesce::Never);
+    pub fn get_data_capabilities(&mut self, process: &StormProcess) -> Result<FromChannel<GetDataCapabilitiesReturns>, StormError> {
+        let (call_id, message) = self.channel.prepare_message(GET_DATA_CAPABILITIES_PARAMETERS, Coalesce::Never);
         self.channel.commit_message(0);
         StormProcess::signal_channel(self.channel_handle)?;
 
@@ -148,7 +120,7 @@ impl ConsoleClient {
 
         if let Some(message) = self.channel.find_specific_message(call_id) {
             let payload = ChannelMessageHeader::get_payload_address(message);
-            unsafe { GetCapabilitiesReturns::reconstruct_at_inline(payload); }
+            unsafe { GetDataCapabilitiesReturns::reconstruct_at_inline(payload); }
             Ok(FromChannel::new(self.channel.rx_channel_address, message))
         }
         else {
@@ -184,14 +156,6 @@ impl ConsoleClient {
         StormProcess::signal_channel(self.channel_handle).unwrap();
     }
 
-    pub fn draw_image_patch(&mut self, parameters: &DrawImagePatchParameters) {
-        let (call_id, message) = self.channel.prepare_message(DRAW_IMAGE_PATCH_PARAMETERS, Coalesce::Never);
-        let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = unsafe { parameters.write_at(payload) };
-        self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle).unwrap();
-    }
-
     pub fn write_text(&mut self, parameters: &WriteTextParameters) {
         let (call_id, message) = self.channel.prepare_message(WRITE_TEXT_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
@@ -202,14 +166,6 @@ impl ConsoleClient {
 
     pub fn write_objects(&mut self, parameters: &WriteObjectsParameters) {
         let (call_id, message) = self.channel.prepare_message(WRITE_OBJECTS_PARAMETERS, Coalesce::Never);
-        let payload = ChannelMessageHeader::get_payload_address(message);
-        let size = unsafe { parameters.write_at(payload) };
-        self.channel.commit_message(size);
-        StormProcess::signal_channel(self.channel_handle).unwrap();
-    }
-
-    pub fn draw_pixel_debug(&mut self, parameters: &DrawPixelDebugParameters) {
-        let (call_id, message) = self.channel.prepare_message(DRAW_PIXEL_DEBUG_PARAMETERS, Coalesce::Never);
         let payload = ChannelMessageHeader::get_payload_address(message);
         let size = unsafe { parameters.write_at(payload) };
         self.channel.commit_message(size);

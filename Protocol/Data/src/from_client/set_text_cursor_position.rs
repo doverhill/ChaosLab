@@ -12,7 +12,7 @@ use crate::types::*;
 use crate::enums::*;
 
 pub struct SetTextCursorPositionParameters {
-    pub position: Point,
+    pub position: TextPosition,
 }
 
 impl SetTextCursorPositionParameters {
@@ -45,7 +45,7 @@ impl SetTextCursorPositionParameters {
         let mut size: usize = 0;
 
         // CustomType position
-        let len = Point::reconstruct_at(addr_of_mut!((*object_pointer).position), pointer);
+        let len = TextPosition::reconstruct_at(addr_of_mut!((*object_pointer).position), pointer);
         pointer = pointer.offset(len as isize);
         size += len;
 

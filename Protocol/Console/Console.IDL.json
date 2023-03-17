@@ -66,88 +66,23 @@
                     "type": "Point"
                 }
             }
-        },
-        "Object": {
-            "fields": {
-                "name": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                }
-            }
-        },
-        "MapField": {
-            "fields": {
-                "name": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "i64|bool|string|none"
-                }
-            }
-        },
-        "Map": {
-            "inherits_from": "Object",
-            "fields": {
-                "fields": {
-                    "type": "MapField",
-                    "array": true
-                }
-            }
-        },
-        "Table": {
-            "inherits_from": "Object",
-            "fields": {
-                "columns": {
-                    "type": "string",
-                    "array": true
-                },
-                "rows": {
-                    "type": "Map",
-                    "array": true
-                }
-            }
         }
     },
 
     "from_client": {
-        "get_capabilities": {
+        "get_console_capabilities": {
             "coalesce": "never",
             "returns": {
-                "is_framebuffer": {
-                    "type": "bool"
-                },
                 "framebuffer_size": {
                     "type": "Size"
-                },
-                "text_size": {
-                    "type": "Size"
                 }
             }
         },
-        "set_text_color": {
+        "write_console_text": {
             "coalesce": "never",
             "parameters": {
-                "foreground": {
-                    "type": "Color"
-                },
-                "background": {
-                    "type": "Color"
-                }
-            }
-        },
-        "save_text_cursor_position": {
-            "coalesce": "never"
-        },
-        "load_text_cursor_position": {
-            "coalesce": "never"
-        },
-        "set_text_cursor_position": {
-            "coalesce": "never",
-            "parameters": {
-                "position": {
-                    "type": "Point"
+                "text": {
+                    "type": "string"
                 }
             }
         },
@@ -156,23 +91,6 @@
             "parameters": {
                 "image_patch": {
                     "type": "ImagePatch"
-                }
-            }
-        },
-        "write_text": {
-            "coalesce": "never",
-            "parameters": {
-                "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "write_objects": {
-            "coalesce": "never",
-            "parameters": {
-                "objects": {
-                    "type": "Table|Map",
-                    "array": true
                 }
             }
         },
@@ -250,9 +168,6 @@
             "coalesce": "consecutive",
             "parameters": {
                 "framebuffer_size": {
-                    "type": "Size"
-                },
-                "text_size": {
                     "type": "Size"
                 }
             }

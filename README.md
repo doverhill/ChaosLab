@@ -11,6 +11,10 @@
 
 ## Todo
 
+* let console server implement both Console protocol and Data protocol
+    * so that shell can connect using Data
+    * tornado can connect using Console
+    * terminal application can expose Data service to let shell run in window
 * vfs server
 
 * simple tornado IDL to build simple tornado apps:

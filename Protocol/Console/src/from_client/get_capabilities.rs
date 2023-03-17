@@ -12,9 +12,7 @@ use crate::types::*;
 use crate::enums::*;
 
 pub struct GetCapabilitiesReturns {
-    pub is_framebuffer: bool,
     pub framebuffer_size: Size,
-    pub text_size: Size,
 }
 
 impl GetCapabilitiesReturns {
@@ -30,15 +28,8 @@ impl GetCapabilitiesReturns {
         let mut pointer = pointer;
         let mut size: usize = 0;
 
-        // Bool is_framebuffer
-
         // CustomType framebuffer_size
         let len = self.framebuffer_size.write_references_at(pointer);
-        pointer = pointer.offset(len as isize);
-        size += len;
-
-        // CustomType text_size
-        let len = self.text_size.write_references_at(pointer);
         pointer = pointer.offset(len as isize);
         size += len;
 
@@ -53,15 +44,8 @@ impl GetCapabilitiesReturns {
         let mut pointer = references_pointer;
         let mut size: usize = 0;
 
-        // Bool is_framebuffer
-
         // CustomType framebuffer_size
         let len = Size::reconstruct_at(addr_of_mut!((*object_pointer).framebuffer_size), pointer);
-        pointer = pointer.offset(len as isize);
-        size += len;
-
-        // CustomType text_size
-        let len = Size::reconstruct_at(addr_of_mut!((*object_pointer).text_size), pointer);
         pointer = pointer.offset(len as isize);
         size += len;
 

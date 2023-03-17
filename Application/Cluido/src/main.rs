@@ -1,7 +1,7 @@
 #![no_std]
 extern crate alloc;
 extern crate library_chaos;
-extern crate protocol_console;
+extern crate protocol_data;
 extern crate protocol_filesystem;
 
 use alloc::boxed::Box;
@@ -11,7 +11,7 @@ use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 use library_chaos::*;
-use protocol_console::*;
+use protocol_data::*;
 use protocol_filesystem::*;
 
 struct Environment {
@@ -21,7 +21,7 @@ struct Environment {
 struct Command {
     pub name: String,
     pub short_help_text: String,
-    pub handler: Box<dyn Fn(&mut StormProcess, &mut ConsoleClient, &mut Environment, &Vec<Command>, &String) -> CommandResult>,
+    pub handler: Box<dyn Fn(&mut StormProcess, &mut DataClient, &mut Environment, &Vec<Command>, &String) -> CommandResult>,
 }
 
 enum CommandResult {
@@ -36,9 +36,9 @@ fn main() {
     let mut process = StormProcess::new("Cluido").unwrap();
 
     // connect to console service
-    let mut console_client = ConsoleClient::connect_first(&mut process).unwrap();
+    let mut data_client = DataClient::connect_first(&mut process).unwrap();
 
-    console_client.write_text(&WriteTextParameters {
+    data_client.write_text(&WriteTextParameters {
         text: format!("Welcome to Chaos and Cluido {}\n\n", env!("CARGO_PKG_VERSION")),
     });
 
@@ -54,18 +54,18 @@ fn main() {
     ];
     
     'repl: loop {
-        console_client.write_text(&WriteTextParameters { text: "> ".to_string() });
+        data_client.write_text(&WriteTextParameters { text: "> ".to_string() });
 
-        let command = read_line(&mut process, &mut console_client);
-        console_client.write_text(&WriteTextParameters { text: "\n".to_string() });
+        let command = read_line(&mut process, &mut data_client);
+        data_client.write_text(&WriteTextParameters { text: "\n".to_string() });
 
-        let result = handle_command(&mut process, &mut console_client, &mut environment, &commands, command);
+        let result = handle_command(&mut process, &mut data_client, &mut environment, &commands, command);
 
         match result {
             CommandResult::None => {}
             CommandResult::Success => {}
             CommandResult::Fail => {
-                console_client.write_text(&WriteTextParameters { text: "Command caused an error\n".to_string() });
+                data_client.write_text(&WriteTextParameters { text: "Command caused an error\n".to_string() });
             }
             CommandResult::ExitCluido => {
                 break 'repl;
@@ -76,23 +76,23 @@ fn main() {
     process.end();
 }
 
-fn exit_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+fn exit_handler(process: &mut StormProcess, data_client: &mut DataClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
     CommandResult::ExitCluido
 }
 
-fn help_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
-    console_client.write_text(&WriteTextParameters {
+fn help_handler(process: &mut StormProcess, data_client: &mut DataClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+    data_client.write_text(&WriteTextParameters {
         text: "Available commands are:\n".to_string(),
     });
 
     for command in commands.iter() {
-        console_client.write_text(&WriteTextParameters { text: format!("{} - {}\n", command.name, command.short_help_text) });
+        data_client.write_text(&WriteTextParameters { text: format!("{} - {}\n", command.name, command.short_help_text) });
     }
 
     CommandResult::Success
 }
 
-fn list_items_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+fn list_items_handler(process: &mut StormProcess, data_client: &mut DataClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
     let mut filesystem_client = FilesystemClient::connect_first(process).unwrap();
     let pattern = "*".to_string();
     let recursive = false;
@@ -100,10 +100,10 @@ fn list_items_handler(process: &mut StormProcess, console_client: &mut ConsoleCl
     for result in list_result.objects.iter() {
         match result {
             ListObjectsReturnsObjectsEnum::TypeDirectory(directory) => {
-                console_client.write_text(&WriteTextParameters { text: format!("D {}\n", directory.name) });
+                data_client.write_text(&WriteTextParameters { text: format!("D {}\n", directory.name) });
             }
             ListObjectsReturnsObjectsEnum::TypeFile(file) => {
-                console_client.write_text(&WriteTextParameters { text: format!("F {} size: {}\n", file.name, file.size) });
+                data_client.write_text(&WriteTextParameters { text: format!("F {} size: {}\n", file.name, file.size) });
             }
         }
     }
@@ -111,19 +111,19 @@ fn list_items_handler(process: &mut StormProcess, console_client: &mut ConsoleCl
     CommandResult::Success
 }
 
-fn set_path_handler(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
+fn set_path_handler(process: &mut StormProcess, data_client: &mut DataClient, environment: &mut Environment, commands: &Vec<Command>, command_line: &String) -> CommandResult {
     CommandResult::Fail
 }
 
-fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient, environment: &mut Environment, commands: &Vec<Command>, command_line: String) -> CommandResult {
+fn handle_command(process: &mut StormProcess, data_client: &mut DataClient, environment: &mut Environment, commands: &Vec<Command>, command_line: String) -> CommandResult {
     let mut parts = command_line.split_whitespace();
 
     if let Some(first_word) = parts.next() {
         if let Some(command) = commands.iter().find(|c| c.name == first_word) {
-            (command.handler)(process, console_client, environment, commands, &command_line)
+            (command.handler)(process, data_client, environment, commands, &command_line)
         }
         else {
-            help_handler(process, console_client, environment, commands, &command_line)
+            help_handler(process, data_client, environment, commands, &command_line)
         }
     }
     else {
@@ -131,39 +131,43 @@ fn handle_command(process: &mut StormProcess, console_client: &mut ConsoleClient
     }
 }
 
-fn read_line(process: &mut StormProcess, console_client: &mut ConsoleClient) -> String {
+fn read_line(process: &mut StormProcess, data_client: &mut DataClient) -> String {
     let mut line = String::new();
 
-    console_client.save_text_cursor_position();
+    data_client.save_text_cursor_position();
 
     'read: loop {
         let event = StormProcess::wait_for_event().unwrap();
-        console_client.register_event(event);
-        while let Some(console_client_event) = console_client.get_event(process) {
+        data_client.register_event(event);
+        while let Some(console_client_event) = data_client.get_event(process) {
             match console_client_event {
-                ConsoleClientChannelEvent::ServerDisconnected(_) => {
+                DataClientChannelEvent::ServerDisconnected(_) => {
                     // not implemented
                 }
-                ConsoleClientChannelEvent::ServerEvent(_, event) => {
+                DataClientChannelEvent::ServerEvent(_, event) => {
                     match event {
-                        ConsoleClientEvent::CharacterInput(parameters) => {
-                            line.push(char::from_u32(parameters.character as u32).unwrap());
-                            console_client.load_text_cursor_position();
-                            console_client.write_text(&WriteTextParameters { text: line.clone() });
+                        DataClientEvent::Characters(parameters) => {
+                            for character in parameters.characters.iter() {
+                                line.push(char::from_u32(*character as u32).unwrap());
+                            }
+                            data_client.load_text_cursor_position();
+                            data_client.write_text(&WriteTextParameters { text: line.clone() });
                         }
-                        ConsoleClientEvent::KeyPressed(parameters) => {
-                            match parameters.key_code {
-                                KeyCode::Enter => {
-                                    break 'read;
-                                }
-                                KeyCode::Backspace => {
-                                    line.pop();
-                                    console_client.load_text_cursor_position();
-                                    console_client.write_text(&WriteTextParameters { text: line.clone() });
-                                    console_client.write_text(&WriteTextParameters { text: " ".to_string() });
-                                }
-                                _ => {
-                                    // FIXME implement Home, End, Arrows and Delete
+                        DataClientEvent::Commands(parameters) => {
+                            for command in parameters.commands.iter() {
+                                match command {
+                                    DataCommand::Enter => {
+                                        break 'read;
+                                    }
+                                    DataCommand::Backspace => {
+                                        line.pop();
+                                        data_client.load_text_cursor_position();
+                                        data_client.write_text(&WriteTextParameters { text: line.clone() });
+                                        data_client.write_text(&WriteTextParameters { text: " ".to_string() });
+                                    }
+                                    _ => {
+                                        // FIXME implement Home, End, Arrows and Delete
+                                    }
                                 }
                             }
                         }

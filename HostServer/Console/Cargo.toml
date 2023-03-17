@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 library_chaos = { path = "../../Library/Chaos" }
 protocol_console = { path = "../../Protocol/Console" }
+protocol_data = { path = "../../Protocol/Data" }
 uuid = { version = "0.8.2", features = ["v4"] }
 
 [dependencies.sdl2]

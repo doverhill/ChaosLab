@@ -3,6 +3,7 @@ use core::cell::RefCell;
 use library_chaos::ServiceHandle;
 use library_chaos::{ChannelHandle, ClientStore, StormEvent, StormProcess};
 use protocol_console::*;
+use protocol_data::*;
 use crate::dirty_patches::DirtyPatches;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -27,8 +28,8 @@ pub struct Client<'a> {
     console_number: isize,
     _name: String,
     pub surface: Surface<'a>,
-    pub text_position: Point,
-    pub saved_text_position: Point,
+    pub text_position: TextPosition,
+    pub saved_text_position: TextPosition,
 }
 
 impl<'a> Client<'a> {
@@ -38,8 +39,8 @@ impl<'a> Client<'a> {
             console_number: -1,
             _name: name,
             surface: surface,
-            text_position: Point { x: 0, y: 0 },
-            saved_text_position: Point { x: 0, y: 0 },
+            text_position: TextPosition { column: 0, row: 0 },
+            saved_text_position: TextPosition { column: 0, row: 0 },
         }
     }
 }
@@ -47,6 +48,7 @@ impl<'a> Client<'a> {
 pub struct ServerApplication<'a> {
     process: StormProcess,
     console_server: ConsoleServer,
+    data_server: DataServer,
     clients: ClientStore<RefCell<Client<'a>>>, // HashMap<ChannelHandle, RefCell<Client<'a>>>,
     sdl: Sdl,
     canvas: RefCell<Canvas<Window>>,
@@ -55,7 +57,7 @@ pub struct ServerApplication<'a> {
 }
 
 impl<'a> ServerApplication<'a> {
-    pub fn new(process: StormProcess, console_server: ConsoleServer) -> Self {
+    pub fn new(process: StormProcess, console_server: ConsoleServer, data_server: DataServer) -> Self {
         // set up video
         let sdl = sdl2::init().unwrap();
         let video_subsystem = sdl.video().unwrap();
@@ -70,6 +72,7 @@ impl<'a> ServerApplication<'a> {
         Self {
             process: process,
             console_server: console_server,
+            data_server: data_server,
             clients: ClientStore::new(),
             sdl: sdl,
             canvas: RefCell::new(canvas),
@@ -96,9 +99,9 @@ impl<'a> ServerApplication<'a> {
             width: width as u64,
             height: height as u64,
         };
-        let text_size = Size {
-            width: text_width as u64,
-            height: text_height as u64,
+        let text_size = TextSize {
+            columns: text_width as u64,
+            rows: text_height as u64,
         };
 
         // hack to get events from both sdl and storm:
@@ -118,11 +121,18 @@ impl<'a> ServerApplication<'a> {
             let event = pump.wait_event();
 
             if let Some(wrapper) = event.as_user_event_type::<StormEventWrapper>() {
-                self.console_server.register_event(wrapper.event);
-
                 let mut dirty_patches = DirtyPatches::new();
+
+                self.console_server.register_event(wrapper.event);
                 while let Some(console_server_event) = self.console_server.get_event(&mut self.process) {
                     if let Some(patch) = self.process_console_server_event(console_server_event, glyph_size, framebuffer_size, text_size, &font) {
+                        dirty_patches.add_dirty(patch);
+                    }
+                }
+
+                self.data_server.register_event(wrapper.event);
+                while let Some(data_server_event) = self.data_server.get_event(&mut self.process) {
+                    if let Some(patch) = self.process_data_server_event(data_server_event, glyph_size, framebuffer_size, text_size, &font) {
                         dirty_patches.add_dirty(patch);
                     }
                 }
@@ -133,6 +143,7 @@ impl<'a> ServerApplication<'a> {
             } else {
                 match event {
                     Event::MouseMotion { x, y, .. } => {
+                        need to check if active client is data or console in all these cases
                         if let Some(channel_handle) = self.active_client_channel_handle {
                             self.console_server.pointer_moved(
                                 channel_handle,
@@ -306,7 +317,56 @@ impl<'a> ServerApplication<'a> {
         }
     }
 
-    fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent, glyph_size: Size, framebuffer_size: Size, text_size: Size, font: &Font) -> Option<Rect> {
+    fn process_data_server_event(&mut self, event: DataServerChannelEvent, glyph_size: Size, framebuffer_size: Size, text_size: TextSize, font: &Font) -> Option<Rect> {
+        let mut dirty_patch: Option<Rect> = None;
+
+        match event {
+            DataServerChannelEvent::ClientConnected(service_handle, channel_handle) => {
+                self.add_client(service_handle, channel_handle, framebuffer_size);
+            }
+            DataServerChannelEvent::ClientDisconnected(service_handle, channel_handle) => {
+                self.remove_client(service_handle, channel_handle);
+            }
+            DataServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
+                if let Some(client) = self.clients.get_client(service_handle, channel_handle) {
+                    match request {
+                        DataServerRequest::WriteText(parameters) => {
+                            let patch = helpers::draw_text(client.borrow_mut(), glyph_size, text_size, font, &parameters.text);
+                            if let Some(active_channel_handle) = self.active_client_channel_handle {
+                                if active_channel_handle == channel_handle {
+                                    dirty_patch = Some(patch);
+                                }
+                            } 
+                        }
+                        DataServerRequest::SaveTextCursorPosition => {
+                            let mut borrowed = client.borrow_mut();
+                            borrowed.saved_text_position = borrowed.text_position;
+                        }
+                        DataServerRequest::LoadTextCursorPosition => {
+                            let mut borrowed = client.borrow_mut();
+                            borrowed.text_position = borrowed.saved_text_position;
+                        }
+                        DataServerRequest::GetDataCapabilities => {
+                            self.data_server.get_data_capabilities_reply(
+                                channel_handle,
+                                call_id,
+                                &GetDataCapabilitiesReturns {
+                                    text_size: text_size,
+                                },
+                            );
+                        }
+                        _ => {
+                            // not implemented
+                        }
+                    }
+                }
+            }
+        }
+
+        dirty_patch
+    }
+
+    fn process_console_server_event(&mut self, event: ConsoleServerChannelEvent, glyph_size: Size, framebuffer_size: Size, text_size: TextSize, font: &Font) -> Option<Rect> {
         let mut dirty_patch: Option<Rect> = None;
 
         match event {
@@ -319,30 +379,20 @@ impl<'a> ServerApplication<'a> {
             ConsoleServerChannelEvent::ClientRequest(service_handle, channel_handle, call_id, request) => {
                 if let Some(client) = self.clients.get_client(service_handle, channel_handle) {
                     match request {
-                        ConsoleServerRequest::WriteText(parameters) => {
+                        ConsoleServerRequest::WriteConsoleText(parameters) => {
                             let patch = helpers::draw_text(client.borrow_mut(), glyph_size, text_size, font, &parameters.text);
                             if let Some(active_channel_handle) = self.active_client_channel_handle {
                                 if active_channel_handle == channel_handle {
                                     dirty_patch = Some(patch);
                                 }
-                            } 
+                            }
                         }
-                        ConsoleServerRequest::SaveTextCursorPosition => {
-                            let mut borrowed = client.borrow_mut();
-                            borrowed.saved_text_position = borrowed.text_position;
-                        }
-                        ConsoleServerRequest::LoadTextCursorPosition => {
-                            let mut borrowed = client.borrow_mut();
-                            borrowed.text_position = borrowed.saved_text_position;
-                        }
-                        ConsoleServerRequest::GetCapabilities => {
-                            self.console_server.get_capabilities_reply(
+                        ConsoleServerRequest::GetConsoleCapabilities => {
+                            self.console_server.get_console_capabilities_reply(
                                 channel_handle,
                                 call_id,
-                                &GetCapabilitiesReturns {
-                                    is_framebuffer: true,
+                                &GetConsoleCapabilitiesReturns {
                                     framebuffer_size: framebuffer_size,
-                                    text_size: text_size,
                                 },
                             );
                         }

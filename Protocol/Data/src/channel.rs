@@ -139,17 +139,17 @@ impl Drop for ChannelLock {
     }
 }
 
-pub struct ConsoleChannel {
+pub struct DataChannel {
     pub rx_channel_address: *mut u8,
     tx_channel_address: *mut u8,
     call_id: u64,
 }
 
-impl ConsoleChannel {
+impl DataChannel {
     pub fn new(channel_address_0: *mut u8, channel_address_1: *mut u8, is_server: bool) -> Self {
         unsafe {
             if is_server {
-                ConsoleChannel {
+                DataChannel {
                     rx_channel_address: channel_address_0,
                     tx_channel_address: channel_address_1,
                     call_id: 1,
@@ -158,7 +158,7 @@ impl ConsoleChannel {
             else {
                 Self::initialize(channel_address_0);
                 Self::initialize(channel_address_1);
-                ConsoleChannel {
+                DataChannel {
                     rx_channel_address: channel_address_1,
                     tx_channel_address: channel_address_0,
                     call_id: 1,
@@ -171,14 +171,11 @@ impl ConsoleChannel {
         let channel_header = channel_address as *mut ChannelHeader;
         (*channel_header).lock = AtomicBool::new(false);
         (*channel_header).channel_magic = ChannelHeader::MAGIC;
-        (*channel_header).protocol_name[0] = 7;
-        (*channel_header).protocol_name[1] = 'c' as u8;
-        (*channel_header).protocol_name[2] = 'o' as u8;
-        (*channel_header).protocol_name[3] = 'n' as u8;
-        (*channel_header).protocol_name[4] = 's' as u8;
-        (*channel_header).protocol_name[5] = 'o' as u8;
-        (*channel_header).protocol_name[6] = 'l' as u8;
-        (*channel_header).protocol_name[7] = 'e' as u8;
+        (*channel_header).protocol_name[0] = 4;
+        (*channel_header).protocol_name[1] = 'd' as u8;
+        (*channel_header).protocol_name[2] = 'a' as u8;
+        (*channel_header).protocol_name[3] = 't' as u8;
+        (*channel_header).protocol_name[4] = 'a' as u8;
         (*channel_header).protocol_version = ProtocolVersion {
             major: 1,
             minor: 0,
@@ -194,9 +191,9 @@ impl ConsoleChannel {
     pub fn check_compatible(&self) -> bool {
         unsafe {
             let channel_header = self.rx_channel_address as *mut ChannelHeader;
-            let rx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 'c' as u8 && (*channel_header).protocol_name[2] == 'o' as u8 && (*channel_header).protocol_name[3] == 'n' as u8 && (*channel_header).protocol_name[4] == 's' as u8 && (*channel_header).protocol_name[5] == 'o' as u8 && (*channel_header).protocol_name[6] == 'l' as u8 && (*channel_header).protocol_name[7] == 'e' as u8;
+            let rx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 4 && (*channel_header).protocol_name[1] == 'd' as u8 && (*channel_header).protocol_name[2] == 'a' as u8 && (*channel_header).protocol_name[3] == 't' as u8 && (*channel_header).protocol_name[4] == 'a' as u8;
             let channel_header = self.tx_channel_address as *mut ChannelHeader;
-            let tx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 7 && (*channel_header).protocol_name[1] == 'c' as u8 && (*channel_header).protocol_name[2] == 'o' as u8 && (*channel_header).protocol_name[3] == 'n' as u8 && (*channel_header).protocol_name[4] == 's' as u8 && (*channel_header).protocol_name[5] == 'o' as u8 && (*channel_header).protocol_name[6] == 'l' as u8 && (*channel_header).protocol_name[7] == 'e' as u8;
+            let tx_compatible = (*channel_header).channel_magic == ChannelHeader::MAGIC && (*channel_header).protocol_version.major == 1 && (*channel_header).protocol_name[0] == 4 && (*channel_header).protocol_name[1] == 'd' as u8 && (*channel_header).protocol_name[2] == 'a' as u8 && (*channel_header).protocol_name[3] == 't' as u8 && (*channel_header).protocol_name[4] == 'a' as u8;
             rx_compatible && tx_compatible
         }
     }
