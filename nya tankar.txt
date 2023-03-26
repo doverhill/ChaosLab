@@ -1,0 +1,36 @@
+varje process har ett id (owner chain) som är <parent_process_id>.<process_name>
+
+boot-servern är första processen och får process id "boot[0]"
+boot-servern startar console-servern som får process id "boot.console[0]"
+console-servern startar av någon anledning en process "worker" som får id "boot.console.worker[0]"
+skulle console-servern starta en till worker får den id "boot.console.worker[1]"
+
+varje process har två egenskaper: Capabilities [string] samt Grantable [string]
+
+boot-servern får Capabilities [""] samt Grantable[""] vilket betyder att den har alla rättigheter och kan ge ut vilka rättigheter som helst till sina children
+boot-servern ger t.ex. console-servern Capabilities["Storm.Connect:video", "Storm.Connect:keyboard", "Storm.Connect:pointer", "Storm.Service:console"] samt Grantable[] vilket ger console-servern rätt att ansluta till video, keyboard och pointer-services samt skapa services med protocol console. console-servern har tom Grantable vilket gör att den inte kan ge några capabilities vidare till sina children
+boot-servern ger virtio-video (som får id "boot.virtio-video") Capabilities["Storm.Interrupt:3", "Storm.PhysicalMemory:0000ffff-00030000", "Storm.Service:video"] samt Grantable[]
+
+
+
+
+boot-servern har en lista på alla processer den ska starta, typ:
+console, restart=yes, capabilities=[], grantable=[]
+virtio-video, restart=yes, capabilities=[], grantable=[]
+virtio-hid, restart=yes, capabilities=[], grantable=[]
+tornado, restart=yes, capabilities=[], grantable=[]
+shell, restart=no, capabilities=[], grantable=[]
+
+
+
+
+
+
+
+
+
+
+
+storm:
+
+ta bort alla köer av events? data per process: hashset ChannelSignals[ChannelHandle], [Timer] Timers
