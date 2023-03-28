@@ -1,7 +1,4 @@
-﻿using System;
-
-namespace Core
-{
+﻿namespace Storm {
     public static class ASSERT
     {
         public static void That(bool condition)

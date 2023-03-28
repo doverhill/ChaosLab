@@ -1,7 +1,4 @@
-﻿using System;
-
-namespace Core
-{
+﻿namespace Storm {
     public enum HandleAction
     {
         None = 0,

@@ -1,12 +1,9 @@
-﻿using Core;
-using System.Collections.Concurrent;
-using System.Net.Sockets;
+﻿using System.Net.Sockets;
 
-namespace Storm
-{
+namespace Storm {
     internal class Event
     {
-        public ulong TargetPID;
+        public ulong TargetProcessId;
         public Error Error;
         public ulong TargetHandle;
         public ulong ChannelHandle;
@@ -14,7 +11,7 @@ namespace Storm
 
         public Event(ulong targetPID, Error error, ulong targetHandle, ulong channelHandle, HandleAction action)
         {
-            TargetPID = targetPID;
+            TargetProcessId = targetPID;
             Error = error;
             TargetHandle = targetHandle;
             ChannelHandle = channelHandle;
@@ -78,7 +75,7 @@ namespace Storm
             {
                 if (process.WaitEvent(out var e, 100))
                 {
-                    Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, null, "Received event: targetPID=" + e.TargetPID + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", channelHandle=" + e.ChannelHandle + ", action=" + e.Action.ToString());
+                    Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, null, "Received event: targetPID=" + e.TargetProcessId + ", error=" + e.Error.ToString() + ", targetHandle=" + e.TargetHandle + ", channelHandle=" + e.ChannelHandle + ", action=" + e.Action.ToString());
                     if (EventMatches(e, handleId, action))
                     {
                         foreach (var putback in eventsToPutBack)

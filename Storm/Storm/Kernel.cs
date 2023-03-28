@@ -1,20 +1,13 @@
-﻿using Core;
-using System.Collections.Concurrent;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
-namespace Storm
-{
+namespace Storm {
     public class Kernel
     {
-        //private object _lock = new object();
-        //private ulong nextPid = 1;
-
         public void Start(List<StartupCommand> startupList)
         {
-            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, "Starting Storm kernel...");
+            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, "Starting Storm...");
             Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, null, $"{startupList.Count} startup commands");
 
             var threadStart = new ParameterizedThreadStart(HandleStartup);
@@ -60,14 +53,6 @@ namespace Storm
             } while (true);
         }
 
-        //private ulong AllocatePID()
-        //{
-        //    lock (_lock)
-        //    {
-        //        return nextPid++;
-        //    }
-        //}
-
         private void HandleClient(object? socket)
         {
             var clientSocket = (Socket)socket;
@@ -79,7 +64,7 @@ namespace Storm
             var processId = reader.ReadUInt64();
             var threadId = reader.ReadUInt64();
 
-            var (process, thread) = Process.GetProcess(processId, threadId);
+            var (process, thread) = Process.GetProcess(processId, threadId, "?");
             Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "New connection");
 
             try
@@ -100,8 +85,8 @@ namespace Storm
                             SyscallHandlers.ServiceDestroy(reader, writer, process, thread);
                             break;
 
-                        case SyscallNumber.ServiceConnect:
-                            SyscallHandlers.ServiceConnect(reader, writer, process, thread);
+                        case SyscallNumber.ServiceSubscribe:
+                            SyscallHandlers.ServiceSubscribe(reader, writer, process, thread);
                             break;
 
                         // Channel
@@ -124,12 +109,24 @@ namespace Storm
                             running = false;
                             break;
 
-                        case SyscallNumber.ProcessSetInfo:
-                            SyscallHandlers.ProcessSetInfo(reader, writer, process, thread);
-                            break;
+                        //case SyscallNumber.ProcessSetInfo:
+                        //    SyscallHandlers.ProcessSetInfo(reader, writer, process, thread);
+                        //    break;
 
                         case SyscallNumber.ProcessEmit:
                             SyscallHandlers.ProcessEmit(reader, writer, process, thread);
+                            break;
+
+                        case SyscallNumber.ProcessStart:
+                            SyscallHandlers.ProcessStart(reader, writer, process, thread);
+                            break;
+
+                        case SyscallNumber.TimerCreate:
+                            SyscallHandlers.TimerCreate(reader, writer, process, thread);
+                            break;
+
+                        case SyscallNumber.Query:
+                            SyscallHandlers.Query(reader, writer, process, thread);
                             break;
 
                         // Unknown
@@ -146,7 +143,7 @@ namespace Storm
                 clientSocket.Close();
             }
 
-            var processDeleted = Process.Cleanup(process, thread);
+            var processDeleted = Process.RemoveThread(process, thread);
             if (processDeleted)
             {
                 Handles.Cleanup(process);

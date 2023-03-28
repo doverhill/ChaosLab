@@ -1,12 +1,4 @@
-﻿using Core;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Storm
-{
+﻿namespace Storm {
     internal class Output
     {
         private static object _lock = new object();

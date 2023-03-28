@@ -1,13 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Uuids;
+﻿using Uuids;
 
-namespace Core
-{
+namespace Storm {
     public static class SyscallHelpers
     {
         public static UInt64? ReadOptionalU64(BinaryReader reader)

@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Uuids;
+﻿using Uuids;
 
-namespace Storm
-{
+namespace Storm {
     internal class Service
     {
         public ulong OwningPID;
