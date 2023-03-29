@@ -2,6 +2,9 @@
 
 namespace Storm {
     internal class Process {
+        private static object _globalLock = new object();
+        private static Dictionary<ulong, Process> _processes = new Dictionary<ulong, Process>();
+
         public class Thread {
             public enum ThreadState {
                 Running,
@@ -17,22 +20,26 @@ namespace Storm {
         }
 
         public ulong ProcessId;
-        public string Name;
         public string TrustChain;
+        public List<string> Capabilities;
+        public List<string> Grantables;
         public Dictionary<ulong, Thread> Threads;
 
         private BlockingCollection<Event> _eventQueue = new BlockingCollection<Event>();
 
-        private Process(ulong processId, Thread thread, string name) {
-            ProcessId = processId;
+        public static Process TryCreateProcess(ulong processId, Process parent, string name, List<string> capabilites, List<string> grantables) {
+            // first, ensure that all capabiltites and grantables are correctly formatted
+            foreach (var )
+
+                // ensure grantables are a subset of capabilities
+
+
+                ProcessId = processId;
             Name = name;
             Threads = new Dictionary<ulong, Thread> {
                 { thread.ThreadId, thread }
             };
         }
-
-        private static object _globalLock = new object();
-        private static Dictionary<ulong, Process> _processes = new Dictionary<ulong, Process>();
 
         public static (Process Process, Thread Thread) GetProcess(ulong processId, ulong threadId, string name) {
             lock (_globalLock) {

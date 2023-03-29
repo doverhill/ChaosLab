@@ -12,7 +12,7 @@
         ProcessCreate = 400,
         ProcessDestroy = 401,
         ProcessEmit = 402,
-        ProcessStart = 403,
+        // ProcessReduceCapabilities = 403 ??? to use once a process has done the things it needs its capabilties for, it can let them go for security
 
         TimerCreate = 500,
 

@@ -111,7 +111,7 @@ namespace Storm {
         //    writer.Write((int)Error.None);
         //}
 
-        public static void ProcessStart(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
+        public static void ProcessCreate(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
 
         }
 
@@ -129,6 +129,14 @@ namespace Storm {
             }
 
             writer.Write((int)Error.None);
+        }
+
+        public static void TimerCreate(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
+
+        }
+
+        public static void Query(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
+
         }
     }
 }

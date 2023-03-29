@@ -104,27 +104,25 @@ namespace Storm {
                             break;
 
                         // Process
+                        case SyscallNumber.ProcessCreate:
+                            SyscallHandlers.ProcessCreate(reader, writer, process, thread);
+                            break;
+
                         case SyscallNumber.ProcessDestroy:
                             writer.Write((int)Error.None);
                             running = false;
                             break;
 
-                        //case SyscallNumber.ProcessSetInfo:
-                        //    SyscallHandlers.ProcessSetInfo(reader, writer, process, thread);
-                        //    break;
-
                         case SyscallNumber.ProcessEmit:
                             SyscallHandlers.ProcessEmit(reader, writer, process, thread);
                             break;
 
-                        case SyscallNumber.ProcessStart:
-                            SyscallHandlers.ProcessStart(reader, writer, process, thread);
-                            break;
-
+                        // Timer
                         case SyscallNumber.TimerCreate:
                             SyscallHandlers.TimerCreate(reader, writer, process, thread);
                             break;
 
+                        // Query
                         case SyscallNumber.Query:
                             SyscallHandlers.Query(reader, writer, process, thread);
                             break;

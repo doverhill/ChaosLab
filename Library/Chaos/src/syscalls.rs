@@ -7,22 +7,22 @@ use uuid::Uuid;
 
 #[allow(dead_code)]
 enum SyscallNumber {
-    ServiceCreate = 10,
-    ServiceDestroy = 11,
-    ServiceConnect = 12,
+    ServiceCreate = 100,
+    ServiceDestroy = 101,
+    ServiceSubscribe = 102,
 
-    ChannelDestroy = 21,
-    ChannelSignal = 22,
+    ChannelDestroy = 200,
+    ChannelSignal = 201,
 
-    EventWait = 30,
+    EventWait = 300,
 
-    ProcessCreate = 40,
-    ProcessDestroy = 41,
-    ProcessSetInfo = 42,
-    ProcessEmit = 43,
+    ProcessCreate = 400,
+    ProcessDestroy = 401,
+    ProcessEmit = 402,
 
-    ThreadCreate = 50,
-    ThreadDestroy = 51,
+    TimerCreate = 500,
+
+    Query = 600,
 }
 
 #[allow(dead_code)]
@@ -76,7 +76,7 @@ pub fn service_destroy(handle: ServiceHandle) -> Result<(), StormError> {
     })
 }
 
-pub fn service_connect(protocol_name: &str, vendor_name: Option<&str>, device_name: Option<&str>, device_id: Option<Uuid>) -> Result<ChannelHandle, StormError> {
+pub fn service_subscribe(protocol_name: &str, vendor_name: Option<&str>, device_name: Option<&str>, device_id: Option<Uuid>) -> Result<ChannelHandle, StormError> {
     KERNEL_CONNECTION.with_borrow_mut(|connection| {
         write_i32(connection, SyscallNumber::ServiceConnect as i32);
         write_text(connection, Some(protocol_name));

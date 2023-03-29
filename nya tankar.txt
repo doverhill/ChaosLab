@@ -1,4 +1,4 @@
-varje process har ett id (owner chain) som är <parent_process_id>.<process_name>
+varje process har ett id (owner chain/ChainOfTrust) som är <parent_process_id>.<process_name>
 
 boot-servern är första processen och får process id "boot[0]"
 boot-servern startar console-servern som får process id "boot.console[0]"
