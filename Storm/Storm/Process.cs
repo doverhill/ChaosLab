@@ -21,38 +21,61 @@ namespace Storm {
 
         public ulong ProcessId;
         public string TrustChain;
-        public List<string> Capabilities;
-        public List<string> Grantables;
+        public List<Capability> Capabilities;
+        public List<Capability> Grantables;
         public Dictionary<ulong, Thread> Threads;
 
         private BlockingCollection<Event> _eventQueue = new BlockingCollection<Event>();
 
-        public static Process TryCreateProcess(ulong processId, Process parent, string name, List<string> capabilites, List<string> grantables) {
-            // first, ensure that all capabiltites and grantables are correctly formatted
-            foreach (var )
+        public static ErrorOr<Process> CreateProcess(ulong processId, Process parent, string name, List<string> capabilityStrings, List<string> grantableStrings) {
+            var capabilities = new List<Capability>();
+            foreach (var capabilityString in capabilityStrings) {
+                var result = Capability.Parse(capabilityString);
+                if (result.IsError) return new ErrorOr<Process>(result.Error);
+                capabilities.Add(result.Value);
+            }
 
-                // ensure grantables are a subset of capabilities
+            var grantables = new List<Capability>();
+            foreach (var grantableString in grantableStrings) {
+                var result = Capability.Parse(grantableString);
+                if (result.IsError) return new ErrorOr<Process>(result.Error);
+                grantables.Add(result.Value);
+            }
 
+            // check that the parent has the right to give the new process these capabilities and grantables and also that grantables is a subset of capabilities
+            if (!Capability.IsSubset(parent.Grantables, capabilities) || !Capability.IsSubset(parent.Grantables, grantables) || !Capability.IsSubset(capabilities, grantables))
+                return new ErrorOr<Process>(Error.PermissionDenied);
 
-                ProcessId = processId;
-            Name = name;
-            Threads = new Dictionary<ulong, Thread> {
-                { thread.ThreadId, thread }
+            var trustChain = $"{parent.TrustChain}.{name}";
+
+            var process = new Process {
+                Capabilities = capabilities,
+                Grantables = grantables,
+                ProcessId = processId,
+                Threads = new(),
+                TrustChain = trustChain
             };
+
+            lock (_globalLock) {
+                _processes.Add(processId, process);
+            }
+
+            return new ErrorOr<Process>(process);
         }
 
-        public static (Process Process, Thread Thread) GetProcess(ulong processId, ulong threadId, string name) {
+        public static ErrorOr<(Process Process, Thread Thread)> GetProcess(ulong processId, ulong threadId) {
             lock (_globalLock) {
-                var thread = new Thread(threadId);
                 if (!_processes.TryGetValue(processId, out var process)) {
-                    process = new Process(processId, thread, name);
-                    _processes.Add(processId, process);
+                    return new ErrorOr<(Process, Thread)>(Error.NotFound);
                 }
-                else {
+
+                Thread thread = null;
+                if (!process.Threads.TryGetValue(threadId, out thread)) {
+                    thread = new Thread(threadId);
                     process.Threads.Add(threadId, thread);
                 }
 
-                return (process, thread);
+                return new ErrorOr<(Process, Thread)>((process, thread));
             }
         }
 
@@ -85,6 +108,22 @@ namespace Storm {
 
         public bool WaitEvent(out Event stormEvent, int timeout) {
             return _eventQueue.TryTake(out stormEvent, timeout);
+        }
+
+        internal bool HasStormCapability(string operation, string resourceName) {
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.Name && c.ResourceName == resourceName);
+        }
+
+        internal bool HasStormCapability(string operation) {
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.None);
+        }
+
+        internal bool HasStormCapability(string operation, ulong value) {
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.Numeric && c.NumericValue == value);
+        }
+
+        internal bool HasStormCapability(string operation, ulong rangeStart, ulong rangeEnd) {
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.NumericRange && c.NumericValue <= rangeStart && c.NumericEndValue >= rangeEnd);
         }
     }
 }

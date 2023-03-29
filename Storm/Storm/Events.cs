@@ -5,11 +5,11 @@ namespace Storm {
     {
         public ulong TargetProcessId;
         public Error Error;
-        public ulong TargetHandle;
-        public ulong ChannelHandle;
+        public Handle TargetHandle;
+        public Handle ChannelHandle;
         public HandleAction Action;
 
-        public Event(ulong targetPID, Error error, ulong targetHandle, ulong channelHandle, HandleAction action)
+        public Event(ulong targetPID, Error error, Handle targetHandle, Handle channelHandle, HandleAction action)
         {
             TargetProcessId = targetPID;
             Error = error;
@@ -92,7 +92,7 @@ namespace Storm {
                 if (!SocketConnected(socket)) throw new Exception("Socket was closed, killing application");
                 totalTime += 100;
             }
-            return new Event(process.ProcessId, Error.Timeout, Handle.None, Handle.None, HandleAction.None);
+            return new Event(process.ProcessId, Error.Timeout, null, null, HandleAction.None);
         }
 
         //public static void CleanupAfterProcess(ulong PID)

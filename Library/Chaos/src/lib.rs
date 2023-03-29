@@ -13,5 +13,5 @@ mod syscalls;
 pub use client_store::ClientStore;
 pub use error::StormError;
 pub use event::{StormAction, StormEvent};
-pub use handle::{ChannelHandle, ServiceHandle};
+pub use handle::{ChannelHandle, ServiceHandle, ServiceSubscribeHandle, TimerHandle, ProcessHandle};
 pub use process::StormProcess;

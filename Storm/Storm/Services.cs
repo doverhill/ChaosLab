@@ -26,7 +26,7 @@ namespace Storm {
         private static object _lock = new object();
         private static Dictionary<string, List<Service>> services = new Dictionary<string, List<Service>>();
 
-        public static ulong Create(ulong PID, string protocol, string vendor, string deviceName, Uuid? deviceId)
+        public static Handle Create(Process process, string protocol, string owner, Uuid? deviceId)
         {
             var handle = Handles.Create(PID, HandleType.Service);
             var service = new Service(PID, handle, protocol, vendor, deviceName, deviceId.Value);

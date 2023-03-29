@@ -1,10 +1,4 @@
 ﻿namespace Storm {
-    internal enum HandleType
-    {
-        Service,
-        Channel
-    }
-
     internal class KernelHandle
     {
         public ulong Id;
@@ -53,7 +47,7 @@
         private static ulong _nextHandleId = 1;
         private static Dictionary<ulong, KernelHandle> _kernelHandles = new Dictionary<ulong, KernelHandle>();
 
-        public static ulong Create(ulong PID, HandleType type)
+        public static ulong Create(ulong ProcessId, HandleType type)
         {
             lock (_lock)
             {

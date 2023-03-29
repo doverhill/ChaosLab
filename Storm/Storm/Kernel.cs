@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 
@@ -64,7 +65,14 @@ namespace Storm {
             var processId = reader.ReadUInt64();
             var threadId = reader.ReadUInt64();
 
-            var (process, thread) = Process.GetProcess(processId, threadId, "?");
+            var processResult = Process.GetProcess(processId, threadId);
+            if (processResult.IsError) {
+                Output.WriteLineKernel(SyscallProcessEmitType.Warning, null, null, "Ignoring connection from unknown process");
+                clientSocket.Close();
+                return;
+            }
+            var (process, thread) = processResult.Value;
+
             Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "New connection");
 
             try

@@ -9,6 +9,7 @@
         Timeout = 4,
         Cancelled = 5,
         AlreadyExists = 6,
-        General = 7
+        General = 7,
+        Malformed = 8,
     }
 }

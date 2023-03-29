@@ -1,18 +1,23 @@
 ﻿using System.Net.Sockets;
+using System.Numerics;
 
 namespace Storm {
     internal static class SyscallHandlers {
         public static void ServiceCreate(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
             var protocol = SyscallHelpers.ReadText(reader);
-            var vendor = SyscallHelpers.ReadText(reader);
-            var deviceName = SyscallHelpers.ReadText(reader);
             var deviceId = SyscallHelpers.ReadUuid(reader);
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ServiceCreate: protocol='" + protocol + "', vendor='" + vendor + "', deviceName='" + deviceName + "', deviceId=" + deviceId);
-            var handle = Services.Create(process.ProcessId, protocol, vendor, deviceName, deviceId);
+            if (process.HasStormCapability("ServiceCreate", protocol)) {
+                var owner = process.TrustChain;
+                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ServiceCreate: protocol='" + protocol + "', owner='" + owner + "', deviceId=" + deviceId);
+                var handle = Services.Create(process, protocol, owner, deviceId);
 
-            writer.Write((int)Error.None);
-            writer.Write(handle);
+                writer.Write((int)Error.None);
+                writer.Write(handle.Id);
+            }
+            else {
+                writer.Write((int)Error.PermissionDenied);
+            }
         }
 
         public static void ServiceDestroy(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
@@ -112,7 +117,25 @@ namespace Storm {
         //}
 
         public static void ProcessCreate(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
+            var path = SyscallHelpers.ReadText(reader);
+            var numberOfCapabilities = reader.ReadInt32();
+            var capabilites = new List<string>();
+            for (var index = 0; index < numberOfCapabilities; index++) {
+                capabilites.Add(SyscallHelpers.ReadText(reader));
+            }
+            var numberOfGrantables = reader.ReadInt32();
+            var grantables = new List<string>();
+            for (var index = 0; index < numberOfGrantables; index++) {
+                grantables.Add(SyscallHelpers.ReadText(reader));
+            }
+            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ProcessCreate: path=" + path + ", capabilities=" + string.Join(", ", capabilites) + ", grantables=" + string.Join(", ", grantables));
 
+            var name = Path.GetFileName(path);
+
+            // start process
+            ulong processId = 324233;
+
+            var result = Process.CreateProcess(processId, process, name, capabilites, grantables);
         }
 
         public static void ProcessEmit(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
