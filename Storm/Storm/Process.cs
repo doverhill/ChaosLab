@@ -1,4 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Storm {
     internal class Process {
@@ -25,26 +27,27 @@ namespace Storm {
         public List<Capability> Grantables;
         public Dictionary<ulong, Thread> Threads;
 
-        private BlockingCollection<Event> _eventQueue = new BlockingCollection<Event>();
+        private HashSet<ulong> _signalledChannels = new();
+        private BlockingCollection<Event> _eventQueue = new();
 
         public static ErrorOr<Process> CreateProcess(ulong processId, Process parent, string name, List<string> capabilityStrings, List<string> grantableStrings) {
             var capabilities = new List<Capability>();
             foreach (var capabilityString in capabilityStrings) {
                 var result = Capability.Parse(capabilityString);
-                if (result.IsError) return new ErrorOr<Process>(result.Error);
+                if (result.IsError) return ErrorOr<Process>.Error(result.ErrorCode);
                 capabilities.Add(result.Value);
             }
 
             var grantables = new List<Capability>();
             foreach (var grantableString in grantableStrings) {
                 var result = Capability.Parse(grantableString);
-                if (result.IsError) return new ErrorOr<Process>(result.Error);
+                if (result.IsError) return ErrorOr<Process>.Error(result.ErrorCode);
                 grantables.Add(result.Value);
             }
 
             // check that the parent has the right to give the new process these capabilities and grantables and also that grantables is a subset of capabilities
             if (!Capability.IsSubset(parent.Grantables, capabilities) || !Capability.IsSubset(parent.Grantables, grantables) || !Capability.IsSubset(capabilities, grantables))
-                return new ErrorOr<Process>(Error.PermissionDenied);
+                return ErrorOr<Process>.Error(ErrorCode.PermissionDenied);
 
             var trustChain = $"{parent.TrustChain}.{name}";
 
@@ -60,13 +63,13 @@ namespace Storm {
                 _processes.Add(processId, process);
             }
 
-            return new ErrorOr<Process>(process);
+            return ErrorOr<Process>.Ok(process);
         }
 
         public static ErrorOr<(Process Process, Thread Thread)> GetProcess(ulong processId, ulong threadId) {
             lock (_globalLock) {
                 if (!_processes.TryGetValue(processId, out var process)) {
-                    return new ErrorOr<(Process, Thread)>(Error.NotFound);
+                    return ErrorOr<(Process, Thread)>.Error(ErrorCode.NotFound);
                 }
 
                 Thread thread = null;
@@ -75,7 +78,7 @@ namespace Storm {
                     process.Threads.Add(threadId, thread);
                 }
 
-                return new ErrorOr<(Process, Thread)>((process, thread));
+                return ErrorOr<(Process, Thread)>.Ok((process, thread));
             }
         }
 
@@ -95,19 +98,41 @@ namespace Storm {
             }
         }
 
-        public static void FireEvent(Event stormEvent) {
-            if (_processes.TryGetValue(stormEvent.TargetProcessId, out var process)) {
-                process.QueueEvent(stormEvent);
-            }
+        //public static void FireEvent(Event stormEvent) {
+        //    if (_processes.TryGetValue(stormEvent.TargetProcessId, out var process)) {
+        //        process.QueueEvent(stormEvent);
+        //    }
+        //}
+
+        public void SetChannelSignalled(ulong channelHandleId) {
+            _signalledChannels.Add(channelHandleId);
         }
 
         public void QueueEvent(Event stormEvent) {
-            ASSERT.That(stormEvent.TargetProcessId == ProcessId);
+            //ASSERT.That(stormEvent.TargetProcessId == ProcessId);
             _eventQueue.Add(stormEvent);
         }
 
-        public bool WaitEvent(out Event stormEvent, int timeout) {
-            return _eventQueue.TryTake(out stormEvent, timeout);
+        public void PostServiceAvailableEvent(ulong serviceSubscribeHandleId, ulong channelHandleId) {
+            var stormEvent = new Event(Event.EventType.ServiceAvailable, serviceSubscribeHandleId, channelHandleId);
+            QueueEvent(stormEvent);
+        }
+
+        public void PostProcessFlagsEvent() {
+            var stormEvent = new Event(Event.EventType.ProcessFlags, 0, 0);
+            QueueEvent(stormEvent);
+        }
+
+        public bool WaitEvent(ulong? targetHandleId, HandleAction? action, out Event stormEvent, int timeout) {
+            // FIXME understand event type ProcessFlags and check process flags and create events from them
+            if (_eventQueue.TryTake(out stormEvent, timeout)) {
+                ASSERT.That(stormEvent.TargetProcessId == ProcessId);
+                if (stormEvent.)
+            }
+            else {
+                stormEvent = default;
+                return false;
+            }
         }
 
         internal bool HasStormCapability(string operation, string resourceName) {

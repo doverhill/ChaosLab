@@ -1,6 +1,6 @@
-﻿namespace System
+﻿namespace Storm
 {
-    public enum Error
+    public enum ErrorCode
     {
         None = 0,
         NotFound = 1,

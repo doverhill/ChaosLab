@@ -1,4 +1,7 @@
-﻿namespace Storm {
+﻿using System.Collections.Generic;
+using System.Linq;
+
+namespace Storm {
     internal class Capability {
         public string Namespace;
         public string Operation;
@@ -21,14 +24,14 @@
         // Namespace.Operation:#number
         // Namespace.Operation:#number-number
         internal static ErrorOr<Capability> Parse(string capabilityString) {
-            if (string.IsNullOrEmpty(capabilityString)) return new ErrorOr<Capability>(Error.Malformed);
+            if (string.IsNullOrEmpty(capabilityString)) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
 
             var parts = capabilityString.Split('.');
-            if (parts.Length != 2) return new ErrorOr<Capability>(Error.Malformed);
+            if (parts.Length != 2) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
 
             var operationParts = parts[1].Split(":");
 
-            if (!IsValidNamespace(parts[0]) || !IsValidOperation(operationParts[0])) return new ErrorOr<Capability>(Error.Malformed);
+            if (!IsValidNamespace(parts[0]) || !IsValidOperation(operationParts[0])) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
 
             var parameters = operationParts.Take(1).ToArray();
 
@@ -39,11 +42,11 @@
 
             if (parameters.Length == 1) {
                 var value = parameters[0];
-                if (value.Length < 1) return new ErrorOr<Capability>(Error.Malformed);
+                if (value.Length < 1) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
 
                 // parameters might be ResourceName or #number
                 if (value[0] == '#') {
-                    if (!ulong.TryParse(value[1..], out var longValue)) return new ErrorOr<Capability>(Error.Malformed);
+                    if (!ulong.TryParse(value[1..], out var longValue)) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
                     type = Type.Numeric;
                     numericValue = longValue;
                 }
@@ -55,18 +58,18 @@
             else if (parameters.Length == 2) {
                 var value1 = parameters[0];
                 var value2 = parameters[1];
-                if (value1.Length < 2 || value1[0] != '#' || value2.Length < 2 || value2[0] != '#') return new ErrorOr<Capability>(Error.Malformed);
-                if (!ulong.TryParse(value1[1..], out var longValue1) || !ulong.TryParse(value2[1..], out var longValue2)) return new ErrorOr<Capability>(Error.Malformed);
-                if (longValue2 <= longValue1) return new ErrorOr<Capability>(Error.Malformed);
+                if (value1.Length < 2 || value1[0] != '#' || value2.Length < 2 || value2[0] != '#') return ErrorOr<Capability>.Error(ErrorCode.Malformed);
+                if (!ulong.TryParse(value1[1..], out var longValue1) || !ulong.TryParse(value2[1..], out var longValue2)) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
+                if (longValue2 <= longValue1) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
                 type = Type.NumericRange;
                 numericValue = longValue1;
                 numericEndValue = longValue2;
             }
             else if (parameters.Length > 2) {
-                return new ErrorOr<Capability>(Error.Malformed);
+                return ErrorOr<Capability>.Error(ErrorCode.Malformed);
             }
 
-            return new ErrorOr<Capability>(new Capability {
+            return ErrorOr<Capability>.Ok(new Capability {
                 Namespace = parts[0],
                 Operation = operationParts[0],
                 ResourceType = type,

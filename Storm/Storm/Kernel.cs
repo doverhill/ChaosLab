@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace Storm {
     public class Kernel
@@ -89,19 +92,11 @@ namespace Storm {
                             SyscallHandlers.ServiceCreate(reader, writer, process, thread);
                             break;
 
-                        case SyscallNumber.ServiceDestroy:
-                            SyscallHandlers.ServiceDestroy(reader, writer, process, thread);
-                            break;
-
                         case SyscallNumber.ServiceSubscribe:
                             SyscallHandlers.ServiceSubscribe(reader, writer, process, thread);
                             break;
 
                         // Channel
-                        case SyscallNumber.ChannelDestroy:
-                            SyscallHandlers.ChannelDestroy(reader, writer, process, thread);
-                            break;
-
                         case SyscallNumber.ChannelSignal:
                             SyscallHandlers.ChannelSignal(reader, writer, process, thread);
                             break;
@@ -116,13 +111,12 @@ namespace Storm {
                             SyscallHandlers.ProcessCreate(reader, writer, process, thread);
                             break;
 
-                        case SyscallNumber.ProcessDestroy:
-                            writer.Write((int)Error.None);
-                            running = false;
-                            break;
-
                         case SyscallNumber.ProcessEmit:
                             SyscallHandlers.ProcessEmit(reader, writer, process, thread);
+                            break;
+
+                        case SyscallNumber.ProcessReduceCapabilities:
+                            SyscallHandlers.ProcessReduceCapabilities(reader, writer, process, thread);
                             break;
 
                         // Timer
@@ -135,10 +129,15 @@ namespace Storm {
                             SyscallHandlers.Query(reader, writer, process, thread);
                             break;
 
+                        // Handle
+                        case SyscallNumber.HandleDestroy:
+                            SyscallHandlers.HandleDestroy(reader, writer, process, thread);
+                            break;
+
                         // Unknown
                         default:
                             Output.WriteLineKernel(SyscallProcessEmitType.Error, process, thread, "Unknown syscall: " + syscallNumber.ToString());
-                            writer.Write((int)Error.NotImplemented);
+                            writer.Write((int)ErrorCode.NotImplemented);
                             break;
                     }
                 }
@@ -152,8 +151,8 @@ namespace Storm {
             var processDeleted = Process.RemoveThread(process, thread);
             if (processDeleted)
             {
-                Handles.Cleanup(process);
-                Services.Cleanup(process);
+                Handles.CleanupAfterProcess(process);
+                //Services.Cleanup(process);
                 Output.WriteLineKernel(SyscallProcessEmitType.Information, process, thread, "Process exit");
             }
             else

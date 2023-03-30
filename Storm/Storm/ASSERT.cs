@@ -1,4 +1,6 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Storm {
@@ -10,6 +12,7 @@ namespace Storm {
             }
         }
 
+        [DoesNotReturn]
         public static void NotReached([CallerFilePath] string file = "", [CallerMemberName] string memberName = "", [CallerLineNumber] int lineNumber = 0) {
             throw new Exception($"SHOULD NOT REACH in member {memberName} in file {file}:{lineNumber}!");
         }

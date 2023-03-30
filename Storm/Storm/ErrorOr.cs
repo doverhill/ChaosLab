@@ -1,24 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Storm {
+﻿namespace Storm {
     internal class ErrorOr<T> {
-        public Error Error;
+        public bool IsError;
+        public ErrorCode ErrorCode;
         public T Value;
 
-        public bool IsError => Error != Error.None;
-
-        public ErrorOr(T value) {
-            Error = Error.None;
-            Value = value;
+        public static ErrorOr<T> Ok(T value) {
+            return new ErrorOr<T> {
+                IsError = false,
+                ErrorCode = ErrorCode.None,
+                Value = value
+            };
         }
 
-        public ErrorOr(Error error) {
-            Error = error;
-            Value = default;
+        public static ErrorOr<T> Error(ErrorCode error) {
+            return new ErrorOr<T> {
+                IsError = true,
+                ErrorCode = error,
+                Value = default
+            };
         }
     }
 }

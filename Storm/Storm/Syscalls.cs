@@ -1,18 +1,15 @@
 ﻿namespace Storm {
     public enum SyscallNumber {
         ServiceCreate = 100,
-        ServiceDestroy = 101,
-        ServiceSubscribe = 102,
+        ServiceSubscribe = 101,
 
-        ChannelDestroy = 200,
-        ChannelSignal = 201,
+        ChannelSignal = 200,
 
         EventWait = 300,
 
         ProcessCreate = 400,
-        ProcessDestroy = 401,
-        ProcessEmit = 402,
-        // ProcessReduceCapabilities = 403 ??? to use once a process has done the things it needs its capabilties for, it can let them go for security
+        ProcessEmit = 401,
+        ProcessReduceCapabilities = 402,
 
         TimerCreate = 500,
 
@@ -28,7 +25,9 @@
         MemoryUnmap = 803,
 
         InterruptCreate = 900,
-        InterruptDestroy = 901
+        InterruptDestroy = 901,
+
+        HandleDestroy = 1000,
     }
 
     public enum SyscallProcessEmitType {

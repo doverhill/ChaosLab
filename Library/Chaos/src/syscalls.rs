@@ -8,21 +8,21 @@ use uuid::Uuid;
 #[allow(dead_code)]
 enum SyscallNumber {
     ServiceCreate = 100,
-    ServiceDestroy = 101,
-    ServiceSubscribe = 102,
+    ServiceSubscribe = 101,
 
-    ChannelDestroy = 200,
-    ChannelSignal = 201,
+    ChannelSignal = 200,
 
     EventWait = 300,
 
     ProcessCreate = 400,
-    ProcessDestroy = 401,
-    ProcessEmit = 402,
+    ProcessEmit = 401,
+    ProcessReduceCapabilities = 402,
 
     TimerCreate = 500,
 
     Query = 600,
+
+    HandleDestroy = 1000,
 }
 
 #[allow(dead_code)]
