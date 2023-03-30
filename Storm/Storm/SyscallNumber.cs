@@ -29,11 +29,4 @@
 
         HandleDestroy = 1000,
     }
-
-    public enum SyscallProcessEmitType {
-        Error = 1,
-        Warning = 2,
-        Information = 3,
-        Debug = 4
-    }
 }

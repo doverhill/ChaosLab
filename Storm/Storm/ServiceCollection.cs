@@ -1,47 +1,14 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics;
 using Uuids;
 
 namespace Storm {
-    internal class Service {
-        public ulong OwningProcessId;
-        public ulong HandleId;
-        public string Protocol;
-        public string Owner;
-        public Uuid DeviceId;
-
-        public Service(ulong owningProcessId, ulong handleId, string protocol, string owner, Uuid deviceId) {
-            OwningProcessId = owningProcessId;
-            HandleId = handleId;
-            Protocol = protocol;
-            Owner = owner;
-            DeviceId = deviceId;
-        }
-    }
-
-    internal class ServiceSubscription {
-        public ulong OwningProcessId;
-        public ulong HandleId;
-        public string Protocol;
-        public string Owner;
-        public Uuid? DeviceId;
-
-        public ServiceSubscription(ulong owningProcessId, ulong handleId, string protocol, string owner, Uuid? deviceId) {
-            OwningProcessId = owningProcessId;
-            HandleId = handleId;
-            Protocol = protocol;
-            Owner = owner;
-            DeviceId = deviceId;
-        }
-    }
-
-    internal static class Services {
+    internal static class ServiceCollection {
         private static object _lock = new();
         private static Dictionary<string, List<Service>> _services = new();
         private static Dictionary<string, List<ServiceSubscription>> _serviceSubscriptions = new();
 
         public static ErrorOr<ulong> Create(Process process, string protocol, string owner, Uuid deviceId) {
-            var handle = Handles.Create(process.ProcessId, Handle.Type.Service);
+            var handle = HandleCollection.Create(process.ProcessId, Handle.HandleType.Service);
             var service = new Service(process.ProcessId, handle, protocol, owner, deviceId);
 
             lock (_lock) {
@@ -56,7 +23,7 @@ namespace Storm {
         }
 
         public static ErrorOr<ulong> CreateSubscription(Process process, string protocol, string owner, Uuid? deviceId) {
-            var handle = Handles.Create(process.ProcessId, Handle.Type.ServiceSubscribe);
+            var handle = HandleCollection.Create(process.ProcessId, Handle.HandleType.ServiceSubscribe);
             var subscription = new ServiceSubscription(process.ProcessId, handle, protocol, owner, deviceId);
 
             lock (_lock) {

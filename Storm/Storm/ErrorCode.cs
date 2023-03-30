@@ -1,7 +1,5 @@
-﻿namespace Storm
-{
-    public enum ErrorCode
-    {
+﻿namespace Storm {
+    internal enum ErrorCode {
         None = 0,
         NotFound = 1,
         PermissionDenied = 2,

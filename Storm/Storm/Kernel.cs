@@ -7,12 +7,10 @@ using System.Net.Sockets;
 using System.Threading;
 
 namespace Storm {
-    public class Kernel
-    {
-        public void Start(List<StartupCommand> startupList)
-        {
-            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, "Starting Storm...");
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, null, null, $"{startupList.Count} startup commands");
+    public class Kernel {
+        public void Start(List<StartupCommand> startupList) {
+            Output.WriteLineKernel(ProcessEmitType.Information, null, null, "Starting Storm...");
+            Output.WriteLineKernel(ProcessEmitType.Debug, null, null, $"{startupList.Count} startup commands");
 
             var threadStart = new ParameterizedThreadStart(HandleStartup);
             var startupThread = new Thread(threadStart);
@@ -21,17 +19,15 @@ namespace Storm {
             AcceptClients();
         }
 
-        private void HandleStartup(object? list)
-        {
+        private void HandleStartup(object? list) {
             var startupList = (List<StartupCommand>)list;
 
             Thread.Sleep(200);
 
-            foreach (var item in startupList)
-            {
+            foreach (var item in startupList) {
                 var path = Path.Combine(Environment.CurrentDirectory, item.Path);
                 var exePath = Path.Combine(path, item.Executable);
-                Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, $"Starting {exePath} in {path} with delay {item.DelayMs}...");
+                Output.WriteLineKernel(ProcessEmitType.Information, null, null, $"Starting {exePath} in {path} with delay {item.DelayMs}...");
 
                 var startInfo = new ProcessStartInfo(exePath);
                 startInfo.WorkingDirectory = path;
@@ -40,16 +36,14 @@ namespace Storm {
             }
         }
 
-        private void AcceptClients()
-        {
+        private void AcceptClients() {
             var ipEndpoint = new IPEndPoint(IPAddress.Parse("0.0.0.0"), 1337);
             var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             serverSocket.Bind(ipEndpoint);
             serverSocket.Listen();
-            Output.WriteLineKernel(SyscallProcessEmitType.Information, null, null, "Storm started. Listening on " + ipEndpoint.ToString());
+            Output.WriteLineKernel(ProcessEmitType.Information, null, null, "Storm started. Listening on " + ipEndpoint.ToString());
 
-            do
-            {
+            do {
                 var clientSocket = serverSocket.Accept();
                 var threadStart = new ParameterizedThreadStart(HandleClient);
                 var thread = new Thread(threadStart);
@@ -57,8 +51,7 @@ namespace Storm {
             } while (true);
         }
 
-        private void HandleClient(object? socket)
-        {
+        private void HandleClient(object? socket) {
             var clientSocket = (Socket)socket;
 
             using var clientStream = new NetworkStream(clientSocket);
@@ -70,23 +63,20 @@ namespace Storm {
 
             var processResult = Process.GetProcess(processId, threadId);
             if (processResult.IsError) {
-                Output.WriteLineKernel(SyscallProcessEmitType.Warning, null, null, "Ignoring connection from unknown process");
+                Output.WriteLineKernel(ProcessEmitType.Warning, null, null, "Ignoring connection from unknown process");
                 clientSocket.Close();
                 return;
             }
             var (process, thread) = processResult.Value;
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "New connection");
+            Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "New connection");
 
-            try
-            {
+            try {
                 bool running = true;
-                while (running)
-                {
+                while (running) {
                     var syscallNumber = (SyscallNumber)reader.ReadInt32();
 
-                    switch (syscallNumber)
-                    {
+                    switch (syscallNumber) {
                         // Service
                         case SyscallNumber.ServiceCreate:
                             SyscallHandlers.ServiceCreate(reader, writer, process, thread);
@@ -136,28 +126,25 @@ namespace Storm {
 
                         // Unknown
                         default:
-                            Output.WriteLineKernel(SyscallProcessEmitType.Error, process, thread, "Unknown syscall: " + syscallNumber.ToString());
+                            Output.WriteLineKernel(ProcessEmitType.Error, process, thread, "Unknown syscall: " + syscallNumber.ToString());
                             writer.Write((int)ErrorCode.NotImplemented);
                             break;
                     }
                 }
             }
-            catch (Exception e)
-            {
-                Output.WriteLineKernel(SyscallProcessEmitType.Information, process, thread, "Application error: " + e.Message);
+            catch (Exception e) {
+                Output.WriteLineKernel(ProcessEmitType.Information, process, thread, "Application error: " + e.Message);
                 clientSocket.Close();
             }
 
             var processDeleted = Process.RemoveThread(process, thread);
-            if (processDeleted)
-            {
-                Handles.CleanupAfterProcess(process);
+            if (processDeleted) {
+                HandleCollection.CleanupAfterProcess(process);
                 //Services.Cleanup(process);
-                Output.WriteLineKernel(SyscallProcessEmitType.Information, process, thread, "Process exit");
+                Output.WriteLineKernel(ProcessEmitType.Information, process, thread, "Process exit");
             }
-            else
-            {
-                Output.WriteLineKernel(SyscallProcessEmitType.Information, process, thread, "Thread exit");
+            else {
+                Output.WriteLineKernel(ProcessEmitType.Information, process, thread, "Thread exit");
             }
         }
     }

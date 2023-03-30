@@ -1,55 +1,58 @@
-﻿namespace Storm {
+﻿using System;
+using System.Collections.Generic;
+
+namespace Storm {
     internal class Output {
         private static object _lock = new object();
-        public static SyscallProcessEmitType KernelVerbosity = SyscallProcessEmitType.Information;
-        public static SyscallProcessEmitType ProcessVerbosity = SyscallProcessEmitType.Debug;
+        public static ProcessEmitType KernelVerbosity = ProcessEmitType.Information;
+        public static ProcessEmitType ProcessVerbosity = ProcessEmitType.Debug;
 
-        private static Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>> HeadingColors =
-            new Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>>
+        private static Dictionary<bool, Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>> HeadingColors =
+            new Dictionary<bool, Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>>
         {
             // kernel
-            { true, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+            { true, new Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
                 {
-                { SyscallProcessEmitType.Debug, (ConsoleColor.DarkBlue, ConsoleColor.White) },
-                { SyscallProcessEmitType.Information, (ConsoleColor.DarkBlue, ConsoleColor.White) },
-                { SyscallProcessEmitType.Warning, (ConsoleColor.DarkBlue, ConsoleColor.White) },
-                { SyscallProcessEmitType.Error, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                { ProcessEmitType.Debug, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                { ProcessEmitType.Information, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                { ProcessEmitType.Warning, (ConsoleColor.DarkBlue, ConsoleColor.White) },
+                { ProcessEmitType.Error, (ConsoleColor.DarkBlue, ConsoleColor.White) },
                 }
             },
             // process
-            { false, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+            { false, new Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
                 {
-                { SyscallProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.Cyan) },
-                { SyscallProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.Cyan) },
-                { SyscallProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Cyan) },
-                { SyscallProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                { ProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                { ProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                { ProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Cyan) },
+                { ProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Cyan) },
                 }
             }
         };
-        private static Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>> TextColors =
-            new Dictionary<bool, Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>>
+        private static Dictionary<bool, Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>> TextColors =
+            new Dictionary<bool, Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>>
         {
             // kernel
-            { true, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+            { true, new Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
                 {
-                { SyscallProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.DarkGray) },
-                { SyscallProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.White) },
-                { SyscallProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Yellow) },
-                { SyscallProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Red) },
+                { ProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.DarkGray) },
+                { ProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.White) },
+                { ProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Yellow) },
+                { ProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Red) },
                 }
             },
             // process
-            { false, new Dictionary<SyscallProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
+            { false, new Dictionary<ProcessEmitType, (ConsoleColor Background, ConsoleColor Foreground)>
                 {
-                { SyscallProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.DarkGray) },
-                { SyscallProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.White) },
-                { SyscallProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Yellow) },
-                { SyscallProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Red) },
+                { ProcessEmitType.Debug, (ConsoleColor.Black, ConsoleColor.DarkGray) },
+                { ProcessEmitType.Information, (ConsoleColor.Black, ConsoleColor.White) },
+                { ProcessEmitType.Warning, (ConsoleColor.Black, ConsoleColor.Yellow) },
+                { ProcessEmitType.Error, (ConsoleColor.Black, ConsoleColor.Red) },
                 }
             }
         };
 
-        private static void WriteLineForced(SyscallProcessEmitType type, Process process, Process.Thread thread, bool isKernel, string format, object[] args = null) {
+        private static void WriteLineForced(ProcessEmitType type, Process process, Process.Thread thread, bool isKernel, string format, object[] args = null) {
             lock (_lock) {
                 var headingColors = HeadingColors[isKernel][type];
                 Console.ForegroundColor = headingColors.Foreground;
@@ -78,12 +81,12 @@
             }
         }
 
-        public static void WriteLineKernel(SyscallProcessEmitType type, Process process, Process.Thread thread, string format, object[] args = null) {
+        public static void WriteLineKernel(ProcessEmitType type, Process process, Process.Thread thread, string format, object[] args = null) {
             if (type > KernelVerbosity) return;
             WriteLineForced(type, process, thread, true, format, args);
         }
 
-        public static void WriteLineProcess(SyscallProcessEmitType type, Process process, Process.Thread thread, string format, object[] args = null) {
+        public static void WriteLineProcess(ProcessEmitType type, Process process, Process.Thread thread, string format, object[] args = null) {
             if (type > ProcessVerbosity) return;
             WriteLineForced(type, process, thread, false, format, args);
         }

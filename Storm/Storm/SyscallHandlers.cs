@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Net.Sockets;
 
 namespace Storm {
@@ -14,8 +15,8 @@ namespace Storm {
 
             if (process.HasStormCapability("ServiceCreate", protocol)) {
                 var owner = process.TrustChain;
-                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ServiceCreate: protocol='" + protocol + "', owner='" + owner + "', deviceId=" + deviceId);
-                var handle = Services.Create(process, protocol, owner, deviceId.Value);
+                Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL ServiceCreate: protocol='" + protocol + "', owner='" + owner + "', deviceId=" + deviceId);
+                var handle = ServiceCollection.Create(process, protocol, owner, deviceId.Value);
 
                 if (handle.IsError) {
                     writer.Write((int)handle.ErrorCode);
@@ -55,8 +56,8 @@ namespace Storm {
             }
 
             if (process.HasStormCapability("ServiceConnect", protocol)) {
-                Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ServiceSubscribe: protocol='" + protocol + "', owner='" + (owner ?? "*") + "', deviceId=" + (deviceId?.ToString() ?? "*"));
-                var handle = Services.CreateSubscription(process, protocol, owner, deviceId);
+                Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL ServiceSubscribe: protocol='" + protocol + "', owner='" + (owner ?? "*") + "', deviceId=" + (deviceId?.ToString() ?? "*"));
+                var handle = ServiceCollection.CreateSubscription(process, protocol, owner, deviceId);
 
                 if (handle.IsError) {
                     writer.Write((int)handle.ErrorCode);
@@ -88,8 +89,8 @@ namespace Storm {
         public static void ChannelSignal(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
             var channelHandleId = reader.ReadUInt64();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ChannelSignal: handleId=" + channelHandleId);
-            var handle = Handles.GetHandle(process.ProcessId, channelHandleId, Handle.Type.Channel);
+            Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL ChannelSignal: handleId=" + channelHandleId);
+            var handle = HandleCollection.GetHandle(process.ProcessId, channelHandleId, Handle.HandleType.Channel);
 
             if (handle.HasValue) {
                 var targetProcessId = handle.Value.GetOtherProcessId(process.ProcessId);
@@ -109,7 +110,7 @@ namespace Storm {
             var action = (HandleAction?)SyscallHelpers.ReadOptionalI32(reader);
             var timeoutMilliseconds = reader.ReadInt32();
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL EventWait: handle=" + (handle?.ToString() ?? "*") + ", action=" + (action?.ToString() ?? "*") + ", timeout=" + timeoutMilliseconds);
+            Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL EventWait: handle=" + (handle?.ToString() ?? "*") + ", action=" + (action?.ToString() ?? "*") + ", timeout=" + timeoutMilliseconds);
             var e = Events.Wait(socket, process, handle, action, timeoutMilliseconds);
 
             writer.Write((int)e.Error);
@@ -142,7 +143,7 @@ namespace Storm {
             for (var index = 0; index < numberOfGrantables; index++) {
                 grantables.Add(SyscallHelpers.ReadText(reader));
             }
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ProcessCreate: path=" + path + ", capabilities=" + string.Join(", ", capabilites) + ", grantables=" + string.Join(", ", grantables));
+            Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL ProcessCreate: path=" + path + ", capabilities=" + string.Join(", ", capabilites) + ", grantables=" + string.Join(", ", grantables));
 
             var name = Path.GetFileName(path);
 
@@ -154,12 +155,12 @@ namespace Storm {
         }
 
         public static void ProcessEmit(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
-            var emitType = (SyscallProcessEmitType)reader.ReadInt32();
+            var emitType = (ProcessEmitType)reader.ReadInt32();
             var error = (ErrorCode)reader.ReadInt32();
             var text = SyscallHelpers.ReadText(reader);
 
-            Output.WriteLineKernel(SyscallProcessEmitType.Debug, process, thread, "SYSCALL ProcessEmit: type=" + emitType.ToString() + ", error=" + error + ", text='" + text + "'");
-            if (emitType == SyscallProcessEmitType.Error) {
+            Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL ProcessEmit: type=" + emitType.ToString() + ", error=" + error + ", text='" + text + "'");
+            if (emitType == ProcessEmitType.Error) {
                 Output.WriteLineProcess(emitType, process, thread, text + ": " + error.ToString());
             }
             else {

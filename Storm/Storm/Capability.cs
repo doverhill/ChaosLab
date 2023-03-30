@@ -6,14 +6,14 @@ namespace Storm {
         public string Namespace;
         public string Operation;
 
-        public enum Type {
+        public enum CapabilityType {
             None,
             Name,
             Numeric,
             NumericRange
         }
 
-        public Type ResourceType;
+        public CapabilityType Type;
         public string ResourceName;
         public ulong NumericValue;
         public ulong NumericEndValue;
@@ -35,7 +35,7 @@ namespace Storm {
 
             var parameters = operationParts.Take(1).ToArray();
 
-            var type = Type.None;
+            var type = CapabilityType.None;
             string resourceName = null;
             ulong numericValue = 0;
             ulong numericEndValue = 0;
@@ -47,11 +47,11 @@ namespace Storm {
                 // parameters might be ResourceName or #number
                 if (value[0] == '#') {
                     if (!ulong.TryParse(value[1..], out var longValue)) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
-                    type = Type.Numeric;
+                    type = CapabilityType.Numeric;
                     numericValue = longValue;
                 }
                 else {
-                    type = Type.Name;
+                    type = CapabilityType.Name;
                     resourceName = parameters[0];
                 }
             }
@@ -61,7 +61,7 @@ namespace Storm {
                 if (value1.Length < 2 || value1[0] != '#' || value2.Length < 2 || value2[0] != '#') return ErrorOr<Capability>.Error(ErrorCode.Malformed);
                 if (!ulong.TryParse(value1[1..], out var longValue1) || !ulong.TryParse(value2[1..], out var longValue2)) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
                 if (longValue2 <= longValue1) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
-                type = Type.NumericRange;
+                type = CapabilityType.NumericRange;
                 numericValue = longValue1;
                 numericEndValue = longValue2;
             }
@@ -72,7 +72,7 @@ namespace Storm {
             return ErrorOr<Capability>.Ok(new Capability {
                 Namespace = parts[0],
                 Operation = operationParts[0],
-                ResourceType = type,
+                Type = type,
                 ResourceName = resourceName,
                 NumericValue = numericValue,
                 NumericEndValue = numericEndValue
@@ -123,25 +123,25 @@ namespace Storm {
         public static bool IsSubset(List<Capability> parentCapabilities, List<Capability> childCapabilities) {
             foreach (var child in childCapabilities) {
                 // each child capability must be present in parent capabilities
-                var found = parentCapabilities.Where(pc => pc.Namespace == child.Namespace && pc.Operation == child.Operation && pc.ResourceType == child.ResourceType).ToList();
+                var found = parentCapabilities.Where(pc => pc.Namespace == child.Namespace && pc.Operation == child.Operation && pc.Type == child.Type).ToList();
                 if (!found.Any()) return false;
 
                 var anyMatching = false;
                 foreach (var parent in found) {
-                    switch (child.ResourceType) {
-                        case Type.None: 
-                            anyMatching = true; 
+                    switch (child.Type) {
+                        case CapabilityType.None:
+                            anyMatching = true;
                             break;
 
-                        case Type.Name:
+                        case CapabilityType.Name:
                             if (child.ResourceName == parent.ResourceName) anyMatching = true;
                             break;
 
-                        case Type.Numeric:
+                        case CapabilityType.Numeric:
                             if (child.NumericValue == parent.NumericValue) anyMatching = true;
                             break;
 
-                        case Type.NumericRange:
+                        case CapabilityType.NumericRange:
                             if (child.NumericValue >= parent.NumericValue && child.NumericEndValue <= parent.NumericEndValue) anyMatching = true;
                             break;
                     }

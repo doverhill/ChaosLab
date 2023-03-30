@@ -1,6 +1,9 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Net.Sockets;
 
 namespace Storm {
     internal class Process {
@@ -27,7 +30,7 @@ namespace Storm {
         public List<Capability> Grantables;
         public Dictionary<ulong, Thread> Threads;
 
-        private HashSet<ulong> _signalledChannels = new();
+        private HashSet<ulong> _signalledChannelIds = new();
         private BlockingCollection<Event> _eventQueue = new();
 
         public static ErrorOr<Process> CreateProcess(ulong processId, Process parent, string name, List<string> capabilityStrings, List<string> grantableStrings) {
@@ -105,7 +108,7 @@ namespace Storm {
         //}
 
         public void SetChannelSignalled(ulong channelHandleId) {
-            _signalledChannels.Add(channelHandleId);
+            _signalledChannelIds.Add(channelHandleId);
         }
 
         public void QueueEvent(Event stormEvent) {
@@ -123,11 +126,51 @@ namespace Storm {
             QueueEvent(stormEvent);
         }
 
-        public bool WaitEvent(ulong? targetHandleId, HandleAction? action, out Event stormEvent, int timeout) {
+        private static bool EventMatches(Event stormEvent, ulong? targetHandleId, Event.EventType? eventType) {
+            if (targetHandleId.HasValue && stormEvent.TargetHandleId != targetHandleId.Value) return false;
+            if (eventType.HasValue && stormEvent.Type != eventType.Value) return false;
+            return true;
+        }
+
+        private static bool IsSocketConnected(Socket socket) {
+            bool part1 = socket.Poll(1000, SelectMode.SelectRead);
+            bool part2 = socket.Available == 0;
+            if (part1 && part2)
+                return false;
+            else
+                return true;
+        }
+
+        public bool WaitEvent(Socket socket, ulong? targetHandleId, Event.EventType? eventType, out Event stormEvent, int timeoutMilliseconds) {
+            int totalTime = 0;
+            //var eventsToPutBack = new List<Event>();
+            while (timeoutMilliseconds == -1 || totalTime < timeoutMilliseconds) {
+                if (process.WaitEvent(targetHandleId, action, out var stormEvent, 500)) {
+                    Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "Received event: targetProcessId=" + process.ProcessId + ", targetHandleId=" + stormEvent.TargetHandleId + ", additionalHandleId=" + stormEvent.AdditionalHandleId + ", type=" + stormEvent.Type.ToString());
+                    return Optional<Event>.WithValue(stormEvent);
+                }
+                if (!IsSocketConnected(socket)) throw new Exception("Socket was closed, killing application");
+                totalTime += 500;
+            }
+            return Optional<Event>.None();
+
+
+
+            // FIXME figure this out!!!?!?!
+
             // FIXME understand event type ProcessFlags and check process flags and create events from them
             if (_eventQueue.TryTake(out stormEvent, timeout)) {
-                ASSERT.That(stormEvent.TargetProcessId == ProcessId);
-                if (stormEvent.)
+                if (stormEvent.Type == Event.EventType.ProcessFlags) {
+                    if (_signalledChannelIds.Count > 0) {
+                        var signalledChannelId = _signalledChannelIds.First();
+                        _signalledChannelIds.Remove(signalledChannelId);
+                        stormEvent = new Event(Event.EventType.ChannelSignalled, signalledChannelId, 0);
+                        return true;
+                    }
+                }
+                else {
+                    return true;
+                }
             }
             else {
                 stormEvent = default;
@@ -136,19 +179,19 @@ namespace Storm {
         }
 
         internal bool HasStormCapability(string operation, string resourceName) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.Name && c.ResourceName == resourceName);
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.Name && c.ResourceName == resourceName);
         }
 
         internal bool HasStormCapability(string operation) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.None);
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.None);
         }
 
         internal bool HasStormCapability(string operation, ulong value) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.Numeric && c.NumericValue == value);
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.Numeric && c.NumericValue == value);
         }
 
         internal bool HasStormCapability(string operation, ulong rangeStart, ulong rangeEnd) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.ResourceType == Capability.Type.NumericRange && c.NumericValue <= rangeStart && c.NumericEndValue >= rangeEnd);
+            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.NumericRange && c.NumericValue <= rangeStart && c.NumericEndValue >= rangeEnd);
         }
     }
 }

@@ -1,79 +1,61 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using Uuids;
 
 namespace Storm {
-    public static class SyscallHelpers
-    {
-        public static UInt64? ReadOptionalU64(BinaryReader reader)
-        {
+    public static class SyscallHelpers {
+        public static ulong? ReadOptionalU64(BinaryReader reader) {
             var hasValue = reader.ReadBoolean();
-            if (hasValue)
-            {
-                return (UInt64)reader.ReadUInt64();
+            if (hasValue) {
+                return reader.ReadUInt64();
             }
-            else
-            {
+            else {
                 return null;
             }
         }
 
-        public static Int32? ReadOptionalI32(BinaryReader reader)
-        {
+        public static int? ReadOptionalI32(BinaryReader reader) {
             var hasValue = reader.ReadBoolean();
-            if (hasValue)
-            {
+            if (hasValue) {
                 return reader.ReadInt32();
             }
-            else
-            {
+            else {
                 return null;
             }
         }
 
-        public static void WriteText(BinaryWriter writer, string? text)
-        {
-            if (text == null)
-            {
+        public static void WriteText(BinaryWriter writer, string? text) {
+            if (text == null) {
                 writer.Write(false);
             }
-            else
-            {
+            else {
                 writer.Write(true);
                 writer.Write(text.Length);
                 writer.Write(text.ToCharArray());
             }
         }
 
-        public static string? ReadText(BinaryReader reader)
-        {
+        public static string? ReadText(BinaryReader reader) {
             var hasText = reader.ReadBoolean();
-            if (hasText)
-            {
+            if (hasText) {
                 var textLength = reader.ReadInt32();
                 return new string(reader.ReadChars(textLength));
             }
-            else
-            {
+            else {
                 return null;
             }
         }
 
-        public static void WriteUuid(BinaryWriter writer, Uuid? uuid)
-        {
-            if (!uuid.HasValue)
-            {
+        public static void WriteUuid(BinaryWriter writer, Uuid? uuid) {
+            if (!uuid.HasValue) {
                 writer.Write(false);
             }
-            else
-            {
+            else {
                 writer.Write(true);
                 writer.Write(uuid.Value.ToByteArray());
             }
         }
 
-        public static Uuid? ReadUuid(BinaryReader reader)
-        {
+        public static Uuid? ReadUuid(BinaryReader reader) {
             var hasUuid = reader.ReadBoolean();
             if (hasUuid)
                 return new Uuid(reader.ReadBytes(16));
