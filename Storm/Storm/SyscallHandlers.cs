@@ -4,6 +4,67 @@ using System.Net.Sockets;
 
 namespace Storm {
     internal static class SyscallHandlers {
+        public static bool HandleSyscall(Socket socket, BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
+            var syscallNumber = (SyscallNumber)reader.ReadInt32();
+
+            switch (syscallNumber) {
+                // Service
+                case SyscallNumber.ServiceCreate:
+                    ServiceCreate(reader, writer, process, thread);
+                    break;
+
+                case SyscallNumber.ServiceSubscribe:
+                    ServiceSubscribe(reader, writer, process, thread);
+                    break;
+
+                // Channel
+                case SyscallNumber.ChannelSignal:
+                    ChannelSignal(reader, writer, process, thread);
+                    break;
+
+                // Event
+                case SyscallNumber.EventWait:
+                    EventWait(socket, reader, writer, process, thread);
+                    break;
+
+                // Process
+                case SyscallNumber.ProcessCreate:
+                    ProcessCreate(reader, writer, process, thread);
+                    break;
+
+                case SyscallNumber.ProcessEmit:
+                    ProcessEmit(reader, writer, process, thread);
+                    break;
+
+                case SyscallNumber.ProcessReduceCapabilities:
+                    ProcessReduceCapabilities(reader, writer, process, thread);
+                    break;
+
+                // Timer
+                case SyscallNumber.TimerCreate:
+                    TimerCreate(reader, writer, process, thread);
+                    break;
+
+                // Query
+                case SyscallNumber.Query:
+                    Query(reader, writer, process, thread);
+                    break;
+
+                // Handle
+                case SyscallNumber.HandleDestroy:
+                    HandleDestroy(reader, writer, process, thread);
+                    break;
+
+                // Unknown
+                default:
+                    Output.WriteLineKernel(ProcessEmitType.Error, process, thread, "Unknown syscall: " + syscallNumber.ToString());
+                    writer.Write((int)ErrorCode.NotImplemented);
+                    break;
+            }
+
+            return true;
+        }
+
         public static void ServiceCreate(BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
             var protocol = SyscallHelpers.ReadText(reader);
             var deviceId = SyscallHelpers.ReadUuid(reader);

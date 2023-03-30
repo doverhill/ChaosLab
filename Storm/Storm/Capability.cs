@@ -8,6 +8,7 @@ namespace Storm {
 
         public enum CapabilityType {
             None,
+            Any,
             Name,
             Numeric,
             NumericRange
@@ -42,17 +43,22 @@ namespace Storm {
 
             if (parameters.Length == 1) {
                 var value = parameters[0];
-                if (value.Length < 1) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
-
-                // parameters might be ResourceName or #number
-                if (value[0] == '#') {
-                    if (!ulong.TryParse(value[1..], out var longValue)) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
-                    type = CapabilityType.Numeric;
-                    numericValue = longValue;
+                if (value == "*") {
+                    type = CapabilityType.Any;
                 }
                 else {
-                    type = CapabilityType.Name;
-                    resourceName = parameters[0];
+                    if (value.Length < 1) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
+
+                    // parameters might be ResourceName or #number
+                    if (value[0] == '#') {
+                        if (!ulong.TryParse(value[1..], out var longValue)) return ErrorOr<Capability>.Error(ErrorCode.Malformed);
+                        type = CapabilityType.Numeric;
+                        numericValue = longValue;
+                    }
+                    else {
+                        type = CapabilityType.Name;
+                        resourceName = parameters[0];
+                    }
                 }
             }
             else if (parameters.Length == 2) {
@@ -80,10 +86,14 @@ namespace Storm {
         }
 
         private static bool IsValidNamespace(string namespaceString) {
+            if (string.IsNullOrEmpty(namespaceString)) return false;
+            if (namespaceString == "*") return true;
             return IsValidPascalCase(namespaceString);
         }
 
         private static bool IsValidOperation(string operationString) {
+            if (string.IsNullOrEmpty(operationString)) return false;
+            if (operationString == "*") return true;
             return IsValidPascalCase(operationString);
         }
 
@@ -123,12 +133,13 @@ namespace Storm {
         public static bool IsSubset(List<Capability> parentCapabilities, List<Capability> childCapabilities) {
             foreach (var child in childCapabilities) {
                 // each child capability must be present in parent capabilities
-                var found = parentCapabilities.Where(pc => pc.Namespace == child.Namespace && pc.Operation == child.Operation && pc.Type == child.Type).ToList();
+                var found = parentCapabilities.Where(pc => (pc.Namespace == "*" || pc.Namespace == child.Namespace) && (pc.Operation == "*" || pc.Operation == child.Operation) && (pc.Type == CapabilityType.Any || pc.Type == child.Type)).ToList();
                 if (!found.Any()) return false;
 
                 var anyMatching = false;
                 foreach (var parent in found) {
-                    switch (child.Type) {
+                    switch (parent.Type) {
+                        case CapabilityType.Any:
                         case CapabilityType.None:
                             anyMatching = true;
                             break;

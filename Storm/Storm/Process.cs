@@ -179,19 +179,19 @@ namespace Storm {
         }
 
         internal bool HasStormCapability(string operation, string resourceName) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.Name && c.ResourceName == resourceName);
+            return Capabilities.Any(c => (c.Namespace == "*" || c.Namespace == "Storm") && (c.Operation == "*" || c.Operation == operation) && (c.Type == Capability.CapabilityType.Any || c.Type == Capability.CapabilityType.Name && c.ResourceName == resourceName));
         }
 
         internal bool HasStormCapability(string operation) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.None);
+            return Capabilities.Any(c => (c.Namespace == "*" || c.Namespace == "Storm") && (c.Operation == "*" || c.Operation == operation) && (c.Type == Capability.CapabilityType.Any || c.Type == Capability.CapabilityType.None));
         }
 
         internal bool HasStormCapability(string operation, ulong value) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.Numeric && c.NumericValue == value);
+            return Capabilities.Any(c => (c.Namespace == "*" || c.Namespace == "Storm") && (c.Operation == "*" || c.Operation == operation) && (c.Type == Capability.CapabilityType.Any || c.Type == Capability.CapabilityType.Numeric && c.NumericValue == value));
         }
 
         internal bool HasStormCapability(string operation, ulong rangeStart, ulong rangeEnd) {
-            return Capabilities.Any(c => c.Namespace == "Storm" && c.Operation == operation && c.Type == Capability.CapabilityType.NumericRange && c.NumericValue <= rangeStart && c.NumericEndValue >= rangeEnd);
+            return Capabilities.Any(c => (c.Namespace == "*" || c.Namespace == "Storm") && (c.Operation == "*" || c.Operation == operation) && (c.Type == Capability.CapabilityType.Any || c.Type == Capability.CapabilityType.NumericRange && c.NumericValue <= rangeStart && c.NumericEndValue >= rangeEnd));
         }
     }
 }

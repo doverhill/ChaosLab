@@ -27,12 +27,13 @@ namespace Storm {
             foreach (var item in startupList) {
                 var path = Path.Combine(Environment.CurrentDirectory, item.Path);
                 var exePath = Path.Combine(path, item.Executable);
-                Output.WriteLineKernel(ProcessEmitType.Information, null, null, $"Starting {exePath} in {path} with delay {item.DelayMs}...");
+                Output.WriteLineKernel(ProcessEmitType.Information, null, null, $"Starting {exePath} in {path} with delay {item.DelayMilliseconds}...");
 
                 var startInfo = new ProcessStartInfo(exePath);
                 startInfo.WorkingDirectory = path;
-                System.Diagnostics.Process.Start(startInfo);
-                Thread.Sleep(item.DelayMs);
+                var process = System.Diagnostics.Process.Start(startInfo);
+                Process.CreateProcess((ulong)process.Id, null, item.Name, item.Capabilities, item.Grantables);
+                Thread.Sleep(item.DelayMilliseconds);
             }
         }
 
@@ -61,6 +62,9 @@ namespace Storm {
             var processId = reader.ReadUInt64();
             var threadId = reader.ReadUInt64();
 
+            // sleep a little to make sure that the process has been registered
+            Thread.Sleep(100);
+
             var processResult = Process.GetProcess(processId, threadId);
             if (processResult.IsError) {
                 Output.WriteLineKernel(ProcessEmitType.Warning, null, null, "Ignoring connection from unknown process");
@@ -74,62 +78,7 @@ namespace Storm {
             try {
                 bool running = true;
                 while (running) {
-                    var syscallNumber = (SyscallNumber)reader.ReadInt32();
-
-                    switch (syscallNumber) {
-                        // Service
-                        case SyscallNumber.ServiceCreate:
-                            SyscallHandlers.ServiceCreate(reader, writer, process, thread);
-                            break;
-
-                        case SyscallNumber.ServiceSubscribe:
-                            SyscallHandlers.ServiceSubscribe(reader, writer, process, thread);
-                            break;
-
-                        // Channel
-                        case SyscallNumber.ChannelSignal:
-                            SyscallHandlers.ChannelSignal(reader, writer, process, thread);
-                            break;
-
-                        // Event
-                        case SyscallNumber.EventWait:
-                            SyscallHandlers.EventWait(clientSocket, reader, writer, process, thread);
-                            break;
-
-                        // Process
-                        case SyscallNumber.ProcessCreate:
-                            SyscallHandlers.ProcessCreate(reader, writer, process, thread);
-                            break;
-
-                        case SyscallNumber.ProcessEmit:
-                            SyscallHandlers.ProcessEmit(reader, writer, process, thread);
-                            break;
-
-                        case SyscallNumber.ProcessReduceCapabilities:
-                            SyscallHandlers.ProcessReduceCapabilities(reader, writer, process, thread);
-                            break;
-
-                        // Timer
-                        case SyscallNumber.TimerCreate:
-                            SyscallHandlers.TimerCreate(reader, writer, process, thread);
-                            break;
-
-                        // Query
-                        case SyscallNumber.Query:
-                            SyscallHandlers.Query(reader, writer, process, thread);
-                            break;
-
-                        // Handle
-                        case SyscallNumber.HandleDestroy:
-                            SyscallHandlers.HandleDestroy(reader, writer, process, thread);
-                            break;
-
-                        // Unknown
-                        default:
-                            Output.WriteLineKernel(ProcessEmitType.Error, process, thread, "Unknown syscall: " + syscallNumber.ToString());
-                            writer.Write((int)ErrorCode.NotImplemented);
-                            break;
-                    }
+                    running = SyscallHandlers.HandleSyscall(clientSocket, reader, writer, process, thread);
                 }
             }
             catch (Exception e) {
