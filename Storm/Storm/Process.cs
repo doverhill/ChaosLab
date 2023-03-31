@@ -116,6 +116,11 @@ namespace Storm {
             _eventQueue.Add(stormEvent);
         }
 
+        public void PostChannelClosedEvent(ulong channelHandleId) {
+            var stormEvent = new Event(Event.EventType.ChannelDestroyed, channelHandleId, 0);
+            QueueEvent(stormEvent);
+        }
+
         public void PostServiceAvailableEvent(ulong serviceSubscribeHandleId, ulong channelHandleId) {
             var stormEvent = new Event(Event.EventType.ServiceAvailable, serviceSubscribeHandleId, channelHandleId);
             QueueEvent(stormEvent);
@@ -142,6 +147,9 @@ namespace Storm {
         }
 
         public bool WaitEvent(Socket socket, ulong? targetHandleId, Event.EventType? eventType, out Event stormEvent, int timeoutMilliseconds) {
+
+            if (_eventQueue.)
+
             int totalTime = 0;
             //var eventsToPutBack = new List<Event>();
             while (timeoutMilliseconds == -1 || totalTime < timeoutMilliseconds) {

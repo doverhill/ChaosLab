@@ -30,11 +30,13 @@ namespace Storm {
         public void Close(ulong closingProcessId) {
             switch (Type) {
                 case HandleType.Service:
-                    // FIXME close all handles connected to this service
+                    // do nothing, all open channels will be closed
                     break;
 
                 case HandleType.Channel:
-                    // FIXME close other end
+                    var otherProcessID = GetOtherProcessId(closingProcessId);
+                    var otherProcess = Process.FindProcess(otherProcessID);
+                    otherProcess.PostChannelClosed(Id);
                     break;
 
                 case HandleType.ServiceSubscribe:

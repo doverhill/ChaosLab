@@ -28,7 +28,7 @@ namespace Storm {
             lock (_lock) {
                 if (_handles.TryGetValue(handleId, out var handle)) {
                     if (handle.OwningProcessIds.Contains(processId)) {
-                        handle.Close();
+                        handle.Close(processId);
                         _handles.Remove(handleId);
                         return;
                     }
