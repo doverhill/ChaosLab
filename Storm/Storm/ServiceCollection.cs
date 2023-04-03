@@ -38,10 +38,26 @@ namespace Storm {
             var service = Lookup(protocol, owner, deviceId);
             if (service.HasValue) {
                 // FIXME do the actual connect here, creating a channel and two events to both processes
-                process.PostServiceAvailableEvent(handle);
+                process.PostServiceAvailableEvent(handle, channelHandleId);
             }
 
             return ErrorOr<ulong>.Ok(handle);
+        }
+
+        public static void Remove(ulong serviceHandleId) {
+            lock (_lock) {
+                foreach (var list in _services.Values) {
+                    list.RemoveAll(s => s.HandleId == serviceHandleId);
+                }
+            }
+        }
+
+        public static void RemoveSubscription(ulong subscriptionHandleId) {
+            lock (_lock) {
+                foreach (var list in _serviceSubscriptions.Values) {
+                    list.RemoveAll(s => s.HandleId == subscriptionHandleId);
+                }
+            }
         }
 
         //public static bool Destroy(ulong PID, ulong serviceHandleId)

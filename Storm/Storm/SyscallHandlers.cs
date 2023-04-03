@@ -157,8 +157,6 @@ namespace Storm {
                 var targetProcessId = handle.Value.GetOtherProcessId(process.ProcessId);
                 var targetProcess = Process.FindProcess(targetProcessId);
                 targetProcess.SetChannelSignalled(channelHandleId);
-                targetProcess.PostProcessFlagsEvent();
-
                 writer.Write((int)ErrorCode.None);
             }
             else {

@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace Storm {
     internal class Process {
@@ -32,6 +32,7 @@ namespace Storm {
 
         private HashSet<ulong> _signalledChannelIds = new();
         private BlockingCollection<Event> _eventQueue = new();
+        private CancellationTokenSource _eventQueueCancellation = new();
 
         public static ErrorOr<Process> CreateProcess(ulong processId, Process parent, string name, List<string> capabilityStrings, List<string> grantableStrings) {
             var capabilities = new List<Capability>();
@@ -109,6 +110,7 @@ namespace Storm {
 
         public void SetChannelSignalled(ulong channelHandleId) {
             _signalledChannelIds.Add(channelHandleId);
+            _eventQueueCancellation.Cancel();
         }
 
         public void QueueEvent(Event stormEvent) {
@@ -126,10 +128,10 @@ namespace Storm {
             QueueEvent(stormEvent);
         }
 
-        public void PostProcessFlagsEvent() {
-            var stormEvent = new Event(Event.EventType.ProcessFlags, 0, 0);
-            QueueEvent(stormEvent);
-        }
+        //public void PostProcessFlagsEvent() {
+        //    var stormEvent = new Event(Event.EventType.ProcessFlags, 0, 0);
+        //    QueueEvent(stormEvent);
+        //}
 
         private static bool EventMatches(Event stormEvent, ulong? targetHandleId, Event.EventType? eventType) {
             if (targetHandleId.HasValue && stormEvent.TargetHandleId != targetHandleId.Value) return false;
@@ -148,7 +150,6 @@ namespace Storm {
 
         public bool WaitEvent(Socket socket, ulong? targetHandleId, Event.EventType? eventType, out Event stormEvent, int timeoutMilliseconds) {
 
-            if (_eventQueue.)
 
             int totalTime = 0;
             //var eventsToPutBack = new List<Event>();

@@ -30,29 +30,23 @@ namespace Storm {
         public void Close(ulong closingProcessId) {
             switch (Type) {
                 case HandleType.Service:
-                    // do nothing, all open channels will be closed
+                    ServiceCollection.Remove(Id);
                     break;
 
                 case HandleType.Channel:
                     var otherProcessID = GetOtherProcessId(closingProcessId);
                     var otherProcess = Process.FindProcess(otherProcessID);
-                    otherProcess.PostChannelClosed(Id);
+                    otherProcess.PostChannelClosedEvent(Id);
                     break;
 
                 case HandleType.ServiceSubscribe:
-                    // FIXME
+                    ServiceCollection.RemoveSubscription(Id);
                     break;
 
                 case HandleType.Timer:
-                    //FIXME
+                    TimerCollection.Remove(Id);
                     break;
             }
-            //var otherProcessId = GetOtherProcessId(closingProcessId);
-            //if (otherProcessId.HasValue) {
-            //    var process = Process.FindProcess(otherProcessId.Value);
-            //    var stormEvent = new Event(otherProcessId.Value, Error.None, Id, Handle.None, HandleAction.ChannelDestroyed);
-            //    Process.FireEvent(stormEvent);
-            //}
         }
 
         public ulong GetOtherProcessId(ulong processId) {
