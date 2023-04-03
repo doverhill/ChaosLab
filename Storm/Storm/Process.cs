@@ -5,6 +5,8 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 
+using static Storm.Event;
+
 namespace Storm {
     internal class Process {
         private static object _globalLock = new object();
@@ -148,46 +150,51 @@ namespace Storm {
                 return true;
         }
 
-        public bool WaitEvent(Socket socket, ulong? targetHandleId, Event.EventType? eventType, out Event stormEvent, int timeoutMilliseconds) {
-            var waitUntil = DateTime.Now.AddMilliseconds(timeoutMilliseconds);
-
-            while (DateTime.Now < waitUntil) {
-                var cancellationToken = _eventQueueCancellation.Token;
-                if (_eventQueue.TryTake(out var stormEvent, 500, cancellationToken)) {
-
+        private Event GetChannelSignalledEvent(ulong? targetHandleId, Event.EventType? eventType) {
+            if (_signalledChannelIds.Count > 0) {
+                if (!eventType.HasValue || eventType.Value == Event.EventType.ChannelSignalled) {
+                    if (targetHandleId.HasValue) {
+                        if (_signalledChannelIds.Contains(targetHandleId.Value)) {
+                            _signalledChannelIds.Remove(targetHandleId.Value);
+                            return new Event(Event.EventType.ChannelSignalled, targetHandleId.Value, 0);
+                        }
+                    }
+                    else {
+                        var handleId = _signalledChannelIds.First();
+                        _signalledChannelIds.Remove(handleId);
+                        return new Event(Event.EventType.ChannelSignalled, handleId, 0);
+                    }
                 }
-
-                if (process.WaitEvent(targetHandleId, action, out var stormEvent, 500)) {
-                    Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "Received event: targetProcessId=" + process.ProcessId + ", targetHandleId=" + stormEvent.TargetHandleId + ", additionalHandleId=" + stormEvent.AdditionalHandleId + ", type=" + stormEvent.Type.ToString());
-                    return Optional<Event>.WithValue(stormEvent);
-                }
-                if (!IsSocketConnected(socket)) throw new Exception("Socket was closed, killing application");
-                totalTime += 500;
             }
-            return Optional<Event>.None();
 
+            return null;
+        }
 
-
-            // FIXME figure this out!!!?!?!
-
-            // FIXME understand event type ProcessFlags and check process flags and create events from them
-            if (_eventQueue.TryTake(out stormEvent, timeout)) {
-                if (stormEvent.Type == Event.EventType.ProcessFlags) {
-                    if (_signalledChannelIds.Count > 0) {
-                        var signalledChannelId = _signalledChannelIds.First();
-                        _signalledChannelIds.Remove(signalledChannelId);
-                        stormEvent = new Event(Event.EventType.ChannelSignalled, signalledChannelId, 0);
+        public bool WaitEvent(Socket socket, ulong? targetHandleId, Event.EventType? eventType, out Event stormEvent, int timeoutMilliseconds) {
+            var channelSignalledEvent = GetChannelSignalledEvent(targetHandleId, eventType);
+            if (channelSignalledEvent != null) {
+                stormEvent = channelSignalledEvent;
+                return true;
+            }
+            
+            var waitUntil = DateTime.Now.AddMilliseconds(timeoutMilliseconds);
+            while (DateTime.Now < waitUntil) {
+                if (!IsSocketConnected(socket)) throw new Exception("Socket was closed, killing application");
+                var cancellationToken = _eventQueueCancellation.Token;
+                if (_eventQueue.TryTake(out stormEvent, 500, cancellationToken)) {
+                    return true;
+                }
+                else {
+                    channelSignalledEvent = GetChannelSignalledEvent(targetHandleId, eventType);
+                    if (channelSignalledEvent != null) {
+                        stormEvent = channelSignalledEvent;
                         return true;
                     }
                 }
-                else {
-                    return true;
-                }
             }
-            else {
-                stormEvent = default;
-                return false;
-            }
+
+            stormEvent = default;
+            return false;
         }
 
         internal bool HasStormCapability(string operation, string resourceName) {

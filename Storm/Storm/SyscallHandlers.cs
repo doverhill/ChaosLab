@@ -166,17 +166,18 @@ namespace Storm {
 
         public static void EventWait(Socket socket, BinaryReader reader, BinaryWriter writer, Process process, Process.Thread thread) {
             var handle = SyscallHelpers.ReadOptionalU64(reader);
-            var action = (HandleAction?)SyscallHelpers.ReadOptionalI32(reader);
+            var eventType = (Event.EventType?)SyscallHelpers.ReadOptionalI32(reader);
             var timeoutMilliseconds = reader.ReadInt32();
 
-            Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL EventWait: handle=" + (handle?.ToString() ?? "*") + ", action=" + (action?.ToString() ?? "*") + ", timeout=" + timeoutMilliseconds);
-            var e = Events.Wait(socket, process, handle, action, timeoutMilliseconds);
-
-            writer.Write((int)e.Error);
-            if (e.Error == ErrorCode.None) {
-                writer.Write(e.TargetHandle);
-                writer.Write(e.ChannelHandle);
-                writer.Write((int)e.Action);
+            Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "SYSCALL EventWait: handle=" + (handle?.ToString() ?? "*") + ", type=" + (eventType?.ToString() ?? "*") + ", timeout=" + timeoutMilliseconds);
+            if (process.WaitEvent(socket, handle, eventType, out var stormEvent, timeoutMilliseconds)) {
+                writer.Write((int)ErrorCode.None);
+                writer.Write(stormEvent.TargetHandleId);
+                writer.Write(stormEvent.AdditionalHandleId);
+                writer.Write((int)stormEvent.Type);
+            }
+            else {
+                writer.Write((int)ErrorCode.Timeout);
             }
         }
 
