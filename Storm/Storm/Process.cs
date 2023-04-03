@@ -149,11 +149,14 @@ namespace Storm {
         }
 
         public bool WaitEvent(Socket socket, ulong? targetHandleId, Event.EventType? eventType, out Event stormEvent, int timeoutMilliseconds) {
+            var waitUntil = DateTime.Now.AddMilliseconds(timeoutMilliseconds);
 
+            while (DateTime.Now < waitUntil) {
+                var cancellationToken = _eventQueueCancellation.Token;
+                if (_eventQueue.TryTake(out var stormEvent, 500, cancellationToken)) {
 
-            int totalTime = 0;
-            //var eventsToPutBack = new List<Event>();
-            while (timeoutMilliseconds == -1 || totalTime < timeoutMilliseconds) {
+                }
+
                 if (process.WaitEvent(targetHandleId, action, out var stormEvent, 500)) {
                     Output.WriteLineKernel(ProcessEmitType.Debug, process, thread, "Received event: targetProcessId=" + process.ProcessId + ", targetHandleId=" + stormEvent.TargetHandleId + ", additionalHandleId=" + stormEvent.AdditionalHandleId + ", type=" + stormEvent.Type.ToString());
                     return Optional<Event>.WithValue(stormEvent);
