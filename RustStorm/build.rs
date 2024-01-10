@@ -4,6 +4,8 @@ use std::{env, path::PathBuf};
 fn main() {
     // set by cargo for the kernel artifact dependency
     let kernel_path = env::var("CARGO_BIN_FILE_KERNEL").unwrap();
+    println!("cargo:rustc-env=KERNEL_IMAGE={}", kernel_path);
+
     let disk_builder = DiskImageBuilder::new(PathBuf::from(kernel_path));
 
     // specify output paths
