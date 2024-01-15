@@ -9,8 +9,8 @@ test = false
 bench = false
 
 [dependencies]
-bootloader_api = { path = "../../../bootloader/api", features = ["identity_map"] }
-# bootloader_api = { path = "../../../bootloader/api" }
+#bootloader_api = { path = "../../../bootloader/api", features = ["identity_map"] }
+bootloader_api = { path = "../../../bootloader/api" }
 x86_64 = "*"
 uart_16550 = "*"
 x2apic = "*"
