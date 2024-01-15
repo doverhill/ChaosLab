@@ -1,3 +1,14 @@
+// physical
+// 00xxxxxx xxxxxxxx  xxxxxxxx xxxxxxxx  xxxxxxxx xxxxxxxx
+// 0x0000_0000_0000 - 0x3fff_ffff_ffff
+
+// kernel (virtual in physical half)
+// 0x3FFF_0000_0000 - 0x3FFF_FFFF_FFFF
+
+// virtual (user space)
+// 01xxxxxx xxxxxxxx  xxxxxxxx xxxxxxxx  xxxxxxxx xxxxxxxx
+// 0x4000_0000_0000 - 0x7fff_ffff_ffff
+
 use bootloader_api::info::{ MemoryRegions, MemoryRegionKind };
 use spin::Mutex;
 use lazy_static::lazy_static;

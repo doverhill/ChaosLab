@@ -28,6 +28,7 @@ use bootloader_api::{
     info::{MemoryRegion, MemoryRegionKind},
     BootloaderConfig,
 };
+use raw_cpuid::*;
 use x86_64::structures::paging::FrameAllocator;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
@@ -41,6 +42,10 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     serial_println!("RustStorm starting...");
+
+    let cpuid = CpuId::new();
+    let flags = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
+    serial_println!("has 1GB pages: {}", flags.has_1gib_pages());
 
     // clear screen
     if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
