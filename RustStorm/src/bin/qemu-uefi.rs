@@ -11,6 +11,7 @@ fn main() {
     qemu.arg("-drive").arg(format!("format=raw,file={}", env!("UEFI_IMAGE")));
     qemu.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
     qemu.arg("-smp").arg("4");
+    qemu.arg("-m").arg("64");
     qemu.arg("-accel").arg("whpx");
     qemu.arg("-serial").arg("stdio");
     let exit_status = qemu.status().unwrap();
