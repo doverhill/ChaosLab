@@ -13,6 +13,7 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
+mod gdt;
 mod apic;
 mod interrupts;
 mod panic;
@@ -25,11 +26,8 @@ use bootloader_api::{
     config::Mapping,
     config::Mappings,
     entry_point,
-    info::{MemoryRegion, MemoryRegionKind},
     BootloaderConfig,
 };
-use raw_cpuid::*;
-use x86_64::structures::paging::FrameAllocator;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -43,23 +41,28 @@ entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     serial_println!("RustStorm starting...");
 
-    let cpuid = CpuId::new();
-    let flags = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-    serial_println!("has 1GB pages: {}", flags.has_1gib_pages());
+    // let cpuid = CpuId::new();
+    // let flags = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
+    // serial_println!("has 1GB pages: {}", flags.has_1gib_pages());
 
     // clear screen
-    if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
-        for byte in framebuffer.buffer_mut() {
-            *byte = 0x90;
-        }
-    }
+    // if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
+    //     for byte in framebuffer.buffer_mut() {
+    //         *byte = 0x90;
+    //     }
+    // }
+
+    gdt::init();
 
     // enable exception handling
     interrupts::init_exceptions();
 
     // initialize frame allocator
     physical::init(&boot_info.memory_regions);
-    serial_println!("allocated frame: {:?}", physical::ALLOCATOR.lock().as_mut().unwrap().allocate_frame());
+
+    let frame = physical::allocate(1).unwrap();
+    serial_println!("allocated frame: {:?}", frame);
+    physical::free(frame, 1);
 
     // get processors and start APs
     apic::init(boot_info.rsdp_addr);

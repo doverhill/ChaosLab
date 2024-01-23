@@ -9,10 +9,15 @@
 // 01xxxxxx xxxxxxxx  xxxxxxxx xxxxxxxx  xxxxxxxx xxxxxxxx
 // 0x4000_0000_0000 - 0x7fff_ffff_ffff
 
-use bootloader_api::info::{ MemoryRegions, MemoryRegionKind };
-use spin::Mutex;
+use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use lazy_static::lazy_static;
-use x86_64::{structures::paging::{PhysFrame, FrameAllocator, Size4KiB, FrameDeallocator}, PhysAddr};
+use spin::Mutex;
+use x86_64::{
+    structures::paging::{FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB},
+    PhysAddr,
+};
+
+use crate::serial_println;
 
 // pub fn init() {
 //     let mut usable: u64 = 0;
@@ -22,15 +27,13 @@ use x86_64::{structures::paging::{PhysFrame, FrameAllocator, Size4KiB, FrameDeal
 //         if region.kind == MemoryRegionKind::Usable {
 //             usable += region.end - region.start;
 //         }
-//         total += region.end - region.start; 
+//         total += region.end - region.start;
 //     }
 //     serial_println!("{} of {} free", usable, total);
 // }
 
 lazy_static! {
-    pub static ref ALLOCATOR: Mutex<Option<PhysicalFrameAllocator>> = {
-        Mutex::new(None)
-    };
+    pub static ref ALLOCATOR: Mutex<Option<PhysicalFrameAllocator>> = Mutex::new(None);
 }
 
 pub fn init(memory_regions: &MemoryRegions) {
@@ -38,9 +41,32 @@ pub fn init(memory_regions: &MemoryRegions) {
     *allocator = Some(PhysicalFrameAllocator::init(memory_regions));
 }
 
+pub fn allocate(number_of_pages: usize) -> Option<PhysFrame> {
+    assert!(number_of_pages == 1);
+
+    let mut allocator = ALLOCATOR.lock();
+    match allocator.as_mut() {
+        Some(inner) => inner.allocate_frame(),
+        None => None,
+    }
+}
+
+pub fn free(frame: PhysFrame, number_of_pages: usize) {
+    assert!(number_of_pages == 1);
+
+    let mut allocator = ALLOCATOR.lock();
+    match allocator.as_mut() {
+        Some(inner) => unsafe { inner.deallocate_frame(frame) },
+        None => {}
+    };
+}
+
+const FREE_FRAME_MAGIC: u64 = 0xC0CA_C07A_DEAD_BEAF;
+
 struct FreeFrame {
+    magic: u64,
     next_frame: Option<*mut FreeFrame>,
-    previous_frame: Option<*mut FreeFrame>
+    // previous_frame: Option<*mut FreeFrame>,
 }
 
 unsafe impl Send for FreeFrame {}
@@ -48,20 +74,20 @@ unsafe impl Send for FreeFrame {}
 pub struct PhysicalFrameAllocator {
     first_free: Option<*mut FreeFrame>,
     free_frame_count: u64,
-    used_frame_count: u64
+    used_frame_count: u64,
 }
 
 unsafe impl Send for PhysicalFrameAllocator {}
 
 impl PhysicalFrameAllocator {
     pub fn init(memory_regions: &MemoryRegions) -> Self {
+        serial_println!("Initializing physical memory allocator");
+
         // get usable regions from memory map
         let regions = memory_regions.iter();
-        let usable_regions = regions
-            .filter(|r| r.kind == MemoryRegionKind::Usable);
+        let usable_regions = regions.filter(|r| r.kind == MemoryRegionKind::Usable);
         // map each region to its address range
-        let addr_ranges = usable_regions
-            .map(|r| r.start..r.end);
+        let addr_ranges = usable_regions.map(|r| r.start..r.end);
         // transform to an iterator of frame start addresses
         let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
 
@@ -69,32 +95,49 @@ impl PhysicalFrameAllocator {
         let mut previous_frame: Option<*mut FreeFrame> = None;
         let mut first_free: Option<*mut FreeFrame> = None;
         for frame in frame_addresses {
-            let free_frame = frame as *mut FreeFrame;
-            unsafe { (*free_frame).previous_frame = previous_frame; }
-            match previous_frame {
-                Some(p) => unsafe { (*p).next_frame = Some(free_frame) },
-                None => first_free = Some(free_frame)
-            };
-            previous_frame = Some(free_frame);
-            frame_count += 1;
-        }
-        match previous_frame {
-            Some(p) => unsafe { (*p).next_frame = None },
-            None => ()
+            // don't use first page (it is not mapped)
+            if frame != 0 {
+                // serial_println!("free {:x}", frame);
+                let free_frame = frame as *mut FreeFrame;
+                unsafe {
+                    (*free_frame).magic = FREE_FRAME_MAGIC;
+                    (*free_frame).next_frame = None;
+                }
+                match previous_frame {
+                    Some(p) => unsafe { (*p).next_frame = Some(free_frame) },
+                    None => first_free = Some(free_frame),
+                };
+                previous_frame = Some(free_frame);
+                frame_count += 1;
+            }
         }
 
-        PhysicalFrameAllocator { first_free: first_free, free_frame_count: frame_count, used_frame_count: 0 }
+        serial_println!("Free pages: {}, {} MiB", frame_count, frame_count * 4096 / 1024 / 1024);
+
+        PhysicalFrameAllocator {
+            first_free,
+            free_frame_count: frame_count,
+            used_frame_count: 0,
+        }
     }
 }
 
 unsafe impl FrameAllocator<Size4KiB> for PhysicalFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        let mut first_free = self.first_free.unwrap();
-        let mut next_frame: *mut FreeFrame;
-        unsafe { next_frame = (*first_free).next_frame.unwrap(); }
+        let mut first_free = self.first_free.expect("Could not allocate physical page. Out of memory.");
 
-        self.first_free = Some(next_frame);
-        unsafe { (*next_frame).previous_frame = None; }
+        unsafe {
+            if !(*first_free).magic == FREE_FRAME_MAGIC {
+                panic!("Memory corruption");
+            }
+        }
+
+        let mut next_frame: Option<*mut FreeFrame> = None;
+        unsafe {
+            next_frame = (*first_free).next_frame;
+        }
+
+        self.first_free = next_frame;
         self.free_frame_count -= 1;
         self.used_frame_count += 1;
 
@@ -105,12 +148,10 @@ unsafe impl FrameAllocator<Size4KiB> for PhysicalFrameAllocator {
 impl FrameDeallocator<Size4KiB> for PhysicalFrameAllocator {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame) {
         let free_frame = frame.start_address().as_u64() as *mut FreeFrame;
-        let old_frame = self.first_free.unwrap();
 
         unsafe {
-            (*free_frame).previous_frame = None;
-            (*free_frame).next_frame = Some(old_frame);
-            (*old_frame).previous_frame = Some(free_frame);
+            (*free_frame).magic = FREE_FRAME_MAGIC;
+            (*free_frame).next_frame = self.first_free;
         }
 
         self.first_free = Some(free_frame);

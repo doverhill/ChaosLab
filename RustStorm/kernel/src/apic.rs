@@ -1,6 +1,6 @@
 use acpi::madt::MadtEntry::*;
 use bootloader_api::info::Optional;
-use x2apic::{lapic::LocalApic, *};
+// use x2apic::{lapic::LocalApic, *};
 
 use crate::serial_println;
 
@@ -12,7 +12,7 @@ impl acpi::AcpiHandler for Handler {
         acpi::PhysicalMapping::new(physical_address, core::ptr::NonNull::<T>::new(physical_address as *mut T).unwrap(), size, size, self.clone())
     }
 
-    fn unmap_physical_region<T>(region: &acpi::PhysicalMapping<Self, T>) {}
+    fn unmap_physical_region<T>(_region: &acpi::PhysicalMapping<Self, T>) {}
 }
 
 pub fn init(rsdp_pointer: Optional<u64>) {
@@ -51,11 +51,11 @@ pub fn init(rsdp_pointer: Optional<u64>) {
                         }
                     }
                     Err(error) => {
-                        serial_println!("Failed to find MADT");
+                        serial_println!("Failed to find MADT: {:?}", error);
                     }
                 },
                 Err(error) => {
-                    serial_println!("Failed to parse ACPI tables")
+                    serial_println!("Failed to parse ACPI tables: {:?}", error)
                 }
             }
         }
