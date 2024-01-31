@@ -2,7 +2,7 @@ use acpi::madt::MadtEntry::*;
 use bootloader_api::info::Optional;
 // use x2apic::{lapic::LocalApic, *};
 
-use crate::serial_println;
+use crate::{log, log_println};
 
 #[derive(Clone)]
 struct Handler();
@@ -16,12 +16,12 @@ impl acpi::AcpiHandler for Handler {
 }
 
 pub fn init(rsdp_pointer: Optional<u64>) {
-    serial_println!("Looking for processors");
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "APIC: Looking for processors");
 
     // use ACPI to find all processors
     let mut found_bsp = false;
     if let Some(rsdp) = rsdp_pointer.as_ref() {
-        serial_println!("Found ACPI RSDP table");
+        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Found ACPI RSDP table");
         unsafe {
             match acpi::AcpiTables::from_rsdp(Handler(), *rsdp as usize) {
                 Ok(tables) => match tables.find_table::<acpi::madt::Madt>() {
@@ -30,32 +30,32 @@ pub fn init(rsdp_pointer: Optional<u64>) {
                             match entry {
                                 LocalApic(local_apic) => {
                                     let enabled = local_apic.flags & (1 << 0) != 0;
-                                    serial_println!("Found CPU #{}: enabled={}", local_apic.apic_id, enabled);
+                                    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Found CPU #{}: enabled={}", local_apic.apic_id, enabled);
                                     if enabled {
                                         if !found_bsp {
-                                            serial_println!("Found BSP CPU. Initializing Local APIC");
+                                            log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Found BSP CPU. Initializing Local APIC");
                                             found_bsp = true;
                                         }
                                         else {
-                                            serial_println!("Starting CPU #{}", local_apic.apic_id);
+                                            log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Starting CPU #{}", local_apic.apic_id);
                                         }
                                     }
                                 }
-                                IoApic(io_apic) => serial_println!("Found IO APIC #{}", io_apic.io_apic_id),
+                                IoApic(io_apic) => log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Found IO APIC #{}", io_apic.io_apic_id),
                                 LocalApicAddressOverride(address) => {
                                     let local_apic_address = address.local_apic_address;
-                                    serial_println!("Found 64 bit Local APIC address: {}", local_apic_address)
+                                    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Found 64 bit Local APIC address: {}", local_apic_address)
                                 }
                                 _ => {}
                             }
                         }
                     }
                     Err(error) => {
-                        serial_println!("Failed to find MADT: {:?}", error);
+                        log_println!(log::SubSystem::X86_64, log::LogLevel::Error, "Failed to find MADT: {:?}", error);
                     }
                 },
                 Err(error) => {
-                    serial_println!("Failed to parse ACPI tables: {:?}", error)
+                    log_println!(log::SubSystem::X86_64, log::LogLevel::Error, "Failed to parse ACPI tables: {:?}", error)
                 }
             }
         }

@@ -1,5 +1,6 @@
 use crate::gdt;
-use crate::serial_println;
+use crate::log;
+use crate::log_println;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
@@ -18,7 +19,7 @@ lazy_static! {
 }
 
 pub fn init_exceptions() {
-    serial_println!("Setting up exception handling");
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "IDT: Setting up exception handling");
     IDT.load();
     // x86_64::instructions::interrupts::disable();
     // x86_64::instructions::interrupts::int3(); // new
@@ -34,7 +35,6 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
 
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
     let address = x86_64::registers::control::Cr2::read().as_u64();
-    serial_println!("pf");
     panic!("EXCEPTION: PAGE FAULT: 0x{:x}\n{:#?}\n{:#?}", address, error_code, stack_frame);
 }
 

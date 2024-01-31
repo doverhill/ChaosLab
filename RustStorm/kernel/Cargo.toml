@@ -19,3 +19,4 @@ lazy_static = { version = "*", features = ["spin_no_std"] }
 elf_rs = "*"
 acpi = { version = "*", default-features = false }
 raw-cpuid = "*"
+derivative = { version = "*", features = ["use_core"] }

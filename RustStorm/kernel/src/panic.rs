@@ -1,8 +1,10 @@
 use core::panic::PanicInfo;
-use crate::serial_println;
+use crate::{log, log_println};
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    serial_println!("kernel panic: {}", info);
-    loop {}
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Error, "KERNEL PANIC: {}", info);
+    loop {
+        x86_64::instructions::hlt();
+    }
 }

@@ -17,7 +17,7 @@ use x86_64::{
     PhysAddr,
 };
 
-use crate::serial_println;
+use crate::{log, log_println};
 
 // pub fn init() {
 //     let mut usable: u64 = 0;
@@ -33,30 +33,32 @@ use crate::serial_println;
 // }
 
 lazy_static! {
-    pub static ref ALLOCATOR: Mutex<Option<PhysicalFrameAllocator>> = Mutex::new(None);
+    static ref ALLOCATOR: Mutex<Option<PhysicalFrameAllocator>> = Mutex::new(None);
 }
 
 pub fn init(memory_regions: &MemoryRegions) {
+    log_println!(log::SubSystem::Physical, log::LogLevel::Information, "Initializing physical memory allocator");
+
     let mut allocator = ALLOCATOR.lock();
     *allocator = Some(PhysicalFrameAllocator::init(memory_regions));
 }
 
-pub fn allocate(number_of_pages: usize) -> Option<PhysFrame> {
+pub fn allocate(number_of_pages: usize) -> Option<*mut u8> {
     assert!(number_of_pages == 1);
 
     let mut allocator = ALLOCATOR.lock();
     match allocator.as_mut() {
-        Some(inner) => inner.allocate_frame(),
+        Some(inner) => inner.allocate_frame().map(|f| f.start_address().as_u64() as *mut u8),
         None => None,
     }
 }
 
-pub fn free(frame: PhysFrame, number_of_pages: usize) {
+pub fn free(page_address: *mut u8, number_of_pages: usize) {
     assert!(number_of_pages == 1);
 
     let mut allocator = ALLOCATOR.lock();
     match allocator.as_mut() {
-        Some(inner) => unsafe { inner.deallocate_frame(frame) },
+        Some(inner) => unsafe { inner.deallocate_frame(PhysFrame::containing_address(PhysAddr::new(page_address as u64))) },
         None => {}
     };
 }
@@ -71,7 +73,7 @@ struct FreeFrame {
 
 unsafe impl Send for FreeFrame {}
 
-pub struct PhysicalFrameAllocator {
+struct PhysicalFrameAllocator {
     first_free: Option<*mut FreeFrame>,
     free_frame_count: u64,
     used_frame_count: u64,
@@ -81,8 +83,6 @@ unsafe impl Send for PhysicalFrameAllocator {}
 
 impl PhysicalFrameAllocator {
     pub fn init(memory_regions: &MemoryRegions) -> Self {
-        serial_println!("Initializing physical memory allocator");
-
         // get usable regions from memory map
         let regions = memory_regions.iter();
         let usable_regions = regions.filter(|r| r.kind == MemoryRegionKind::Usable);
@@ -112,7 +112,7 @@ impl PhysicalFrameAllocator {
             }
         }
 
-        serial_println!("Free pages: {}, {} MiB", frame_count, frame_count * 4096 / 1024 / 1024);
+        log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Free pages: {}, {} MiB", frame_count, frame_count * 4096 / 1024 / 1024);
 
         PhysicalFrameAllocator {
             first_free,
@@ -124,7 +124,7 @@ impl PhysicalFrameAllocator {
 
 unsafe impl FrameAllocator<Size4KiB> for PhysicalFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        let mut first_free = self.first_free.expect("Could not allocate physical page. Out of memory.");
+        let first_free = self.first_free.expect("Could not allocate physical page. Out of memory.");
 
         unsafe {
             if !(*first_free).magic == FREE_FRAME_MAGIC {
@@ -132,10 +132,9 @@ unsafe impl FrameAllocator<Size4KiB> for PhysicalFrameAllocator {
             }
         }
 
-        let mut next_frame: Option<*mut FreeFrame> = None;
-        unsafe {
-            next_frame = (*first_free).next_frame;
-        }
+        let next_frame = unsafe {
+            (*first_free).next_frame
+        };
 
         self.first_free = next_frame;
         self.free_frame_count -= 1;
@@ -147,6 +146,8 @@ unsafe impl FrameAllocator<Size4KiB> for PhysicalFrameAllocator {
 
 impl FrameDeallocator<Size4KiB> for PhysicalFrameAllocator {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame) {
+        assert!(frame.start_address().as_u64().trailing_zeros() == 12);
+
         let free_frame = frame.start_address().as_u64() as *mut FreeFrame;
 
         unsafe {

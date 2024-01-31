@@ -13,21 +13,21 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
-mod gdt;
+extern crate alloc;
+
+mod log;
+mod address_space;
 mod apic;
+mod gdt;
 mod interrupts;
+mod kernel_memory;
 mod panic;
 mod physical;
 mod process;
-mod serial;
 mod syscall;
 
-use bootloader_api::{
-    config::Mapping,
-    config::Mappings,
-    entry_point,
-    BootloaderConfig,
-};
+use alloc::boxed::Box;
+use bootloader_api::{config::Mapping, config::Mappings, entry_point, BootloaderConfig};
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -39,7 +39,7 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 
 entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    serial_println!("RustStorm starting...");
+    log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Starting RustStorm kernel");
 
     // let cpuid = CpuId::new();
     // let flags = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
@@ -58,11 +58,14 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     interrupts::init_exceptions();
 
     // initialize frame allocator
+    // NOTE: no code can allocate before this has been run
     physical::init(&boot_info.memory_regions);
 
-    let frame = physical::allocate(1).unwrap();
-    serial_println!("allocated frame: {:?}", frame);
-    physical::free(frame, 1);
+    let page = physical::allocate(1).unwrap();
+    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Allocated frame {:p}", page);
+    physical::free(page, 1);
+
+    let _test_alloction = Box::new(1337 as u128);
 
     // get processors and start APs
     apic::init(boot_info.rsdp_addr);
