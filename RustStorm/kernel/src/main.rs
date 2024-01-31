@@ -29,6 +29,10 @@ mod syscall;
 use alloc::boxed::Box;
 use bootloader_api::{config::Mapping, config::Mappings, entry_point, BootloaderConfig};
 
+pub const KB: usize = 1024;
+pub const MB: usize = (1024 * 1024);
+pub const GB: usize = (1024 * 1024 * 1024);
+
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
     config.mappings = Mappings::new_default();

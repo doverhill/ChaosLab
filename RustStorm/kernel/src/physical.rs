@@ -44,6 +44,8 @@ pub fn init(memory_regions: &MemoryRegions) {
 }
 
 pub fn allocate(number_of_pages: usize) -> Option<*mut u8> {
+    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Allocating {} pages", number_of_pages);
+
     assert!(number_of_pages == 1);
 
     let mut allocator = ALLOCATOR.lock();
@@ -54,6 +56,8 @@ pub fn allocate(number_of_pages: usize) -> Option<*mut u8> {
 }
 
 pub fn free(page_address: *mut u8, number_of_pages: usize) {
+    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Freeing {:p} - {} pages", page_address, number_of_pages);
+
     assert!(number_of_pages == 1);
 
     let mut allocator = ALLOCATOR.lock();
@@ -64,6 +68,7 @@ pub fn free(page_address: *mut u8, number_of_pages: usize) {
 }
 
 const FREE_FRAME_MAGIC: u64 = 0xC0CA_C07A_DEAD_BEAF;
+pub const PAGE_SIZE: usize = 0x1000;
 
 struct FreeFrame {
     magic: u64,
@@ -75,8 +80,8 @@ unsafe impl Send for FreeFrame {}
 
 struct PhysicalFrameAllocator {
     first_free: Option<*mut FreeFrame>,
-    free_frame_count: u64,
-    used_frame_count: u64,
+    free_frame_count: usize,
+    used_frame_count: usize,
 }
 
 unsafe impl Send for PhysicalFrameAllocator {}
@@ -89,9 +94,9 @@ impl PhysicalFrameAllocator {
         // map each region to its address range
         let addr_ranges = usable_regions.map(|r| r.start..r.end);
         // transform to an iterator of frame start addresses
-        let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
+        let frame_addresses = addr_ranges.flat_map(|r| r.step_by(PAGE_SIZE));
 
-        let mut frame_count: u64 = 0;
+        let mut frame_count: usize = 0;
         let mut previous_frame: Option<*mut FreeFrame> = None;
         let mut first_free: Option<*mut FreeFrame> = None;
         for frame in frame_addresses {
@@ -112,7 +117,7 @@ impl PhysicalFrameAllocator {
             }
         }
 
-        log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Free pages: {}, {} MiB", frame_count, frame_count * 4096 / 1024 / 1024);
+        log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Free pages: {}, {} MiB", frame_count, frame_count * PAGE_SIZE / crate::MB);
 
         PhysicalFrameAllocator {
             first_free,

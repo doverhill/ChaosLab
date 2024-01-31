@@ -1,5 +1,3 @@
-use core::num;
-
 use crate::{log, log_println, physical};
 use alloc::alloc::{GlobalAlloc, Layout};
 use lazy_static::lazy_static;
@@ -45,7 +43,7 @@ struct AllocatorBlock {
     pub slot_size: usize,
     pub slot_count: usize,
     pub free_slot_count: usize,
-    pub first_free_slot: Option<*mut u8>,
+    pub first_free_slot: Option<i32>,
     pub next_block: Option<*mut AllocatorBlock>,
 }
 
@@ -55,8 +53,9 @@ struct InnerKernelAllocator {
     // optional pointers to supported sizes:
     // 4, 8, 16, 32, 64, 128, 256, 512, 1024 = 9 sizes
     block_chains: [AllocatorBlockChain; 9],
-    allocated_bytes: usize,
-    used_bytes: usize,
+    used_page_bytes: usize,
+    used_allocation_bytes: usize,
+    requested_bytes: usize,
 }
 
 unsafe impl Send for InnerKernelAllocator {}
@@ -73,8 +72,9 @@ impl InnerKernelAllocator {
 
         InnerKernelAllocator {
             block_chains: block_chains,
-            allocated_bytes: 0,
-            used_bytes: 0,
+            used_page_bytes: 0,
+            used_allocation_bytes: 0,
+            requested_bytes: 0,
         }
     }
 
@@ -85,7 +85,7 @@ impl InnerKernelAllocator {
         block.slot_size = 4 << size_index;
         block.slot_count = 4040 / block.slot_size;
         block.free_slot_count = block.slot_count;
-        block.first_free_slot = Some(block_pointer as *mut u8);
+        block.first_free_slot = Some(0);
         block.next_block = None;
 
         // initialize next free for each slot
@@ -102,7 +102,7 @@ impl InnerKernelAllocator {
 
     fn get_size_index(layout: Layout) -> (bool, usize, usize) {
         if layout.size() > 1024 {
-            let number_of_pages = ((layout.size() - 1) / 4096) + 1;
+            let number_of_pages = ((layout.size() - 1) / physical::PAGE_SIZE) + 1;
             return (true, number_of_pages, 0);
         }
 
@@ -119,14 +119,16 @@ impl InnerKernelAllocator {
     pub unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
         log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Allocating {:?}", layout);
 
+        self.requested_bytes += layout.size();
         let (use_own_page, size, size_index) = InnerKernelAllocator::get_size_index(layout);
 
         if use_own_page {
-            log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Allocating block of size {}, using {} page(s)", size * 4096, size);
+            log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Allocating block of size {}, using {} page(s)", size * physical::PAGE_SIZE, size);
 
             // allocate physical pages for this memory
-            self.allocated_bytes += layout.size();
-            self.used_bytes += size * 4096;
+            self.used_page_bytes += size * physical::PAGE_SIZE;
+            self.used_allocation_bytes += size * physical::PAGE_SIZE;
+
             physical::allocate(size).unwrap()
         } else {
             log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Allocating block of size {}, using size index {}", size, size_index);
@@ -152,6 +154,9 @@ impl InnerKernelAllocator {
                 block_chain.total_free_slot_count += new_block.slot_count;
                 block_chain.block_count += 1;
 
+                // update totals
+                self.used_page_bytes += physical::PAGE_SIZE;
+
                 log_println!(
                     log::SubSystem::KernelMemory,
                     log::LogLevel::Debug,
@@ -162,19 +167,30 @@ impl InnerKernelAllocator {
             }
 
             // we now have free slots in the chain, find first free
-            let block = block_chain.first_block.unwrap().as_mut().unwrap();
+            let block_pointer = block_chain.first_block.unwrap();
+            let block = block_pointer.as_mut().unwrap();
             loop {
                 assert!(block.slot_size == size);
 
                 if block.free_slot_count > 0 {
-                    let slot_pointer = block.first_free_slot.expect("Expected block to contain free slots");
+                    let slot_offset = block.first_free_slot.expect("Expected block to contain free slots");
+                    let slot_pointer = (block_pointer as usize + slot_offset as usize * block.slot_size) as *mut u8;
 
                     // update block's first_free
                     let next_free_slot_index = *(slot_pointer as *const i32);
+                    block.first_free_slot = Some(next_free_slot_index);
+
+                    // update totals
+                    self.used_allocation_bytes += size;
+
+                    block_chain.total_free_slot_count -= 1;
+                    block.free_slot_count -= 1;
 
                     return slot_pointer;
                 }
-                let block = block.next_block.expect("Expected block with free slots").as_mut().unwrap();
+
+                let block_pointer = block.next_block.unwrap();
+                let block = block_pointer.as_mut().unwrap();
             }
         }
     }
@@ -182,15 +198,20 @@ impl InnerKernelAllocator {
     pub fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
         log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Freeing {:p} {:?}", ptr, layout);
 
+        self.requested_bytes -= layout.size();
         let (use_own_page, size, size_index) = InnerKernelAllocator::get_size_index(layout);
 
         if use_own_page {
-            log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Freeing block of size {}, using {} page(s)", size * 4096, size);
+            log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Freeing block of size {}, using {} page(s)", size * physical::PAGE_SIZE, size);
 
-            self.allocated_bytes -= layout.size();
-            self.used_bytes -= size * 4096;
+            self.used_page_bytes -= size * physical::PAGE_SIZE;
+            self.used_allocation_bytes -= size * physical::PAGE_SIZE;
+            
             physical::free(ptr, size);
-        } else {
+        } 
+        else {
+            log_println!(log::SubSystem::KernelMemory, log::LogLevel::Debug, "Freeing block of size {}, using size index {}", size, size_index);
+
         }
     }
 }
