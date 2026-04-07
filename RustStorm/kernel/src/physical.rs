@@ -88,21 +88,36 @@ unsafe impl Send for PhysicalFrameAllocator {}
 
 impl PhysicalFrameAllocator {
     pub fn init(memory_regions: &MemoryRegions) -> Self {
-        // get usable regions from memory map
-        let regions = memory_regions.iter();
-        let usable_regions = regions.filter(|r| r.kind == MemoryRegionKind::Usable);
-        // map each region to its address range
-        let addr_ranges = usable_regions.map(|r| r.start..r.end);
-        // transform to an iterator of frame start addresses
-        let frame_addresses = addr_ranges.flat_map(|r| r.step_by(PAGE_SIZE));
+        // log the full memory map so we can verify UEFI/bootloader regions are excluded
+        let mut usable_bytes: u64 = 0;
+        let mut reserved_bytes: u64 = 0;
+        for region in memory_regions.iter() {
+            let size = region.end - region.start;
+            match region.kind {
+                MemoryRegionKind::Usable => {
+                    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  Usable:   {:#010x}-{:#010x} ({} KiB)", region.start, region.end, size / 1024);
+                    usable_bytes += size;
+                }
+                kind => {
+                    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  Reserved: {:#010x}-{:#010x} ({} KiB) {:?}", region.start, region.end, size / 1024, kind);
+                    reserved_bytes += size;
+                }
+            }
+        }
+        log_println!(log::SubSystem::Physical, log::LogLevel::Information, "Memory: {} MiB usable, {} MiB reserved", usable_bytes / crate::MB as u64, reserved_bytes / crate::MB as u64);
+
+        // only add frames from Usable regions, skip everything below 2 MiB
+        let frame_addresses = memory_regions.iter()
+            .filter(|r| r.kind == MemoryRegionKind::Usable)
+            .map(|r| r.start..r.end)
+            .flat_map(|r| r.step_by(PAGE_SIZE));
 
         let mut frame_count: usize = 0;
         let mut previous_frame: Option<*mut FreeFrame> = None;
         let mut first_free: Option<*mut FreeFrame> = None;
         for frame in frame_addresses {
-            // don't use first page (it is not mapped)
-            if frame != 0 {
-                // serial_println!("free {:x}", frame);
+            // skip everything below 2 MiB — used by bootloader page tables and bootstrap allocator
+            if frame >= 0x20_0000 {
                 let free_frame = frame as *mut FreeFrame;
                 unsafe {
                     (*free_frame).magic = FREE_FRAME_MAGIC;
@@ -117,7 +132,7 @@ impl PhysicalFrameAllocator {
             }
         }
 
-        log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Free pages: {}, {} MiB", frame_count, frame_count * PAGE_SIZE / crate::MB);
+        log_println!(log::SubSystem::Physical, log::LogLevel::Information, "Free pages: {} ({} MiB)", frame_count, frame_count * PAGE_SIZE / crate::MB);
 
         PhysicalFrameAllocator {
             first_free,

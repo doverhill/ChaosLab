@@ -36,7 +36,7 @@ pub const GB: usize = (1024 * 1024 * 1024);
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
     config.mappings = Mappings::new_default();
-    config.mappings.physical_memory = Some(Mapping::FixedAddress(0));
+    config.mappings.physical_memory = Some(Mapping::Dynamic);
     config.kernel_stack_size = 128 * 1024;
     config
 };
@@ -61,8 +61,12 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // enable exception handling
     interrupts::init_exceptions();
 
-    // initialize frame allocator
-    // NOTE: no code can allocate before this has been run
+    // set up identity mapping using the bootloader's offset mapping, so that
+    // virtual address == physical address for the first 4 GiB
+    let physical_memory_offset = boot_info.physical_memory_offset.into_option().expect("bootloader did not provide physical memory offset");
+    address_space::init(physical_memory_offset, &boot_info.memory_regions);
+
+    // initialize frame allocator (requires identity mapping to be active)
     physical::init(&boot_info.memory_regions);
 
     let page = physical::allocate(1).unwrap();

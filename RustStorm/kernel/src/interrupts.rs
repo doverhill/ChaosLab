@@ -34,7 +34,7 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
 }
 
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
-    let address = x86_64::registers::control::Cr2::read().as_u64();
+    let address = x86_64::registers::control::Cr2::read().expect("Failed to read CR2").as_u64();
     panic!("EXCEPTION: PAGE FAULT: 0x{:x}\n{:#?}\n{:#?}", address, error_code, stack_frame);
 }
 

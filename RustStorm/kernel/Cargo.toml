@@ -9,14 +9,13 @@ test = false
 bench = false
 
 [dependencies]
-#bootloader_api = { path = "../../../bootloader/api", features = ["identity_map"] }
-bootloader_api = { path = "../../../bootloader/api" }
-x86_64 = "*"
-uart_16550 = "*"
-x2apic = "*"
-spin = "*"
-lazy_static = { version = "*", features = ["spin_no_std"] }
-elf_rs = "*"
-acpi = { version = "*", default-features = false }
-raw-cpuid = "*"
-derivative = { version = "*", features = ["use_core"] }
+bootloader_api = "0.11.15"
+x86_64 = "0.15.4"
+uart_16550 = "0.6.0"
+x2apic = "0.5.0"
+spin = "0.10.0"
+lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
+elf_rs = "0.3.1"
+acpi = { version = "6.1.1", default-features = false }
+raw-cpuid = "11.6.0"
+derivative = { version = "2.2.0", features = ["use_core"] }

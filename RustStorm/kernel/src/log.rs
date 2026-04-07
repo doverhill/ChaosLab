@@ -1,16 +1,24 @@
-use core::ops::Sub;
-
 use lazy_static::lazy_static;
 use spin::Mutex;
-use uart_16550::SerialPort;
+use uart_16550::{Config, Uart16550};
+use uart_16550::backend::PioBackend;
 
 const SHOW_LOG_LEVEL: LogLevel = LogLevel::Debug;
 
+pub struct Serial(Uart16550<PioBackend>);
+
+impl core::fmt::Write for Serial {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.0.send_bytes_exact(s.as_bytes());
+        Ok(())
+    }
+}
+
 lazy_static! {
-    pub static ref SERIAL1: Mutex<SerialPort> = {
-        let mut serial_port = unsafe { SerialPort::new(0x3F8) };
-        serial_port.init();
-        Mutex::new(serial_port)
+    pub static ref SERIAL1: Mutex<Serial> = {
+        let mut uart = unsafe { Uart16550::new_port(0x3F8).unwrap() };
+        uart.init(Config::default()).expect("Failed to init serial port");
+        Mutex::new(Serial(uart))
     };
 }
 
