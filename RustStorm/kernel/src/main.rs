@@ -22,8 +22,10 @@ mod gdt;
 mod interrupts;
 mod kernel_memory;
 mod log;
+mod memory_setup;
+mod page_tables;
 mod panic;
-mod physical;
+mod physical_memory;
 mod process;
 mod qemu;
 mod syscall;
@@ -94,9 +96,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let physical_memory_offset = boot_info.physical_memory_offset.into_option().expect("bootloader did not provide physical memory offset");
     log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Physical memory offset: {:#x} (L4[{}])", physical_memory_offset, physical_memory_offset / (512 * crate::GB as u64));
-    address_space::init(physical_memory_offset, &boot_info.memory_regions);
+    memory_setup::init_identity_mapping(physical_memory_offset, &boot_info.memory_regions);
 
-    // Save everything we need from boot_info BEFORE physical::init.
+    // Save everything we need from boot_info BEFORE physical_memory::init.
     // boot_info and memory_regions live in Bootloader-marked pages which
     // will be reclaimed after decoupling.
     let rsdp_address = boot_info.rsdp_addr;
@@ -108,7 +110,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer_physical = boot_info.framebuffer.as_ref().map(|framebuffer| {
         let virtual_address = framebuffer.buffer().as_ptr() as u64;
         let size = framebuffer.info().byte_len;
-        let physical_address = address_space::virtual_to_physical(virtual_address, physical_memory_offset)
+        let physical_address = page_tables::virtual_to_physical(virtual_address, physical_memory_offset)
             .expect("framebuffer virtual address not mapped");
         log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
             "Framebuffer: virtual={:#x}, physical={:#x}, size={} KiB", virtual_address, physical_address, size / 1024);
@@ -126,24 +128,28 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     }
 
     // initialize frame allocator with Usable memory only
-    physical::init(&boot_info.memory_regions);
+    physical_memory::init(&boot_info.memory_regions);
 
     // Fix null guard FIRST — the heap allocator uses virtual_memory which
     // walks page tables via identity mapping. The L4 table at 0x101000 must
     // be accessible before any heap allocation can occur.
-    address_space::fix_null_guard(physical_memory_offset);
+    memory_setup::fix_null_guard(physical_memory_offset);
+
+    // Pre-allocate L3 tables for kernel virtual memory (L4[128..256]) so that
+    // all future address spaces can share the kernel half by copying L4 entries.
+    memory_setup::pre_allocate_kernel_virtual_l3_tables(physical_memory_offset);
 
     // ---- Decouple from bootloader page tables ----
     // After this, no page table pages are in bootloader memory.
     // The framebuffer gets identity-mapped and its pointer updated.
     let kernel_leaf_pages = if let Some((physical_address, size)) = framebuffer_physical {
-        address_space::decouple_from_bootloader(physical_memory_offset, physical_address, size)
+        memory_setup::decouple_from_bootloader(physical_memory_offset, physical_address, size)
     } else {
-        address_space::decouple_from_bootloader(physical_memory_offset, 0, 0)
+        memory_setup::decouple_from_bootloader(physical_memory_offset, 0, 0)
     };
 
     // ---- Reclaim bootloader memory ----
-    physical::reclaim_bootloader(&bootloader_regions[..bootloader_region_count], &kernel_leaf_pages);
+    physical_memory::reclaim_bootloader(&bootloader_regions[..bootloader_region_count], &kernel_leaf_pages);
 
     // sanity check: kernel heap allocator still works after all the page table surgery
     let _heap_test = Box::new(42u64);

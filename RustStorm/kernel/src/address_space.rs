@@ -1,544 +1,191 @@
-//! Identity mapping and bootloader decoupling.
+//! Per-process address space management.
 //!
-//! ## Boot-time identity mapping (`init`)
-//!
-//! Scans the UEFI memory map and creates 2 MiB identity map entries
-//! (virtual = physical) for every GiB range containing a memory region.
-//! The identity map lives in L4[0..127]; per-process virtual space starts
-//! at L4[128].
-//!
-//! ## Post-allocator decoupling (`decouple_from_bootloader`)
-//!
-//! Once the physical allocator is ready, this module:
-//! 1. Fixes the null guard from 2 MiB down to 4 KiB (page 0 only)
-//! 2. Identity-maps the framebuffer (not in any UEFI memory region)
-//! 3. Walks L4[2+] (bootloader page tables), creates new tables from our
-//!    allocator preserving kernel 4 KiB leaf pages, drops offset mapping
-//! 4. Replaces the 2 reused bootloader L3/L2 at L4[0..1]
-//! 5. Returns the set of kernel leaf pages (still in use, must not free)
-//!
-//! After decoupling, NO page table pages are in bootloader memory.
+//! Each `AddressSpace` owns an L4 page table. The kernel half (L4[0..255])
+//! is shared across all address spaces by copying entries from the kernel L4.
+//! The user half (L4[256..511]) is private to each process.
 
-use alloc::vec::Vec;
-use bootloader_api::info::MemoryRegions;
-use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::page_table::{PageTable, PageTableEntry, PageTableFlags};
+use x86_64::structures::paging::page_table::PageTableFlags;
 use x86_64::PhysAddr;
 
-use crate::{log, log_println, physical};
+use crate::page_tables::{
+    allocate_page_table, ensure_l1_table, ensure_l2_table, ensure_l3_table, get_current_l4_table, is_page_unmapped, physical_to_table, virtual_to_indices, L4_COVERAGE, PAGE_SIZE, USER_PAGE_FLAGS,
+    USER_TABLE_FLAGS, USER_VIRTUAL_L4_END, USER_VIRTUAL_L4_START,
+};
+use crate::{log, log_println, physical_memory};
 
-const PAGE_SIZE: u64 = 0x1000;
-const TWO_MIB: u64 = 0x20_0000;
-const ONE_GIB: u64 = 0x4000_0000;
-const L4_COVERAGE: u64 = 512 * ONE_GIB;
-const MAX_L4_INDEX: usize = 128;
+/// Start of the user virtual address range.
+const USER_VIRTUAL_BASE: u64 = (USER_VIRTUAL_L4_START as u64) * L4_COVERAGE;
 
-const TABLE_FLAGS: PageTableFlags = PageTableFlags::PRESENT.union(PageTableFlags::WRITABLE);
-const HUGE_FLAGS: PageTableFlags = TABLE_FLAGS.union(PageTableFlags::HUGE_PAGE);
-const PAGE_FLAGS: PageTableFlags = TABLE_FLAGS;
+/// A per-process address space backed by its own L4 page table.
+///
+/// The kernel half (L4[0..255]) is copied from the current kernel L4 at
+/// creation time. Because all kernel L3 tables are pre-allocated and shared,
+/// kernel mappings created after construction are automatically visible.
+///
+/// The user half (L4[256..511]) starts empty and is managed by
+/// `allocate_user_pages` / `free_user_pages`.
+pub struct AddressSpace {
+    l4_physical_address: u64,
+}
 
-// ---------------------------------------------------------------------------
-// Boot-time identity mapping (called before allocator is ready)
-// ---------------------------------------------------------------------------
+impl AddressSpace {
+    /// Create a new address space. Allocates an L4 table, copies L4[0..255]
+    /// from the current kernel L4 (sharing the kernel page tables), and
+    /// leaves L4[256..511] empty for user-space mappings.
+    pub fn new() -> Self {
+        let kernel_l4 = get_current_l4_table();
+        let (new_l4, new_l4_physical) = allocate_page_table();
 
-/// Set up 2 MiB identity mapping for all physical memory and MMIO regions.
-/// Called early in boot before the physical allocator exists.
-pub fn init(physical_memory_offset: u64, memory_regions: &MemoryRegions) {
-    let mut highest_address: u64 = 0;
-    for region in memory_regions.iter() {
-        if region.end > highest_address {
-            highest_address = region.end;
+        // Copy the kernel half (identity mapping + kernel virtual memory).
+        // These entries point to shared L3 tables, so any future kernel
+        // mappings (e.g. new kernel virtual allocations) are automatically
+        // visible in this address space.
+        for index in 0..256 {
+            if kernel_l4[index].flags().contains(PageTableFlags::PRESENT) {
+                new_l4[index].set_addr(kernel_l4[index].addr(), kernel_l4[index].flags());
+            }
         }
-    }
 
-    let l4_count = (((highest_address + L4_COVERAGE - 1) / L4_COVERAGE) as usize).min(MAX_L4_INDEX);
+        // L4[256..511] stays zeroed (set_unused by allocate_page_table)
 
-    log_println!(
-        log::SubSystem::Boot, log::LogLevel::Information,
-        "Identity mapping all physical memory and MMIO (highest address: {:#x}, {} L4 entries)",
-        highest_address, l4_count
-    );
-
-    let mut bootstrap = BootstrapFrameAllocator::new(memory_regions, physical_memory_offset);
-
-    let (l4_frame, _) = Cr3::read();
-    let l4_physical = l4_frame.start_address().as_u64();
-    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "L4 page table at physical {:#x}", l4_physical);
-    let l4_table = physical_to_table(l4_physical, physical_memory_offset);
-
-    let mut mapped_gibs = 0u64;
-
-    for l4_index in 0..l4_count {
-        let l4_present = l4_table[l4_index].flags().contains(PageTableFlags::PRESENT);
-        let l3_table = get_or_create_table(&mut l4_table[l4_index], &mut bootstrap, physical_memory_offset);
-        log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "L4[{}]: L3 table {} ({})",
-            l4_index,
-            if l4_present { "reused from bootloader" } else { "newly allocated" },
-            if l4_present { "bootloader-owned page" } else { "bootstrap frame" }
+        log_println!(
+            log::SubSystem::KernelMemory,
+            log::LogLevel::Debug,
+            "Created address space with L4 at physical {:#x}",
+            new_l4_physical
         );
 
-        for l3_index in 0usize..512 {
-            let gib_start = (l4_index as u64) * L4_COVERAGE + (l3_index as u64) * ONE_GIB;
-            let gib_end = gib_start + ONE_GIB;
+        AddressSpace { l4_physical_address: new_l4_physical }
+    }
 
-            if !has_region_in_range(memory_regions, gib_start, gib_end) {
+    /// Return the physical address of this address space's L4 page table.
+    /// Used when switching CR3 to activate this address space.
+    pub fn l4_physical_address(&self) -> u64 {
+        self.l4_physical_address
+    }
+
+    /// Allocate `page_count` contiguous 4 KiB virtual pages in the user half
+    /// (L4[256..511]). Allocates physical frames for each page and maps them
+    /// with user-accessible flags.
+    ///
+    /// Returns the virtual base address, or None if no contiguous range is
+    /// found or physical allocation fails.
+    ///
+    /// NOTE: Brute-force linear scan; should be replaced with a proper
+    /// free-range tracker once the kernel matures.
+    pub fn allocate_user_pages(&self, page_count: usize) -> Option<u64> {
+        assert!(page_count > 0, "cannot allocate 0 pages");
+
+        let l4_table = physical_to_table(self.l4_physical_address);
+        let end_virtual = (USER_VIRTUAL_L4_END as u64) * L4_COVERAGE;
+        let mut candidate = USER_VIRTUAL_BASE;
+
+        while candidate + (page_count as u64 * PAGE_SIZE) <= end_virtual {
+            let mut all_free = true;
+            for page_offset in 0..page_count as u64 {
+                let virtual_address = candidate + page_offset * PAGE_SIZE;
+                if !is_page_unmapped(l4_table, virtual_address) {
+                    candidate = virtual_address + PAGE_SIZE;
+                    all_free = false;
+                    break;
+                }
+            }
+
+            if !all_free {
                 continue;
             }
 
-            let l3_entry = &mut l3_table[l3_index];
+            // found a contiguous unmapped range — allocate and map
+            for page_offset in 0..page_count as u64 {
+                let virtual_address = candidate + page_offset * PAGE_SIZE;
+                let physical_frame = physical_memory::allocate(1);
+                if physical_frame.is_none() {
+                    log_println!(
+                        log::SubSystem::KernelMemory,
+                        log::LogLevel::Error,
+                        "Out of physical memory while mapping user pages at {:#x}",
+                        virtual_address
+                    );
+                    // TODO: proper rollback (free already-mapped pages)
+                    return None;
+                }
+                let physical_address = physical_frame.unwrap() as u64;
 
-            if l3_entry.flags().contains(PageTableFlags::PRESENT) && l3_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-                log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "  L3[{}]: {:#x}-{:#x} already 1 GiB huge page", l3_index, gib_start, gib_end);
-                mapped_gibs += 1;
-                continue;
+                let (l4_index, l3_index, l2_index, l1_index) = virtual_to_indices(virtual_address);
+                let l3_table = ensure_l3_table(l4_table, l4_index, USER_TABLE_FLAGS);
+                let l2_table = ensure_l2_table(l3_table, l3_index, USER_TABLE_FLAGS);
+                let l1_table = ensure_l1_table(l2_table, l2_index, USER_TABLE_FLAGS);
+                l1_table[l1_index].set_addr(PhysAddr::new(physical_address), USER_PAGE_FLAGS);
             }
 
-            let l3_present = l3_entry.flags().contains(PageTableFlags::PRESENT);
-            let l2_table = get_or_create_table(l3_entry, &mut bootstrap, physical_memory_offset);
-            log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "  L3[{}]: {:#x}-{:#x} L2 table {} → filling with 2 MiB identity pages",
-                l3_index, gib_start, gib_end, if l3_present { "reused" } else { "new" }
+            log_println!(
+                log::SubSystem::KernelMemory,
+                log::LogLevel::Debug,
+                "Mapped {} user pages at {:#x} in address space {:#x}",
+                page_count,
+                candidate,
+                self.l4_physical_address
             );
-
-            for l2_index in 0usize..512 {
-                // null pointer guard: skip the ENTIRE first 2 MiB for now.
-                // decouple_from_bootloader() will refine this to 4 KiB later.
-                if l4_index == 0 && l3_index == 0 && l2_index == 0 {
-                    continue;
-                }
-
-                if l2_table[l2_index].flags().contains(PageTableFlags::PRESENT) && l2_table[l2_index].flags().contains(PageTableFlags::HUGE_PAGE) {
-                    continue;
-                }
-
-                let physical_address = gib_start + (l2_index as u64) * TWO_MIB;
-                l2_table[l2_index].set_addr(PhysAddr::new(physical_address), HUGE_FLAGS);
-            }
-
-            mapped_gibs += 1;
-        }
-    }
-
-    x86_64::instructions::tlb::flush_all();
-    log_println!(
-        log::SubSystem::Boot, log::LogLevel::Information,
-        "Identity mapping active ({} GiB ranges mapped with 2 MiB pages, {} bootstrap frames used)",
-        mapped_gibs, bootstrap.next
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Post-allocator: decouple from bootloader page tables
-// ---------------------------------------------------------------------------
-
-/// Allocate a zeroed page table from the physical allocator.
-/// Returns (virtual pointer, physical address).
-fn alloc_table() -> (&'static mut PageTable, u64) {
-    let physical_address = physical::allocate(1).expect("out of memory for page table") as u64;
-    // identity mapping: virtual = physical for pages above 2 MiB
-    let table = unsafe { &mut *(physical_address as *mut PageTable) };
-    for entry in table.iter_mut() {
-        entry.set_unused();
-    }
-    (table, physical_address)
-}
-
-/// Replace all bootloader-owned page tables with our own allocations.
-/// After this call, no page table page is in Bootloader-marked memory.
-///
-/// Returns a Vec of physical addresses of kernel leaf pages (code, data,
-/// stack) that are still in use and must NOT be freed.
-pub fn decouple_from_bootloader(physical_memory_offset: u64, framebuffer_physical: u64, framebuffer_size: usize) -> Vec<u64> {
-    let (l4_frame, _) = Cr3::read();
-    let l4_physical = l4_frame.start_address().as_u64();
-    let l4_table = physical_to_table(l4_physical, physical_memory_offset);
-
-    // Only track kernel leaf pages (code, data, stack) — these must NOT be
-    // freed during bootloader memory reclamation. Old page table pages don't
-    // need tracking: after TLB flush, main.rs walks the bootloader regions
-    // and frees everything not in this set.
-    let mut kernel_leaf_pages: Vec<u64> = Vec::with_capacity(256);
-
-    // NOTE: fix_null_guard must be called BEFORE this function (from main.rs)
-    // because the heap allocator needs identity mapping for the L4 table.
-
-    // ---- Phase B1: identity-map the framebuffer and switch pointer ----
-    // MUST happen before clearing L4[4+] which contains the old offset mapping.
-    if framebuffer_size > 0 {
-        map_physical_range(l4_table, framebuffer_physical, framebuffer_size as u64, physical_memory_offset);
-        // switch framebuffer pointer from offset mapping to identity mapping
-        // BEFORE we clear the offset mapping entries
-        crate::log::remap_framebuffer(framebuffer_physical);
-        log_println!(log::SubSystem::Boot, log::LogLevel::Information,
-            "Framebuffer identity-mapped at {:#x} ({} KiB)", framebuffer_physical, framebuffer_size / 1024);
-    }
-
-    // ---- Phase B2: walk L4[2..512], replace bootloader page tables ----
-    // The kernel code is at L4[2] (virtual_address_offset = 0x10000000000),
-    // the kernel stack may be at L4[3]. Everything else (L4[4+]) is the
-    // bootloader's offset mapping which is redundant with our identity mapping.
-    // Rebuild L4[2..4] preserving 4 KiB leaf pages; clear L4[4..128].
-    // L4[128..255] is kernel virtual memory (managed by virtual_memory.rs).
-    // L4[256..511] will be per-process virtual memory (future).
-    for l4_index in 2..MAX_L4_INDEX {
-        if !l4_table[l4_index].flags().contains(PageTableFlags::PRESENT) {
-            continue;
+            return Some(candidate);
         }
 
-        if l4_index < 4 {
-            let old_l3_physical = l4_table[l4_index].addr().as_u64();
-            let old_l3 = physical_to_table(old_l3_physical, physical_memory_offset);
-            if subtree_has_4k_leaves(old_l3, physical_memory_offset) {
-                let (new_l3, new_l3_physical) = alloc_table();
-                let kept = rebuild_l3_keeping_4k(old_l3, new_l3, physical_memory_offset, &mut kernel_leaf_pages);
-                l4_table[l4_index].set_addr(PhysAddr::new(new_l3_physical), TABLE_FLAGS);
-                log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-                    "L4[{}]: rebuilt with our page tables ({} kernel leaf pages kept)", l4_index, kept);
+        log_println!(
+            log::SubSystem::KernelMemory,
+            log::LogLevel::Error,
+            "Could not find {} contiguous unmapped user pages",
+            page_count
+        );
+        None
+    }
+
+    /// Free a contiguous range of user virtual pages previously allocated with
+    /// `allocate_user_pages`. Unmaps the pages and returns the physical frames
+    /// to the physical allocator.
+    pub fn free_user_pages(&self, virtual_base: u64, page_count: usize) {
+        let l4_table = physical_to_table(self.l4_physical_address);
+        let base = virtual_base;
+
+        for page_offset in 0..page_count as u64 {
+            let virtual_address = base + page_offset * PAGE_SIZE;
+            let (l4_index, l3_index, l2_index, l1_index) = virtual_to_indices(virtual_address);
+
+            let l4_entry = &l4_table[l4_index];
+            if !l4_entry.flags().contains(PageTableFlags::PRESENT) {
                 continue;
             }
-        }
-
-        // offset mapping or empty bootloader entry — clear it
-        l4_table[l4_index].set_unused();
-        log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-            "L4[{}]: bootloader mapping cleared", l4_index);
-    }
-
-    // ---- Phase B3: replace reused bootloader L3/L2 at L4[0..1] ----
-    replace_reused_bootloader_tables(l4_table, physical_memory_offset);
-
-    x86_64::instructions::tlb::flush_all();
-
-    log_println!(log::SubSystem::Boot, log::LogLevel::Information,
-        "Decoupled from bootloader: {} kernel leaf pages preserved (old page table pages will be reclaimed)",
-        kernel_leaf_pages.len());
-
-    kernel_leaf_pages
-}
-
-// ---------------------------------------------------------------------------
-// Phase A: fix null guard
-// ---------------------------------------------------------------------------
-
-/// Replace the 2 MiB skip at L2[0] with an L1 table that maps 0x1000-0x1FFFFF
-/// (pages 1-511) and leaves page 0 unmapped (null pointer guard).
-/// Replace the 2 MiB null guard at L2[0] with a 4 KiB null guard.
-/// Must be called before any heap allocations (the heap allocator walks
-/// page tables via identity mapping, which requires the L4 at 0x101000
-/// to be accessible).
-pub fn fix_null_guard(physical_memory_offset: u64) {
-    let (l4_frame, _) = Cr3::read();
-    let l4_table = physical_to_table(l4_frame.start_address().as_u64(), physical_memory_offset);
-    let l3_table = {
-        let entry = &l4_table[0];
-        assert!(entry.flags().contains(PageTableFlags::PRESENT));
-        physical_to_table(entry.addr().as_u64(), physical_memory_offset)
-    };
-    let l2_table = {
-        let entry = &l3_table[0];
-        assert!(entry.flags().contains(PageTableFlags::PRESENT));
-        physical_to_table(entry.addr().as_u64(), physical_memory_offset)
-    };
-
-    // L2[0] should currently be empty (we skipped it in init)
-    let (l1_table, l1_physical) = alloc_table();
-
-    // map pages 1-511 (physical 0x1000-0x1FFFFF) with identity mapping
-    for i in 1..512usize {
-        let physical_address = (i as u64) * PAGE_SIZE;
-        l1_table[i].set_addr(PhysAddr::new(physical_address), PAGE_FLAGS);
-    }
-    // page 0 stays absent → null pointer dereference causes page fault
-
-    l2_table[0].set_addr(PhysAddr::new(l1_physical), TABLE_FLAGS);
-    log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-        "Null guard: L2[0] now has L1 table, page 0 unmapped, 0x1000-0x1FFFFF identity-mapped");
-}
-
-// ---------------------------------------------------------------------------
-// Phase B1: identity-map arbitrary physical range
-// ---------------------------------------------------------------------------
-
-/// Ensure a physical address range is identity-mapped using 2 MiB huge pages.
-/// Creates any missing L3/L2 tables along the way.
-fn map_physical_range(l4_table: &mut PageTable, physical_start: u64, size: u64, offset: u64) {
-    let start_2m = physical_start & !(TWO_MIB - 1);
-    let end = physical_start + size;
-    let mut address = start_2m;
-    while address < end {
-        let l4_index = ((address / L4_COVERAGE) as usize).min(511);
-        let l3_index = ((address % L4_COVERAGE) / ONE_GIB) as usize;
-        let l2_index = ((address % ONE_GIB) / TWO_MIB) as usize;
-
-        // ensure L3 table exists
-        if !l4_table[l4_index].flags().contains(PageTableFlags::PRESENT) {
-            let (_, new_physical) = alloc_table();
-            l4_table[l4_index].set_addr(PhysAddr::new(new_physical), TABLE_FLAGS);
-        }
-        let l3_table = physical_to_table(l4_table[l4_index].addr().as_u64(), offset);
-
-        // ensure L2 table exists (skip if already a 1 GiB huge page)
-        if l3_table[l3_index].flags().contains(PageTableFlags::PRESENT) && l3_table[l3_index].flags().contains(PageTableFlags::HUGE_PAGE) {
-            address += ONE_GIB; // already covered
-            continue;
-        }
-        if !l3_table[l3_index].flags().contains(PageTableFlags::PRESENT) {
-            let (_, new_physical) = alloc_table();
-            l3_table[l3_index].set_addr(PhysAddr::new(new_physical), TABLE_FLAGS);
-        }
-        let l2_table = physical_to_table(l3_table[l3_index].addr().as_u64(), offset);
-
-        // set 2 MiB identity page if not already present
-        if !l2_table[l2_index].flags().contains(PageTableFlags::PRESENT) {
-            l2_table[l2_index].set_addr(PhysAddr::new(address), HUGE_FLAGS);
-        }
-
-        address += TWO_MIB;
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Phase B2: walk and rebuild L4[2+] page tables
-// ---------------------------------------------------------------------------
-
-/// Check if any L1 (4 KiB) leaf pages exist in this L3 subtree.
-fn subtree_has_4k_leaves(l3: &PageTable, offset: u64) -> bool {
-    for l3_entry in l3.iter() {
-        if !l3_entry.flags().contains(PageTableFlags::PRESENT) || l3_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-            continue;
-        }
-        let l2 = physical_to_table(l3_entry.addr().as_u64(), offset);
-        for l2_entry in l2.iter() {
+            let l3_table = physical_to_table(l4_entry.addr().as_u64());
+            let l3_entry = &l3_table[l3_index];
+            if !l3_entry.flags().contains(PageTableFlags::PRESENT) || l3_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
+                continue;
+            }
+            let l2_table = physical_to_table(l3_entry.addr().as_u64());
+            let l2_entry = &l2_table[l2_index];
             if !l2_entry.flags().contains(PageTableFlags::PRESENT) || l2_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
                 continue;
             }
-            // L2 entry points to L1 table → has 4 KiB pages
-            return true;
-        }
-    }
-    false
-}
+            let l1_table = physical_to_table(l2_entry.addr().as_u64());
+            let l1_entry = &mut l1_table[l1_index];
 
-/// Rebuild an L3 subtree, keeping only 4 KiB leaf mappings.
-/// Allocates new L2/L1 tables from our allocator.
-/// Returns the number of leaf pages kept.
-fn rebuild_l3_keeping_4k(
-    old_l3: &PageTable, new_l3: &mut PageTable, offset: u64,
-    kernel_pages: &mut Vec<u64>,
-) -> usize {
-    let mut kept = 0;
-    for l3_index in 0..512usize {
-        let old_l3_entry = &old_l3[l3_index];
-        if !old_l3_entry.flags().contains(PageTableFlags::PRESENT) {
-            continue;
-        }
-        if old_l3_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-            // 1 GiB huge page = offset mapping, drop it
-            continue;
-        }
-
-        let old_l2_physical = old_l3_entry.addr().as_u64();
-        let old_l2 = physical_to_table(old_l2_physical, offset);
-
-        // check if this L2 has any L1 tables
-        let mut l2_has_l1 = false;
-        for l2_entry in old_l2.iter() {
-            if l2_entry.flags().contains(PageTableFlags::PRESENT) && !l2_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-                l2_has_l1 = true;
-                break;
+            if l1_entry.flags().contains(PageTableFlags::PRESENT) {
+                let physical_address = l1_entry.addr().as_u64();
+                l1_entry.set_unused();
+                physical_memory::free(physical_address as *mut u8, 1);
             }
         }
 
-        if !l2_has_l1 {
-            continue; // all 2 MiB huge pages = offset mapping, drop entire L2
+        // flush TLB for the freed range
+        for page_offset in 0..page_count as u64 {
+            let virtual_address = base + page_offset * PAGE_SIZE;
+            x86_64::instructions::tlb::flush(x86_64::VirtAddr::new(virtual_address));
         }
 
-        // has L1 tables — rebuild this L2
-        let (new_l2, new_l2_physical) = alloc_table();
-        for l2_index in 0..512usize {
-            let old_l2_entry = &old_l2[l2_index];
-            if !old_l2_entry.flags().contains(PageTableFlags::PRESENT) {
-                continue;
-            }
-            if old_l2_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-                // 2 MiB huge page = offset mapping, drop
-                continue;
-            }
-
-            // L1 table — copy it
-            let old_l1_physical = old_l2_entry.addr().as_u64();
-            let old_l1 = physical_to_table(old_l1_physical, offset);
-            let (new_l1, new_l1_physical) = alloc_table();
-
-            for l1_index in 0..512usize {
-                let old_l1_entry = &old_l1[l1_index];
-                if old_l1_entry.flags().contains(PageTableFlags::PRESENT) {
-                    // copy the leaf mapping (same physical page, same flags)
-                    new_l1[l1_index].set_addr(old_l1_entry.addr(), old_l1_entry.flags());
-                    let leaf_physical = old_l1_entry.addr().as_u64();
-                    // only track pages >= 2 MiB — pages below 2 MiB are never
-                    // in our physical allocator so they can't be accidentally freed
-                    if leaf_physical >= TWO_MIB {
-                        kernel_pages.push(leaf_physical);
-                    }
-                    kept += 1;
-                }
-            }
-
-            new_l2[l2_index].set_addr(PhysAddr::new(new_l1_physical), old_l2_entry.flags());
-        }
-
-        new_l3[l3_index].set_addr(PhysAddr::new(new_l2_physical), old_l3_entry.flags());
-    }
-    kept
-}
-
-// ---------------------------------------------------------------------------
-// Phase B3: replace reused bootloader tables at L4[0..1]
-// ---------------------------------------------------------------------------
-
-/// The L3 at L4[0] and L2 at L4[0]/L3[0] were reused from the bootloader
-/// during init(). Replace them with our own allocations.
-fn replace_reused_bootloader_tables(l4_table: &mut PageTable, offset: u64) {
-    // Replace L3 at L4[0]
-    if l4_table[0].flags().contains(PageTableFlags::PRESENT) {
-        let old_l3_physical = l4_table[0].addr().as_u64();
-        // only replace if it's in bootloader memory (above 2 MiB, not a bootstrap frame)
-        if old_l3_physical >= TWO_MIB {
-            let old_l3 = physical_to_table(old_l3_physical, offset);
-            let (new_l3, new_l3_physical) = alloc_table();
-
-            // copy all L3 entries
-            for i in 0..512usize {
-                if old_l3[i].flags().contains(PageTableFlags::PRESENT) {
-                    new_l3[i].set_addr(old_l3[i].addr(), old_l3[i].flags());
-                }
-            }
-
-            // now replace L2 at L3[0] if it's also bootloader-owned
-            if new_l3[0].flags().contains(PageTableFlags::PRESENT) && !new_l3[0].flags().contains(PageTableFlags::HUGE_PAGE) {
-                let old_l2_physical = new_l3[0].addr().as_u64();
-                if old_l2_physical >= TWO_MIB {
-                    let old_l2 = physical_to_table(old_l2_physical, offset);
-                    let (new_l2, new_l2_physical) = alloc_table();
-                    for i in 0..512usize {
-                        if old_l2[i].flags().contains(PageTableFlags::PRESENT) {
-                            new_l2[i].set_addr(old_l2[i].addr(), old_l2[i].flags());
-                        }
-                    }
-                    new_l3[0].set_addr(PhysAddr::new(new_l2_physical), TABLE_FLAGS);
-                    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Replaced bootloader L2 at L4[0]/L3[0] ({:#x})", old_l2_physical);
-                }
-            }
-
-            l4_table[0].set_addr(PhysAddr::new(new_l3_physical), TABLE_FLAGS);
-            log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Replaced bootloader L3 at L4[0] ({:#x})", old_l3_physical);
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Translate a virtual address to its physical address by walking the page tables.
-/// Returns None if the address is not mapped.
-pub fn virtual_to_physical(virtual_address: u64, physical_memory_offset: u64) -> Option<u64> {
-    let (l4_frame, _) = Cr3::read();
-    let l4 = physical_to_table(l4_frame.start_address().as_u64(), physical_memory_offset);
-
-    let l4_index = ((virtual_address >> 39) & 0x1FF) as usize;
-    let l3_index = ((virtual_address >> 30) & 0x1FF) as usize;
-    let l2_index = ((virtual_address >> 21) & 0x1FF) as usize;
-    let l1_idx = ((virtual_address >> 12) & 0x1FF) as usize;
-    let page_offset = virtual_address & 0xFFF;
-
-    let l4e = &l4[l4_index];
-    if !l4e.flags().contains(PageTableFlags::PRESENT) { return None; }
-
-    let l3 = physical_to_table(l4e.addr().as_u64(), physical_memory_offset);
-    let l3e = &l3[l3_index];
-    if !l3e.flags().contains(PageTableFlags::PRESENT) { return None; }
-    if l3e.flags().contains(PageTableFlags::HUGE_PAGE) {
-        return Some(l3e.addr().as_u64() + (virtual_address & (ONE_GIB - 1)));
-    }
-
-    let l2 = physical_to_table(l3e.addr().as_u64(), physical_memory_offset);
-    let l2e = &l2[l2_index];
-    if !l2e.flags().contains(PageTableFlags::PRESENT) { return None; }
-    if l2e.flags().contains(PageTableFlags::HUGE_PAGE) {
-        return Some(l2e.addr().as_u64() + (virtual_address & (TWO_MIB - 1)));
-    }
-
-    let l1 = physical_to_table(l2e.addr().as_u64(), physical_memory_offset);
-    let l1e = &l1[l1_idx];
-    if !l1e.flags().contains(PageTableFlags::PRESENT) { return None; }
-    Some(l1e.addr().as_u64() + page_offset)
-}
-
-fn has_region_in_range(memory_regions: &MemoryRegions, start: u64, end: u64) -> bool {
-    memory_regions.iter().any(|r| r.start < end && r.end > start)
-}
-
-fn physical_to_table(physical_address: u64, offset: u64) -> &'static mut PageTable {
-    unsafe { &mut *((physical_address + offset) as *mut PageTable) }
-}
-
-fn get_or_create_table(entry: &mut PageTableEntry, bootstrap: &mut BootstrapFrameAllocator, offset: u64) -> &'static mut PageTable {
-    if entry.flags().contains(PageTableFlags::PRESENT) {
-        assert!(!entry.flags().contains(PageTableFlags::HUGE_PAGE), "expected table pointer, got huge page");
-        return physical_to_table(entry.addr().as_u64(), offset);
-    }
-    let frame = bootstrap.alloc_frame();
-    entry.set_addr(PhysAddr::new(frame), TABLE_FLAGS);
-    physical_to_table(frame, offset)
-}
-
-// ---------------------------------------------------------------------------
-// Bootstrap frame allocator (early boot only, uses frames below 2 MiB)
-// ---------------------------------------------------------------------------
-
-struct BootstrapFrameAllocator {
-    frames: [u64; 32],
-    count: usize,
-    next: usize,
-    offset: u64,
-}
-
-impl BootstrapFrameAllocator {
-    fn new(memory_regions: &MemoryRegions, physical_memory_offset: u64) -> Self {
-        use bootloader_api::info::MemoryRegionKind;
-
-        let mut frames = [0u64; 32];
-        let mut count = 0;
-
-        for region in memory_regions.iter() {
-            if region.kind != MemoryRegionKind::Usable || count >= frames.len() {
-                continue;
-            }
-            let start = region.start.max(PAGE_SIZE); // skip frame 0
-            let end = region.end.min(TWO_MIB);
-            if start >= end {
-                continue;
-            }
-            let mut address = (start + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
-            while address + PAGE_SIZE <= end && count < frames.len() {
-                frames[count] = address;
-                count += 1;
-                address += PAGE_SIZE;
-            }
-        }
-
-        assert!(count >= 5, "need at least 5 usable frames below 2 MiB for page tables (found {})", count);
-        log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Bootstrap allocator: {} frames available below 2 MiB", count);
-
-        BootstrapFrameAllocator { frames, count, next: 0, offset: physical_memory_offset }
-    }
-
-    fn alloc_frame(&mut self) -> u64 {
-        assert!(self.next < self.count, "bootstrap frame allocator exhausted ({} frames used)", self.next);
-        let frame = self.frames[self.next];
-        self.next += 1;
-        unsafe { core::ptr::write_bytes((frame + self.offset) as *mut u8, 0, PAGE_SIZE as usize) };
-        frame
+        log_println!(
+            log::SubSystem::KernelMemory,
+            log::LogLevel::Debug,
+            "Freed {} user pages at {:#x} in address space {:#x}",
+            page_count,
+            base,
+            self.l4_physical_address
+        );
     }
 }
