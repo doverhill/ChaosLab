@@ -229,12 +229,19 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 /// We MUST load the kernel's GDT and IDT before calling any normal Rust
 /// code, because without a valid IDT any exception is a triple fault.
 /// AP entry point — naked, sets up GDT/IDT then calls ap_main.
-/// AP entry — just halt. Add features one at a time.
+/// AP entry — naked bridge that calls the real function.
+#[no_mangle]
+#[unsafe(naked)]
 extern "C" fn ap_entry() -> ! {
-    // This works: empty loop
-    // This crashes: any local variable or function call
-    // Hypothesis: the prologue's `sub rsp, N` touches a stack guard page
-    // or the stack inline probe faults
+    core::arch::naked_asm!(
+        "jmp {ap_main}",
+        ap_main = sym ap_main,
+    );
+}
+
+#[inline(never)]
+extern "C" fn ap_main() -> ! {
+    AP_READY_COUNT.fetch_add(1, Ordering::Release);
     loop {
         x86_64::instructions::hlt();
     }
