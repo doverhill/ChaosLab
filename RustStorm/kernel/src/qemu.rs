@@ -70,6 +70,26 @@ pub fn wait_or_keypress(secs: u64) {
     }
 }
 
+/// Spin-wait for the specified number of microseconds using the PM Timer.
+pub fn delay_microseconds(microseconds: u64) {
+    let target_ticks = microseconds * PM_TIMER_FREQ / 1_000_000;
+    let start = pm_timer_read();
+    while ((pm_timer_read().wrapping_sub(start)) & PM_TIMER_MASK) as u64 <= target_ticks {
+        core::hint::spin_loop();
+    }
+}
+
+/// Spin-wait for the specified number of milliseconds using the PM Timer.
+pub fn delay_milliseconds(milliseconds: u64) {
+    // for delays > 4s, loop in smaller chunks to handle 24-bit wrap
+    let mut remaining_microseconds = milliseconds * 1000;
+    while remaining_microseconds > 0 {
+        let chunk = remaining_microseconds.min(3_000_000); // max ~3s per chunk
+        delay_microseconds(chunk);
+        remaining_microseconds -= chunk;
+    }
+}
+
 /// Exit QEMU via the isa-debug-exit device (port 0xf4, 1-byte write).
 /// QEMU exit status = (value << 1) | 1, so 0 → exit 1, 1 → exit 3.
 pub fn exit(code: u8) -> ! {

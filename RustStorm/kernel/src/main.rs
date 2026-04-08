@@ -16,6 +16,7 @@
 extern crate alloc;
 
 mod address_space;
+mod ap_trampoline;
 mod apic;
 mod framebuffer;
 mod gdt;
