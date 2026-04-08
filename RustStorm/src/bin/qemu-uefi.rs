@@ -28,6 +28,7 @@ fn main() {
     qemu.arg("-serial").arg("stdio");
     qemu.arg("-display").arg("cocoa,full-screen=on,zoom-to-fit=on");
     qemu.arg("-device").arg("isa-debug-exit,iobase=0xf4,iosize=0x01");
+    qemu.arg("-no-reboot");  // exit on triple fault instead of rebooting
     qemu.arg("-monitor").arg(format!("unix:{},server,nowait", monitor_sock));
 //    qemu.arg("-d").arg("mmu,unimp,guest_errors"); //int,vpu,
 

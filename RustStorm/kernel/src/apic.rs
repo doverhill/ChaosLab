@@ -1,17 +1,13 @@
 //! APIC initialization and SMP startup.
-//!
-//! Discovers processors via ACPI MADT, initializes the BSP's local APIC,
-//! then starts all Application Processors (APs) using the INIT-SIPI-SIPI
-//! protocol with a real-mode trampoline.
 
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU32, Ordering};
 use bootloader_api::info::Optional;
-use x2apic::lapic::{LocalApic, LocalApicBuilder, xapic_base};
+use x2apic::lapic::{LocalApicBuilder, xapic_base};
 
 use crate::ap_trampoline;
 use crate::virtual_memory;
-use crate::{log, log_println, qemu};
+use crate::{log, log_println, timer};
 
 /// Number of APs that have completed initialization and are ready.
 static AP_READY_COUNT: AtomicU32 = AtomicU32::new(0);
@@ -19,7 +15,6 @@ static AP_READY_COUNT: AtomicU32 = AtomicU32::new(0);
 /// Per-AP stack size (64 KiB).
 const AP_STACK_PAGES: usize = 16;
 
-/// ACPI handler for accessing physical memory via identity mapping.
 #[derive(Clone)]
 struct AcpiHandler();
 
@@ -63,9 +58,7 @@ impl acpi::Handler for AcpiHandler {
 pub fn init(rsdp_pointer: Optional<u64>) {
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "APIC: Looking for processors");
 
-    // discover processors via ACPI MADT
     let mut ap_apic_ids: Vec<u8> = Vec::new();
-    let mut bsp_apic_id: Option<u8> = None;
 
     if let Some(rsdp) = rsdp_pointer.as_ref() {
         log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Found ACPI RSDP table");
@@ -107,114 +100,141 @@ pub fn init(rsdp_pointer: Optional<u64>) {
     }
 
     // initialize BSP's local APIC
-    let mut bsp_lapic = unsafe {
-        LocalApicBuilder::new()
-            .timer_vector(0xFE)
-            .error_vector(0xFD)
-            .spurious_vector(0xFF)
-            .set_xapic_base(xapic_base())
-            .build()
-            .expect("Failed to build BSP local APIC")
-    };
+    let apic_base = unsafe { xapic_base() };
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "xAPIC base: {:#x}", apic_base);
+
+    let mut bsp_lapic = LocalApicBuilder::new()
+        .timer_vector(0xFE)
+        .error_vector(0xFD)
+        .spurious_vector(0xFF)
+        .set_xapic_base(apic_base)
+        .build()
+        .expect("Failed to build BSP local APIC");
     unsafe { bsp_lapic.enable() };
 
-    // the BSP is the first APIC ID in the list (APIC ID from RDMSR)
-    bsp_apic_id = Some(ap_apic_ids[0]);
-    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "BSP APIC ID: {}", ap_apic_ids[0]);
+    let bsp_hw_id = unsafe { bsp_lapic.id() };
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "BSP APIC ID: {}", bsp_hw_id);
 
-    // remove BSP from the AP list
-    let bsp_id = bsp_apic_id.unwrap();
-    ap_apic_ids.retain(|&id| id != bsp_id);
+    // remove BSP from AP list
+    ap_apic_ids.retain(|&id| id != bsp_hw_id as u8);
     let ap_count = ap_apic_ids.len();
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "Starting {} application processors", ap_count);
 
-    // install the trampoline at physical 0x8000
+    // install trampoline
     ap_trampoline::install();
 
-    // patch fields shared across all APs
+    // patch shared fields
     let (cr3_frame, _) = x86_64::registers::control::Cr3::read();
     let cr3_value = cr3_frame.start_address().as_u64();
+    let entry_point = ap_entry as *const () as u64;
+    let ready_counter_address = &AP_READY_COUNT as *const AtomicU32 as u64;
     ap_trampoline::patch_u64(ap_trampoline::PAGE_TABLE_OFFSET, cr3_value);
-    ap_trampoline::patch_u64(ap_trampoline::ENTRY_POINT_OFFSET, ap_entry as *const () as u64);
+    ap_trampoline::patch_u64(ap_trampoline::ENTRY_POINT_OFFSET, entry_point);
 
-    // start each AP one at a time (reuse the same trampoline page)
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
+        "Trampoline data: CR3={:#x}, entry={:#x}, ready_counter={:#x}",
+        cr3_value, entry_point, ready_counter_address);
+
+    let icr_high = (apic_base + 0x310) as *mut u32;
+    let icr_low = (apic_base + 0x300) as *mut u32;
+
     for &apic_id in &ap_apic_ids {
-        // allocate a unique stack for this AP
-        let stack_base = virtual_memory::allocate_contiguous_pages(AP_STACK_PAGES)
-            .expect("Failed to allocate AP stack");
-        let stack_top = stack_base as u64 + (AP_STACK_PAGES * 0x1000) as u64;
+        // Use identity-mapped physical memory for AP stack (for debugging)
+        // Allocate 16 physical pages and use them directly via identity mapping
+        let mut stack_physical_base = 0u64;
+        for page_index in 0..AP_STACK_PAGES {
+            let page = crate::physical_memory::allocate(1).expect("Failed to allocate AP stack page") as u64;
+            if page_index == 0 {
+                stack_physical_base = page;
+            }
+        }
+        // use the first page's address as the base — consecutive allocations
+        // may not be contiguous, so just use a single page for now (4 KiB stack)
+        let stack_top = stack_physical_base + 0x1000; // top of one physical page
         ap_trampoline::patch_u64(ap_trampoline::STACK_TOP_OFFSET, stack_top);
-
-        // clear the ready flag before starting this AP
         ap_trampoline::patch_u64(ap_trampoline::READY_OFFSET, 0);
 
         log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
-            "Sending INIT-SIPI to AP {} (stack top={:#x})", apic_id, stack_top);
+            "Sending INIT-SIPI to AP {} (stack={:#x})", apic_id, stack_top);
 
         let expected = AP_READY_COUNT.load(Ordering::Acquire) + 1;
 
-        // INIT IPI
-        unsafe { bsp_lapic.send_init_ipi(apic_id as u32) };
-        qemu::delay_milliseconds(10);
+        // INIT
+        unsafe {
+            core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
+            core::ptr::write_volatile(icr_low, 0x00004500);
+        }
+        timer::delay_milliseconds(10);
 
-        // single SIPI (works reliably on modern hardware and QEMU)
-        unsafe { bsp_lapic.send_sipi(ap_trampoline::SIPI_VECTOR, apic_id as u32) };
+        // INIT deassert
+        unsafe {
+            core::ptr::write_volatile(icr_high, 0);
+            core::ptr::write_volatile(icr_low, 0x00008500);
+        }
+        timer::delay_microseconds(200);
 
-        // wait for AP to signal trampoline is done (ready flag at 0x8008)
-        let mut waited_milliseconds = 0u64;
-        while ap_trampoline::read_u64(ap_trampoline::READY_OFFSET) == 0 {
-            qemu::delay_microseconds(100);
-            waited_milliseconds += 1;
-            if waited_milliseconds > 10_000 { // ~1 second (100us * 10000)
+        // SIPI
+        unsafe {
+            core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
+            core::ptr::write_volatile(icr_low, 0x00004600 | ap_trampoline::SIPI_VECTOR as u32);
+        }
+        timer::delay_microseconds(200);
+
+        // second SIPI
+        unsafe {
+            core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
+            core::ptr::write_volatile(icr_low, 0x00004600 | ap_trampoline::SIPI_VECTOR as u32);
+        }
+
+        // wait for trampoline to complete
+        let mut waited = 0u64;
+        loop {
+            let stage = ap_trampoline::read_u64(ap_trampoline::READY_OFFSET);
+            if stage == 0xFF { break; }
+            timer::delay_microseconds(100);
+            waited += 1;
+            if waited > 10_000 {
                 log_println!(log::SubSystem::X86_64, log::LogLevel::Error,
-                    "AP {} trampoline did not complete within 1 second", apic_id);
+                    "AP {} trampoline stuck at stage {}", apic_id, stage);
                 break;
             }
         }
 
-        // wait for AP to finish Rust init (AP_READY_COUNT incremented)
+        // wait for Rust entry to signal ready
         while AP_READY_COUNT.load(Ordering::Acquire) < expected {
-            qemu::delay_microseconds(100);
-            waited_milliseconds += 1;
-            if waited_milliseconds > 20_000 {
+            timer::delay_microseconds(100);
+            waited += 1;
+            if waited > 20_000 {
                 log_println!(log::SubSystem::X86_64, log::LogLevel::Error,
-                    "AP {} Rust init did not complete within 2 seconds", apic_id);
+                    "AP {} did not signal ready", apic_id);
                 break;
             }
         }
 
         if AP_READY_COUNT.load(Ordering::Acquire) >= expected {
-            log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
-                "AP {} started successfully ({}ms)", apic_id, waited_milliseconds);
+            log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
+                "AP {} started successfully", apic_id);
         }
     }
 
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
         "SMP: {}/{} APs started, {} total CPUs active",
-        AP_READY_COUNT.load(Ordering::Acquire), ap_count, AP_READY_COUNT.load(Ordering::Acquire) + 1);
+        AP_READY_COUNT.load(Ordering::Acquire), ap_count,
+        AP_READY_COUNT.load(Ordering::Acquire) + 1);
 }
 
-// ---------------------------------------------------------------------------
-// AP entry point — called by the trampoline after switching to long mode
-// ---------------------------------------------------------------------------
-
-/// Entry point for Application Processors after the trampoline has set up
-/// long mode, loaded the page tables, and set the stack pointer.
+/// AP entry point — naked function that loads kernel GDT + IDT,
+/// then jumps to the normal Rust `ap_main` function.
+///
+/// We MUST load the kernel's GDT and IDT before calling any normal Rust
+/// code, because without a valid IDT any exception is a triple fault.
+/// AP entry point — naked, sets up GDT/IDT then calls ap_main.
+/// AP entry — just halt. Add features one at a time.
 extern "C" fn ap_entry() -> ! {
-    // we're now in 64-bit mode with identity-mapped memory and a valid stack
-
-    // reload the kernel's GDT and IDT (the trampoline used a temporary GDT)
-    crate::gdt::init();
-    crate::interrupts::init_exceptions();
-
-    // TODO: initialize this AP's local APIC
-
-    // signal that this AP is ready
-    let cpu_number = AP_READY_COUNT.fetch_add(1, Ordering::Release) + 1;
-
-    log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "Hello from CPU {}", cpu_number);
-
-    // idle loop
+    // This works: empty loop
+    // This crashes: any local variable or function call
+    // Hypothesis: the prologue's `sub rsp, N` touches a stack guard page
+    // or the stack inline probe faults
     loop {
         x86_64::instructions::hlt();
     }

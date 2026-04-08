@@ -30,6 +30,7 @@ mod physical_memory;
 mod process;
 mod qemu;
 mod syscall;
+mod timer;
 mod virtual_memory;
 
 use alloc::boxed::Box;

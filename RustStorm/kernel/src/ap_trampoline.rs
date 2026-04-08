@@ -46,7 +46,13 @@ pub fn read_u64(offset: u64) -> u64 {
 /// Copy the trampoline binary to physical address 0x8000.
 /// Must be called once before starting any APs.
 pub fn install() {
+    use crate::{log, log_println};
+
     let destination = TRAMPOLINE_ADDRESS as *mut u8;
+
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
+        "Trampoline: binary is {} bytes, installing at {:#x}",
+        TRAMPOLINE_BINARY.len(), TRAMPOLINE_ADDRESS);
 
     // zero the page first
     unsafe { core::ptr::write_bytes(destination, 0, 0x1000) };
@@ -59,4 +65,13 @@ pub fn install() {
             TRAMPOLINE_BINARY.len(),
         );
     }
+
+    // verify first bytes were written correctly
+    let first_word = unsafe { core::ptr::read_volatile(TRAMPOLINE_ADDRESS as *const u16) };
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
+        "Trampoline: first 2 bytes at {:#x} = {:#06x} (expect 0x26EB = jmp short)",
+        TRAMPOLINE_ADDRESS, first_word);
+
+    // Debug stage markers are written to port 0x80 (POST code port).
+    // Use QEMU -d ioport to see them in the debug log.
 }

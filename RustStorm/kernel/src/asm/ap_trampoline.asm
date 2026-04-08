@@ -1,32 +1,21 @@
-; Application Processor trampoline
-;
-; This code is assembled to a flat binary and placed at physical address 0x8000.
-; APs start executing here in 16-bit real mode after receiving a SIPI.
-; It transitions: real mode -> protected mode -> long mode -> jump to Rust.
-;
-; The BSP patches the data fields before sending each SIPI.
+; AP trampoline with binary search for fault location.
+; The BSP reads the stage from [0x8008] after timeout.
+; To find the fault, uncomment ONE "hlt_loop" at a time. If the AP halts
+; (BSP reads the stage and AP doesn't crash), the fault is AFTER that stage.
+; If the AP still crashes, the fault is BEFORE that stage.
 
 ORG 0x8000
-
 SECTION .text
 
-; ---------------------------------------------------------------------------
-; Data fields (mailbox, patched by BSP before each AP startup)
-; ---------------------------------------------------------------------------
 trampoline:
     jmp short startup_ap
-
-    ; pad to offset 8
     times 8 - ($ - trampoline) nop
+    .ready:       dq 0       ; offset 0x08 — debug stage counter
+    .page_table:  dq 0       ; offset 0x10
+    .stack_top:   dq 0       ; offset 0x18
+    .entry_point: dq 0       ; offset 0x20
 
-    .ready:       dq 0       ; offset 0x08: AP sets to 1 when trampoline is done
-    .page_table:  dq 0       ; offset 0x10: CR3 value (kernel page table physical address)
-    .stack_top:   dq 0       ; offset 0x18: per-AP stack top pointer
-    .entry_point: dq 0       ; offset 0x20: Rust AP entry function pointer
 
-; ---------------------------------------------------------------------------
-; 16-bit real mode entry
-; ---------------------------------------------------------------------------
 BITS 16
 startup_ap:
     cli
@@ -36,90 +25,96 @@ startup_ap:
     mov ds, ax
     mov es, ax
     mov ss, ax
+    mov byte [0x8008], 1
 
-    ; load the temporary GDT
     lgdt [gdtr32]
+    mov byte [0x8008], 2
 
-    ; enable protected mode
     mov eax, cr0
     or eax, 1
     mov cr0, eax
+    mov byte [0x8008], 3
 
-    ; far jump to 32-bit code
-    jmp 0x08:protected_mode
+    jmp dword 0x08:protected_mode
 
-; ---------------------------------------------------------------------------
-; 32-bit protected mode
-; ---------------------------------------------------------------------------
 BITS 32
 protected_mode:
+    mov byte [0x8008], 4
+
     mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov ss, ax
+    mov byte [0x8008], 5
 
-    ; enable PAE
     mov eax, cr4
     or eax, (1 << 5)
     mov cr4, eax
+    mov byte [0x8008], 6
 
-    ; load page table (CR3)
     mov eax, [trampoline.page_table]
     mov cr3, eax
+    mov byte [0x8008], 7
 
-    ; enable long mode via EFER.LME
     mov ecx, 0xC0000080
     rdmsr
     or eax, (1 << 8)
     wrmsr
+    mov byte [0x8008], 8
 
-    ; enable paging
     mov eax, cr0
     or eax, (1 << 31)
     mov cr0, eax
+    mov byte [0x8008], 9
 
-    ; far jump to 64-bit code
     jmp 0x18:long_mode
 
-; ---------------------------------------------------------------------------
-; 64-bit long mode
-; ---------------------------------------------------------------------------
 BITS 64
 long_mode:
-    mov ax, 0x20
+    mov byte [0x8008], 10
+
+    ; load null data segments — 64-bit mode doesn't use DS/ES/SS bases,
+    ; and null selectors are always valid. This avoids conflicts when
+    ; the kernel loads its own GDT (which has different segment layout).
+    xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
-    xor ax, ax
     mov fs, ax
     mov gs, ax
 
-    ; load per-AP stack
     mov rsp, [trampoline.stack_top]
 
-    ; signal that we are done with the trampoline page
-    mov qword [trampoline.ready], 1
+    ; enable SSE: clear CR0.EM (bit 2), set CR0.MP (bit 1)
+    mov rax, cr0
+    and ax, 0xFFFB      ; clear EM
+    or ax, 0x0002       ; set MP
+    mov cr0, rax
 
-    ; jump to Rust AP entry point
+    ; set CR4.OSFXSR (bit 9) and CR4.OSXMMEXCPT (bit 10)
+    mov rax, cr4
+    or ax, (1 << 9) | (1 << 10)
+    mov cr4, rax
+
+    mov byte [0x8008], 11
+
+    mov qword [trampoline.ready], 0xFF
+
     mov rax, [trampoline.entry_point]
-    jmp rax
+    call rax
 
-; ---------------------------------------------------------------------------
-; Temporary GDT (only used during the mode transition)
-; ---------------------------------------------------------------------------
+    ; should never return, but just in case
+.halt_forever:
+    hlt
+    jmp .halt_forever
+
 ALIGN 16
 gdt32:
-    ; null descriptor
     dq 0
-    ; 32-bit code segment (selector 0x08)
     dq 0x00CF9A000000FFFF
-    ; 32-bit data segment (selector 0x10)
     dq 0x00CF92000000FFFF
-    ; 64-bit code segment (selector 0x18)
     dq 0x00AF9A000000FFFF
-    ; 64-bit data segment (selector 0x20)
     dq 0x00AF92000000FFFF
-
 gdtr32:
-    dw $ - gdt32 - 1    ; limit
-    dd gdt32             ; base (32-bit, works in real/protected mode)
+    dw $ - gdt32 - 1
+    dd gdt32
