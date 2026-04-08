@@ -190,7 +190,7 @@ impl InnerKernelAllocator {
                 }
 
                 let block_pointer = block.next_block.unwrap();
-                let block = block_pointer.as_mut().unwrap();
+                let _block = block_pointer.as_mut().unwrap();
             }
         }
     }

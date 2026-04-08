@@ -19,19 +19,6 @@ use x86_64::{
 
 use crate::{log, log_println};
 
-// pub fn init() {
-//     let mut usable: u64 = 0;
-//     let mut total: u64 = 0;
-//     for region in boot_info.memory_regions.iter() {
-//         serial_println!("Memory region {:?}", region);
-//         if region.kind == MemoryRegionKind::Usable {
-//             usable += region.end - region.start;
-//         }
-//         total += region.end - region.start;
-//     }
-//     serial_println!("{} of {} free", usable, total);
-// }
-
 lazy_static! {
     static ref ALLOCATOR: Mutex<Option<PhysicalFrameAllocator>> = Mutex::new(None);
 }
@@ -88,57 +75,125 @@ unsafe impl Send for PhysicalFrameAllocator {}
 
 impl PhysicalFrameAllocator {
     pub fn init(memory_regions: &MemoryRegions) -> Self {
-        // log the full memory map so we can verify UEFI/bootloader regions are excluded
+        // find the end of actual RAM (highest Usable or Bootloader region)
+        let mut ram_end: u64 = 0;
+        for region in memory_regions.iter() {
+            match region.kind {
+                MemoryRegionKind::Usable | MemoryRegionKind::Bootloader => {
+                    if region.end > ram_end {
+                        ram_end = region.end;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // log memory map, separating RAM regions from MMIO
         let mut usable_bytes: u64 = 0;
-        let mut reserved_bytes: u64 = 0;
+        let mut bootloader_bytes: u64 = 0;
+        let mut firmware_bytes: u64 = 0;
         for region in memory_regions.iter() {
             let size = region.end - region.start;
+            if region.start >= ram_end {
+                // high MMIO — log but don't count toward RAM totals
+                log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  MMIO:     {:#012x}-{:#012x} ({} MiB) {:?}", region.start, region.end, size / (1024 * 1024), region.kind);
+                continue;
+            }
             match region.kind {
                 MemoryRegionKind::Usable => {
-                    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  Usable:   {:#010x}-{:#010x} ({} KiB)", region.start, region.end, size / 1024);
+                    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  Usable:   {:#012x}-{:#012x} ({} KiB)", region.start, region.end, size / 1024);
                     usable_bytes += size;
                 }
+                MemoryRegionKind::Bootloader => {
+                    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  Reclaim:  {:#012x}-{:#012x} ({} KiB)", region.start, region.end, size / 1024);
+                    bootloader_bytes += size;
+                }
                 kind => {
-                    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  Reserved: {:#010x}-{:#010x} ({} KiB) {:?}", region.start, region.end, size / 1024, kind);
-                    reserved_bytes += size;
+                    log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "  Firmware: {:#012x}-{:#012x} ({} KiB) {:?}", region.start, region.end, size / 1024, kind);
+                    firmware_bytes += size;
                 }
             }
         }
-        log_println!(log::SubSystem::Physical, log::LogLevel::Information, "Memory: {} MiB usable, {} MiB reserved", usable_bytes / crate::MB as u64, reserved_bytes / crate::MB as u64);
+        let total_ram = usable_bytes + bootloader_bytes + firmware_bytes;
+        log_println!(
+            log::SubSystem::Physical,
+            log::LogLevel::Information,
+            "RAM: {} MiB total ({} MiB usable, {} MiB bootloader reserved, {} MiB firmware)",
+            total_ram / crate::MB as u64,
+            usable_bytes / crate::MB as u64,
+            bootloader_bytes / crate::MB as u64,
+            firmware_bytes / crate::MB as u64
+        );
 
-        // only add frames from Usable regions, skip everything below 2 MiB
-        let frame_addresses = memory_regions.iter()
-            .filter(|r| r.kind == MemoryRegionKind::Usable)
-            .map(|r| r.start..r.end)
-            .flat_map(|r| r.step_by(PAGE_SIZE));
-
+        // Pass 1: add Usable frames (safe — boot_info lives in Bootloader memory, not Usable)
+        log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Pass 1: adding usable frames to free list");
         let mut frame_count: usize = 0;
         let mut previous_frame: Option<*mut FreeFrame> = None;
         let mut first_free: Option<*mut FreeFrame> = None;
-        for frame in frame_addresses {
-            // skip everything below 2 MiB — used by bootloader page tables and bootstrap allocator
-            if frame >= 0x20_0000 {
-                let free_frame = frame as *mut FreeFrame;
-                unsafe {
-                    (*free_frame).magic = FREE_FRAME_MAGIC;
-                    (*free_frame).next_frame = None;
-                }
-                match previous_frame {
-                    Some(p) => unsafe { (*p).next_frame = Some(free_frame) },
-                    None => first_free = Some(free_frame),
-                };
-                previous_frame = Some(free_frame);
-                frame_count += 1;
+        for region in memory_regions.iter() {
+            if region.kind != MemoryRegionKind::Usable {
+                continue;
             }
+            Self::add_region_frames(region.start, region.end, &mut first_free, &mut previous_frame, &mut frame_count);
         }
+        let usable_frames = frame_count;
+        log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Pass 1 complete: {} usable frames", usable_frames);
 
-        log_println!(log::SubSystem::Physical, log::LogLevel::Information, "Free pages: {} ({} MiB)", frame_count, frame_count * PAGE_SIZE / crate::MB);
+        // Bootloader-marked memory is NOT reclaimable yet. It contains the
+        // running kernel's code, data, stack, and active page tables (L4[2+]
+        // subtree, plus reused L3/L2 tables at L4[0..1]).
+        //
+        // To reclaim later (two-pass approach):
+        //   1. Allocate fresh pages from the Usable free list
+        //   2. Copy kernel segments and create new page tables
+        //   3. Switch CR3 to new page tables
+        //   4. Walk old page tables to identify all referenced physical pages
+        //   5. Add unreferenced Bootloader pages to the free list
+        log_println!(log::SubSystem::Physical, log::LogLevel::Information, "Bootloader memory: {} KiB reserved (kernel code, stack, page tables)", bootloader_bytes / 1024);
+
+        log_println!(
+            log::SubSystem::Physical,
+            log::LogLevel::Information,
+            "Allocator ready: {} free pages ({} MiB)",
+            frame_count,
+            frame_count * PAGE_SIZE / crate::MB,
+        );
 
         PhysicalFrameAllocator {
             first_free,
             free_frame_count: frame_count,
             used_frame_count: 0,
         }
+    }
+    /// Add all frames in [start, end) that are >= 2 MiB to the free list.
+    /// Returns the number of frames added.
+    fn add_region_frames(
+        start: u64,
+        end: u64,
+        first_free: &mut Option<*mut FreeFrame>,
+        previous_frame: &mut Option<*mut FreeFrame>,
+        frame_count: &mut usize,
+    ) -> usize {
+        let mut added = 0;
+        let mut addr = start;
+        while addr + PAGE_SIZE as u64 <= end {
+            if addr >= 0x20_0000 {
+                let free_frame = addr as *mut FreeFrame;
+                unsafe {
+                    (*free_frame).magic = FREE_FRAME_MAGIC;
+                    (*free_frame).next_frame = None;
+                }
+                match *previous_frame {
+                    Some(p) => unsafe { (*p).next_frame = Some(free_frame) },
+                    None => *first_free = Some(free_frame),
+                };
+                *previous_frame = Some(free_frame);
+                *frame_count += 1;
+                added += 1;
+            }
+            addr += PAGE_SIZE as u64;
+        }
+        added
     }
 }
 
@@ -166,7 +221,7 @@ unsafe impl FrameAllocator<Size4KiB> for PhysicalFrameAllocator {
 
 impl FrameDeallocator<Size4KiB> for PhysicalFrameAllocator {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame) {
-        assert!(frame.start_address().as_u64().trailing_zeros() == 12);
+        assert!(frame.start_address().as_u64().trailing_zeros() >= 12);
 
         let free_frame = frame.start_address().as_u64() as *mut FreeFrame;
 

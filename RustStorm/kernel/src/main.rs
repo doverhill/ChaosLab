@@ -15,72 +15,102 @@
 
 extern crate alloc;
 
-mod log;
 mod address_space;
 mod apic;
+mod framebuffer;
 mod gdt;
 mod interrupts;
 mod kernel_memory;
+mod log;
 mod panic;
 mod physical;
 mod process;
+mod qemu;
 mod syscall;
 
 use alloc::boxed::Box;
+#[allow(deprecated)]
+use bootloader_api::config::FrameBuffer;
 use bootloader_api::{config::Mapping, config::Mappings, entry_point, BootloaderConfig};
 
 pub const KB: usize = 1024;
-pub const MB: usize = (1024 * 1024);
-pub const GB: usize = (1024 * 1024 * 1024);
+pub const MB: usize = 1024 * 1024;
+pub const GB: usize = 1024 * 1024 * 1024;
 
+#[allow(deprecated)]
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
     config.mappings = Mappings::new_default();
     config.mappings.physical_memory = Some(Mapping::Dynamic);
     config.kernel_stack_size = 128 * 1024;
+    let mut fb = FrameBuffer::new_default();
+    fb.minimum_framebuffer_width = Some(800);
+    fb.minimum_framebuffer_height = Some(600);
+    config.frame_buffer = fb;
     config
 };
 
 entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
+    log::init_boot_tsc();
     log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Starting RustStorm kernel");
 
-    // let cpuid = CpuId::new();
-    // let flags = cpuid.get_extended_processor_and_feature_identifiers().unwrap();
-    // serial_println!("has 1GB pages: {}", flags.has_1gib_pages());
+    // extract framebuffer for screen output
+    if let Some(fb) = boot_info.framebuffer.as_mut() {
+        let info = fb.info();
+        log_println!(
+            log::SubSystem::Boot,
+            log::LogLevel::Information,
+            "Framebuffer: {}x{} {:?} {}bpp (stride {})",
+            info.width,
+            info.height,
+            info.pixel_format,
+            info.bytes_per_pixel * 8,
+            info.stride
+        );
 
-    // clear screen
-    // if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
-    //     for byte in framebuffer.buffer_mut() {
-    //         *byte = 0x90;
-    //     }
-    // }
+        // obtain a 'static buffer reference independent of boot_info borrow
+        let ptr = fb.buffer_mut().as_mut_ptr();
+        let len = info.byte_len;
+        let buffer = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
+
+        let writer = framebuffer::FramebufferWriter::new(buffer, info);
+        log_println!(
+            log::SubSystem::Boot,
+            log::LogLevel::Information,
+            "Screen console: {}x{} chars",
+            writer.cols(),
+            writer.rows()
+        );
+        log::init_framebuffer(writer);
+        log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Framebuffer logger active");
+    }
 
     gdt::init();
+    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "GDT loaded with kernel code segment and TSS");
 
-    // enable exception handling
     interrupts::init_exceptions();
 
-    // set up identity mapping using the bootloader's offset mapping, so that
-    // virtual address == physical address for the first 4 GiB
     let physical_memory_offset = boot_info.physical_memory_offset.into_option().expect("bootloader did not provide physical memory offset");
+    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Physical memory offset: {:#x} (L4[{}])", physical_memory_offset, physical_memory_offset / (512 * crate::GB as u64));
     address_space::init(physical_memory_offset, &boot_info.memory_regions);
 
-    // initialize frame allocator (requires identity mapping to be active)
+    // save everything we need from boot_info BEFORE physical::init
+    // (boot_info lives in Bootloader-marked pages)
+    let rsdp_addr = boot_info.rsdp_addr;
+    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "RSDP address: {:?}", rsdp_addr);
+
+    // initialize frame allocator — only Usable memory goes into the free list.
+    // Bootloader-marked memory (kernel code, stack, page tables) is preserved.
+    // boot_info lives in Bootloader memory, so don't access it after this.
     physical::init(&boot_info.memory_regions);
 
-    let page = physical::allocate(1).unwrap();
-    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Allocated frame {:p}", page);
-    physical::free(page, 1);
+    // sanity check: kernel heap allocator works (Box triggers GlobalAlloc)
+    let _heap_test = Box::new(42u64);
 
-    let _test_alloction = Box::new(1337 as u128);
+    apic::init(rsdp_addr);
 
-    // get processors and start APs
-    apic::init(boot_info.rsdp_addr);
-
-    // if let Some(_ramdisk_address) = boot_info.ramdisk_addr {
-
-    // }
-
-    loop {}
+    log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Boot complete — press any key or wait 20s");
+    qemu::wait_or_keypress(20);
+    qemu::exit(0);
 }

@@ -66,8 +66,6 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 
     let mut processors: Vec<Processor> = Vec::new();
 
-    // use ACPI to find all processors
-    // let mut found_bsp = false;
     if let Some(rsdp) = rsdp_pointer.as_ref() {
         log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Found ACPI RSDP table");
         unsafe {
@@ -103,17 +101,10 @@ pub fn init(rsdp_pointer: Optional<u64>) {
         }
     }
 
-    // we are running on BSP, initalize local APIC so that we can send IPI to other processors
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "APIC: Found {} processors", processors.len());
+
+    // TODO: initialize local APIC on BSP so we can send IPI to start APs
     for p in processors {
-        log_println!(log::SubSystem::X86_64, log::LogLevel::Error, "Intializing CPU #{}", p.apic.apic_id);
-
+        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "Initializing CPU #{}", p.apic.apic_id);
     }
-
 }
-
-// unsafe {
-//     match lapic::LocalApicBuilder::new().set_xapic_base(lapic::xapic_base()).build() {
-//         Ok(apic) => serial_println!("is bsp: {}", apic.is_bsp()),
-//         Err(error) => serial_println!("failed to initalize lapic: {}", error),
-//     }
-// }

@@ -21,8 +21,6 @@ lazy_static! {
 pub fn init_exceptions() {
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "IDT: Setting up exception handling");
     IDT.load();
-    // x86_64::instructions::interrupts::disable();
-    // x86_64::instructions::interrupts::int3(); // new
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
