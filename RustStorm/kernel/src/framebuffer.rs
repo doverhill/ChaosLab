@@ -45,8 +45,8 @@ impl FramebufferWriter {
         writer
     }
 
-    pub fn info(&self) -> &FrameBufferInfo {
-        &self.info
+    pub fn buffer_ptr(&self) -> *const u8 {
+        self.buffer.as_ptr()
     }
 
     pub fn cols(&self) -> usize {
@@ -55,6 +55,12 @@ impl FramebufferWriter {
 
     pub fn rows(&self) -> usize {
         self.rows
+    }
+
+    /// Update the buffer pointer to a new base address (e.g., after remapping).
+    pub fn remap_buffer(&mut self, new_base: *mut u8) {
+        let len = self.buffer.len();
+        self.buffer = unsafe { core::slice::from_raw_parts_mut(new_base, len) };
     }
 
     pub fn set_color(&mut self, r: u8, g: u8, b: u8) {

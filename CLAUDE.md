@@ -71,7 +71,7 @@ Windows-only. Uses PowerShell build scripts at the repo root:
 - **Rust edition:** 2021
 - **Line width:** 200 characters (`rustfmt.toml`: `max_width = 200`)
 - **Kernel code:** `#![no_std]` with `extern crate alloc`; nightly features (`abi_x86_interrupt`)
-- **Naming:** snake_case for functions/modules, PascalCase for types
+- **Naming:** snake_case for functions/modules, PascalCase for types. Prefer full words over abbreviations in identifiers (e.g. `virtual_to_physical` not `virt_to_phys`, `physical_address` not `phys_addr`, `allocate_frame` not `alloc_frame`, `l4_index` not `l4_idx`)
 - **Logging:** Use `log_println!(SubSystem, LogLevel, ...)` macro, not raw serial writes
 - **Error types:** `StormError` enum, `ErrorOr<T>` result type
 - **Unsafe:** Used where required for hardware access; comment explaining why

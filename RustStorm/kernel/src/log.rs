@@ -86,6 +86,14 @@ pub fn init_framebuffer(writer: FramebufferWriter) {
     *FRAMEBUFFER.lock() = Some(writer);
 }
 
+/// Remap the framebuffer to use identity mapping instead of the bootloader's
+/// offset mapping. The physical address must already be identity-mapped.
+pub fn remap_framebuffer(framebuffer_physical_address: u64) {
+    if let Some(ref mut fb) = *FRAMEBUFFER.lock() {
+        fb.remap_buffer(framebuffer_physical_address as *mut u8);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Subsystem & LogLevel
 // ---------------------------------------------------------------------------

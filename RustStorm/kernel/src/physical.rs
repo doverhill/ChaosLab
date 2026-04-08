@@ -54,6 +54,42 @@ pub fn free(page_address: *mut u8, number_of_pages: usize) {
     };
 }
 
+/// Reclaim Bootloader-marked pages that are no longer in use.
+/// `kernel_leaf_pages` contains the physical addresses of pages still needed
+/// by the kernel (code, data, stack) — these must NOT be freed.
+pub fn reclaim_bootloader(bootloader_regions: &[(u64, u64)], kernel_leaf_pages: &[u64]) {
+    let mut reclaimed = 0usize;
+    let mut preserved = 0usize;
+
+    let mut allocator = ALLOCATOR.lock();
+    let inner = allocator.as_mut().expect("allocator not initialized");
+
+    for &(start, end) in bootloader_regions {
+        let mut address = start;
+        while address + PAGE_SIZE as u64 <= end {
+            if address >= 0x20_0000 && !kernel_leaf_pages.contains(&address) {
+                // add directly to free list without touching used_frame_count
+                let free_frame = address as *mut FreeFrame;
+                unsafe {
+                    (*free_frame).magic = FREE_FRAME_MAGIC;
+                    (*free_frame).next_frame = inner.first_free;
+                }
+                inner.first_free = Some(free_frame);
+                inner.free_frame_count += 1;
+                reclaimed += 1;
+            } else if kernel_leaf_pages.contains(&address) {
+                preserved += 1;
+            }
+            address += PAGE_SIZE as u64;
+        }
+    }
+
+    log_println!(log::SubSystem::Physical, log::LogLevel::Information,
+        "Reclaimed {} bootloader pages ({} KiB), {} kernel pages preserved, total free: {} pages ({} MiB)",
+        reclaimed, reclaimed * PAGE_SIZE / 1024, preserved,
+        inner.free_frame_count, inner.free_frame_count * PAGE_SIZE / (1024 * 1024));
+}
+
 const FREE_FRAME_MAGIC: u64 = 0xC0CA_C07A_DEAD_BEAF;
 pub const PAGE_SIZE: usize = 0x1000;
 
@@ -139,17 +175,11 @@ impl PhysicalFrameAllocator {
         let usable_frames = frame_count;
         log_println!(log::SubSystem::Physical, log::LogLevel::Debug, "Pass 1 complete: {} usable frames", usable_frames);
 
-        // Bootloader-marked memory is NOT reclaimable yet. It contains the
-        // running kernel's code, data, stack, and active page tables (L4[2+]
-        // subtree, plus reused L3/L2 tables at L4[0..1]).
-        //
-        // To reclaim later (two-pass approach):
-        //   1. Allocate fresh pages from the Usable free list
-        //   2. Copy kernel segments and create new page tables
-        //   3. Switch CR3 to new page tables
-        //   4. Walk old page tables to identify all referenced physical pages
-        //   5. Add unreferenced Bootloader pages to the free list
-        log_println!(log::SubSystem::Physical, log::LogLevel::Information, "Bootloader memory: {} KiB reserved (kernel code, stack, page tables)", bootloader_bytes / 1024);
+        // Bootloader-marked memory will be reclaimed after
+        // address_space::decouple_from_bootloader() replaces all
+        // bootloader page tables with our own allocations.
+        log_println!(log::SubSystem::Physical, log::LogLevel::Information,
+            "Bootloader memory: {} KiB (will be reclaimed after page table decoupling)", bootloader_bytes / 1024);
 
         log_println!(
             log::SubSystem::Physical,

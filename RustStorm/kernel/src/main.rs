@@ -95,17 +95,51 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Physical memory offset: {:#x} (L4[{}])", physical_memory_offset, physical_memory_offset / (512 * crate::GB as u64));
     address_space::init(physical_memory_offset, &boot_info.memory_regions);
 
-    // save everything we need from boot_info BEFORE physical::init
-    // (boot_info lives in Bootloader-marked pages)
+    // Save everything we need from boot_info BEFORE physical::init.
+    // boot_info and memory_regions live in Bootloader-marked pages which
+    // will be reclaimed after decoupling.
     let rsdp_addr = boot_info.rsdp_addr;
     log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "RSDP address: {:?}", rsdp_addr);
 
-    // initialize frame allocator — only Usable memory goes into the free list.
-    // Bootloader-marked memory (kernel code, stack, page tables) is preserved.
-    // boot_info lives in Bootloader memory, so don't access it after this.
+    // Snapshot framebuffer physical address (needed for identity mapping).
+    // Walk the page tables to find the actual physical address backing the
+    // framebuffer virtual pointer (the bootloader may use a separate mapping).
+    let framebuffer_physical = boot_info.framebuffer.as_ref().map(|fb| {
+        let virtual_address = fb.buffer().as_ptr() as u64;
+        let size = fb.info().byte_len;
+        let physical_address = address_space::virtual_to_physical(virtual_address, physical_memory_offset)
+            .expect("framebuffer virtual address not mapped");
+        log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
+            "Framebuffer: virtual={:#x}, physical={:#x}, size={} KiB", virtual_address, physical_address, size / 1024);
+        (physical_address, size)
+    });
+
+    // snapshot bootloader region ranges to the stack (memory_regions itself is in bootloader memory)
+    let mut bootloader_regions = [(0u64, 0u64); 8];
+    let mut bootloader_region_count = 0;
+    for region in boot_info.memory_regions.iter() {
+        if region.kind == bootloader_api::info::MemoryRegionKind::Bootloader && bootloader_region_count < bootloader_regions.len() {
+            bootloader_regions[bootloader_region_count] = (region.start, region.end);
+            bootloader_region_count += 1;
+        }
+    }
+
+    // initialize frame allocator with Usable memory only
     physical::init(&boot_info.memory_regions);
 
-    // sanity check: kernel heap allocator works (Box triggers GlobalAlloc)
+    // ---- Decouple from bootloader page tables ----
+    // After this, no page table pages are in bootloader memory.
+    // The framebuffer gets identity-mapped and its pointer updated.
+    let kernel_leaf_pages = if let Some((physical_address, size)) = framebuffer_physical {
+        address_space::decouple_from_bootloader(physical_memory_offset, physical_address, size)
+    } else {
+        address_space::decouple_from_bootloader(physical_memory_offset, 0, 0)
+    };
+
+    // ---- Reclaim bootloader memory ----
+    physical::reclaim_bootloader(&bootloader_regions[..bootloader_region_count], &kernel_leaf_pages);
+
+    // sanity check: kernel heap allocator still works after all the page table surgery
     let _heap_test = Box::new(42u64);
 
     apic::init(rsdp_addr);
