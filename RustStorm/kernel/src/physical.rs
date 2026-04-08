@@ -205,10 +205,10 @@ impl PhysicalFrameAllocator {
         frame_count: &mut usize,
     ) -> usize {
         let mut added = 0;
-        let mut addr = start;
-        while addr + PAGE_SIZE as u64 <= end {
-            if addr >= 0x20_0000 {
-                let free_frame = addr as *mut FreeFrame;
+        let mut address = start;
+        while address + PAGE_SIZE as u64 <= end {
+            if address >= 0x20_0000 {
+                let free_frame = address as *mut FreeFrame;
                 unsafe {
                     (*free_frame).magic = FREE_FRAME_MAGIC;
                     (*free_frame).next_frame = None;
@@ -221,7 +221,7 @@ impl PhysicalFrameAllocator {
                 *frame_count += 1;
                 added += 1;
             }
-            addr += PAGE_SIZE as u64;
+            address += PAGE_SIZE as u64;
         }
         added
     }

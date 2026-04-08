@@ -43,10 +43,10 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     config.mappings = Mappings::new_default();
     config.mappings.physical_memory = Some(Mapping::Dynamic);
     config.kernel_stack_size = 128 * 1024;
-    let mut fb = FrameBuffer::new_default();
-    fb.minimum_framebuffer_width = Some(800);
-    fb.minimum_framebuffer_height = Some(600);
-    config.frame_buffer = fb;
+    let mut framebuffer = FrameBuffer::new_default();
+    framebuffer.minimum_framebuffer_width = Some(800);
+    framebuffer.minimum_framebuffer_height = Some(600);
+    config.frame_buffer = framebuffer;
     config
 };
 
@@ -56,8 +56,8 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Starting RustStorm kernel");
 
     // extract framebuffer for screen output
-    if let Some(fb) = boot_info.framebuffer.as_mut() {
-        let info = fb.info();
+    if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
+        let info = framebuffer.info();
         log_println!(
             log::SubSystem::Boot,
             log::LogLevel::Information,
@@ -70,9 +70,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         );
 
         // obtain a 'static buffer reference independent of boot_info borrow
-        let ptr = fb.buffer_mut().as_mut_ptr();
+        let buffer_pointer = framebuffer.buffer_mut().as_mut_ptr();
         let len = info.byte_len;
-        let buffer = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
+        let buffer = unsafe { core::slice::from_raw_parts_mut(buffer_pointer, len) };
 
         let writer = framebuffer::FramebufferWriter::new(buffer, info);
         log_println!(
@@ -98,15 +98,15 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // Save everything we need from boot_info BEFORE physical::init.
     // boot_info and memory_regions live in Bootloader-marked pages which
     // will be reclaimed after decoupling.
-    let rsdp_addr = boot_info.rsdp_addr;
-    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "RSDP address: {:?}", rsdp_addr);
+    let rsdp_address = boot_info.rsdp_addr;
+    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "RSDP address: {:?}", rsdp_address);
 
     // Snapshot framebuffer physical address (needed for identity mapping).
     // Walk the page tables to find the actual physical address backing the
     // framebuffer virtual pointer (the bootloader may use a separate mapping).
-    let framebuffer_physical = boot_info.framebuffer.as_ref().map(|fb| {
-        let virtual_address = fb.buffer().as_ptr() as u64;
-        let size = fb.info().byte_len;
+    let framebuffer_physical = boot_info.framebuffer.as_ref().map(|framebuffer| {
+        let virtual_address = framebuffer.buffer().as_ptr() as u64;
+        let size = framebuffer.info().byte_len;
         let physical_address = address_space::virtual_to_physical(virtual_address, physical_memory_offset)
             .expect("framebuffer virtual address not mapped");
         log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
@@ -142,7 +142,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // sanity check: kernel heap allocator still works after all the page table surgery
     let _heap_test = Box::new(42u64);
 
-    apic::init(rsdp_addr);
+    apic::init(rsdp_address);
 
     log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Boot complete — press any key or wait 20s");
     qemu::wait_or_keypress(20);

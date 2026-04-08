@@ -89,8 +89,8 @@ pub fn init_framebuffer(writer: FramebufferWriter) {
 /// Remap the framebuffer to use identity mapping instead of the bootloader's
 /// offset mapping. The physical address must already be identity-mapped.
 pub fn remap_framebuffer(framebuffer_physical_address: u64) {
-    if let Some(ref mut fb) = *FRAMEBUFFER.lock() {
-        fb.remap_buffer(framebuffer_physical_address as *mut u8);
+    if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
+        framebuffer.remap_buffer(framebuffer_physical_address as *mut u8);
     }
 }
 
@@ -204,20 +204,20 @@ pub fn _print(sub_system: SubSystem, log_level: LogLevel, args: ::core::fmt::Arg
 
     // --- framebuffer (if initialized) ---
     if log_level >= FB_LOG_LEVEL {
-        if let Some(ref mut fb) = *FRAMEBUFFER.lock() {
+        if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
             let (sr, sg, sb) = subsystem_rgb(&sub_system);
-            fb.set_color(sr, sg, sb);
-            let _ = write!(fb, "[{}] ", sub_system);
+            framebuffer.set_color(sr, sg, sb);
+            let _ = write!(framebuffer, "[{}] ", sub_system);
 
-            fb.set_color(150, 150, 150);
-            let _ = write!(fb, "{}.{:03}s ", secs, millis);
+            framebuffer.set_color(150, 150, 150);
+            let _ = write!(framebuffer, "{}.{:03}s ", secs, millis);
 
             let (lr, lg, lb) = level_rgb(&log_level);
-            fb.set_color(lr, lg, lb);
-            let _ = write!(fb, "{} - ", level_label(&log_level));
+            framebuffer.set_color(lr, lg, lb);
+            let _ = write!(framebuffer, "{} - ", level_label(&log_level));
 
-            fb.set_color(lr, lg, lb);
-            let _ = fb.write_fmt(args);
+            framebuffer.set_color(lr, lg, lb);
+            let _ = framebuffer.write_fmt(args);
         }
     }
 }
