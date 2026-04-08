@@ -158,8 +158,8 @@ pub fn decouple_from_bootloader(physical_memory_offset: u64, framebuffer_physica
     // and frees everything not in this set.
     let mut kernel_leaf_pages: Vec<u64> = Vec::with_capacity(256);
 
-    // ---- Phase A: fix null guard to 4 KiB only ----
-    fix_null_guard(l4_table, physical_memory_offset);
+    // NOTE: fix_null_guard must be called BEFORE this function (from main.rs)
+    // because the heap allocator needs identity mapping for the L4 table.
 
     // ---- Phase B1: identity-map the framebuffer and switch pointer ----
     // MUST happen before clearing L4[4+] which contains the old offset mapping.
@@ -176,8 +176,10 @@ pub fn decouple_from_bootloader(physical_memory_offset: u64, framebuffer_physica
     // The kernel code is at L4[2] (virtual_address_offset = 0x10000000000),
     // the kernel stack may be at L4[3]. Everything else (L4[4+]) is the
     // bootloader's offset mapping which is redundant with our identity mapping.
-    // Rebuild L4[2..4] preserving 4 KiB leaf pages; clear L4[4..512].
-    for l4_index in 2..512usize {
+    // Rebuild L4[2..4] preserving 4 KiB leaf pages; clear L4[4..128].
+    // L4[128..255] is kernel virtual memory (managed by virtual_memory.rs).
+    // L4[256..511] will be per-process virtual memory (future).
+    for l4_index in 2..MAX_L4_INDEX {
         if !l4_table[l4_index].flags().contains(PageTableFlags::PRESENT) {
             continue;
         }
@@ -219,16 +221,22 @@ pub fn decouple_from_bootloader(physical_memory_offset: u64, framebuffer_physica
 
 /// Replace the 2 MiB skip at L2[0] with an L1 table that maps 0x1000-0x1FFFFF
 /// (pages 1-511) and leaves page 0 unmapped (null pointer guard).
-fn fix_null_guard(l4_table: &mut PageTable, offset: u64) {
+/// Replace the 2 MiB null guard at L2[0] with a 4 KiB null guard.
+/// Must be called before any heap allocations (the heap allocator walks
+/// page tables via identity mapping, which requires the L4 at 0x101000
+/// to be accessible).
+pub fn fix_null_guard(physical_memory_offset: u64) {
+    let (l4_frame, _) = Cr3::read();
+    let l4_table = physical_to_table(l4_frame.start_address().as_u64(), physical_memory_offset);
     let l3_table = {
         let entry = &l4_table[0];
         assert!(entry.flags().contains(PageTableFlags::PRESENT));
-        physical_to_table(entry.addr().as_u64(), offset)
+        physical_to_table(entry.addr().as_u64(), physical_memory_offset)
     };
     let l2_table = {
         let entry = &l3_table[0];
         assert!(entry.flags().contains(PageTableFlags::PRESENT));
-        physical_to_table(entry.addr().as_u64(), offset)
+        physical_to_table(entry.addr().as_u64(), physical_memory_offset)
     };
 
     // L2[0] should currently be empty (we skipped it in init)

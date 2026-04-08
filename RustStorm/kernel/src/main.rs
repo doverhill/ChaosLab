@@ -27,6 +27,7 @@ mod physical;
 mod process;
 mod qemu;
 mod syscall;
+mod virtual_memory;
 
 use alloc::boxed::Box;
 #[allow(deprecated)]
@@ -126,6 +127,11 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     // initialize frame allocator with Usable memory only
     physical::init(&boot_info.memory_regions);
+
+    // Fix null guard FIRST — the heap allocator uses virtual_memory which
+    // walks page tables via identity mapping. The L4 table at 0x101000 must
+    // be accessible before any heap allocation can occur.
+    address_space::fix_null_guard(physical_memory_offset);
 
     // ---- Decouple from bootloader page tables ----
     // After this, no page table pages are in bootloader memory.
