@@ -20,8 +20,8 @@ use crate::framebuffer::FramebufferWriter;
 // Configuration
 // ---------------------------------------------------------------------------
 
-/// Minimum severity shown on serial.
-const SERIAL_LOG_LEVEL: LogLevel = LogLevel::Debug;
+/// Minimum severity shown on serial. Change to Debug when troubleshooting.
+const SERIAL_LOG_LEVEL: LogLevel = LogLevel::Information;
 /// Minimum severity shown on the framebuffer (screen space is precious).
 const FB_LOG_LEVEL: LogLevel = LogLevel::Information;
 
@@ -116,7 +116,7 @@ impl core::fmt::Display for SubSystem {
             SubSystem::Physical => "Physical",
             SubSystem::KernelMemory => "KernelMem",
         };
-        write!(f, "{:<9}", name)
+        write!(f, "{}", name)
     }
 }
 

@@ -165,6 +165,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         scheduler::spawn(test_thread_function, i);
     }
 
+    // watchdog: exits QEMU after 10 seconds (or keypress)
+    scheduler::spawn(watchdog_thread, 10);
+
     log_println!(log::SubSystem::Boot, log::LogLevel::Information,
         "Boot complete — BSP entering scheduler");
 
@@ -181,4 +184,10 @@ fn test_thread_function(thread_number: u64) -> ! {
         timer::delay_milliseconds(500);
         scheduler::yield_thread();
     }
+}
+
+/// Watchdog thread — waits for the given number of seconds (or keypress), then exits QEMU.
+fn watchdog_thread(seconds: u64) -> ! {
+    qemu::wait_or_keypress(seconds);
+    qemu::exit(0);
 }

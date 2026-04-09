@@ -106,11 +106,17 @@ extern "C" fn thread_bootstrap() -> ! {
 
 /// Idle loop for each CPU. Call this from ap_entry (and BSP after init).
 pub fn run_on_cpu(cpu_id: u64) -> ! {
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
+        "CPU {} (LAPIC {}) entering scheduler idle loop", cpu_id, read_lapic_id());
     loop {
         let thread = RUN_QUEUE.lock().pop_front();
         if let Some(mut thread) = thread {
             thread.cpu_id = cpu_id;
+            let thread_id = thread.thread_id;
             let thread_rsp = thread.saved_rsp;
+
+            log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
+                "CPU {} dispatching thread {} (rsp={:#x})", cpu_id, thread_id, thread_rsp);
 
             // store thread and get pointer to idle_rsp for saving
             let idle_rsp_ptr = {
@@ -122,7 +128,17 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
 
             context_switch(idle_rsp_ptr, thread_rsp);
 
-            // we return here when the thread yields back
+            // thread yielded back — re-queue it now that context_switch
+            // has saved the correct RSP into the thread
+            let yielded = CPU_STATE[cpu_id as usize].lock().current_thread.take();
+            if let Some(thread) = yielded {
+                log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
+                    "CPU {} re-queuing thread {}", cpu_id, thread.thread_id);
+                RUN_QUEUE.lock().push_back(thread);
+            } else {
+                log_println!(log::SubSystem::Kernel, log::LogLevel::Error,
+                    "CPU {} returned from context_switch but no thread in CPU_STATE!", cpu_id);
+            }
         } else {
             core::hint::spin_loop();
         }
@@ -137,16 +153,24 @@ pub fn yield_thread() {
     // use LAPIC ID to determine our CPU — reliable, no scanning needed
     let cpu_id = read_lapic_id() as usize;
 
-    // take the thread and idle RSP in one lock
-    let mut state = CPU_STATE[cpu_id].lock();
-    let idle_rsp = state.idle_rsp;
-    let mut thread = state.current_thread.take().expect("yield_thread: no current thread");
-    let thread_rsp_ptr = &mut thread.saved_rsp as *mut u64;
-    drop(state); // drop before locking run queue
+    // get the RSP save pointer and idle RSP — leave the thread in CPU_STATE
+    // so that the idle loop can re-queue it AFTER context_switch has saved RSP.
+    // Moving the thread to the run queue before saving RSP is a race: another
+    // CPU could pick it up with stale saved_rsp.
+    let (idle_rsp, thread_rsp_ptr, thread_id) = {
+        let mut state = CPU_STATE[cpu_id].lock();
+        let idle_rsp = state.idle_rsp;
+        let thread = state.current_thread.as_mut().expect("yield_thread: no current thread");
+        let thread_id = thread.thread_id;
+        let thread_rsp_ptr = &mut thread.saved_rsp as *mut u64;
+        (idle_rsp, thread_rsp_ptr, thread_id)
+    };
+    // lock is dropped here — safe to context switch
 
-    RUN_QUEUE.lock().push_back(thread);
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
+        "Thread {} yielding on CPU {} (LAPIC {}), idle_rsp={:#x}", thread_id, cpu_id, cpu_id, idle_rsp);
 
-    // context switch back to idle loop
+    // context switch back to idle loop (saves our RSP via thread_rsp_ptr)
     context_switch(thread_rsp_ptr, idle_rsp);
 
     // we resume here when picked up again
