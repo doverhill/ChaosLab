@@ -42,10 +42,61 @@ pub const USER_VIRTUAL_L4_START: usize = 256;
 /// Last L4 index (exclusive) for per-process user virtual memory.
 pub const USER_VIRTUAL_L4_END: usize = 512;
 
-/// Start of the kernel virtual address range.
-pub const KERNEL_VIRTUAL_BASE: u64 = (KERNEL_VIRTUAL_L4_START as u64) * L4_COVERAGE;
-/// Start of the user virtual address range.
-pub const USER_VIRTUAL_BASE: u64 = (USER_VIRTUAL_L4_START as u64) * L4_COVERAGE;
+/// Make a canonical 64-bit virtual address from a 48-bit value.
+/// Sign-extends bit 47 through bits 63:48 as required by x86_64.
+pub const fn canonicalize(address_48bit: u64) -> u64 {
+    if address_48bit & (1u64 << 47) != 0 {
+        address_48bit | 0xFFFF_0000_0000_0000
+    } else {
+        address_48bit
+    }
+}
+
+/// A contiguous range of canonical virtual addresses defined by L4 indices.
+/// Handles sign extension and provides range-check helpers so callers
+/// don't need to reason about canonical arithmetic.
+pub struct VirtualAddressRange {
+    pub l4_start: usize,
+    pub l4_end: usize,
+    pub base: u64,
+}
+
+impl VirtualAddressRange {
+    pub const fn new(l4_start: usize, l4_end: usize) -> Self {
+        Self {
+            l4_start,
+            l4_end,
+            base: canonicalize((l4_start as u64) * L4_COVERAGE),
+        }
+    }
+
+    /// True if `address` falls within this range.
+    /// Works correctly across the canonical hole by comparing L4 indices.
+    pub fn contains(&self, address: u64) -> bool {
+        let l4_index = ((address >> 39) & 0x1FF) as usize;
+        l4_index >= self.l4_start && l4_index < self.l4_end
+    }
+
+    /// True if the entire region [address, address+size) fits in this range.
+    pub fn contains_region(&self, address: u64, size: u64) -> bool {
+        if size == 0 { return self.contains(address); }
+        let last = address.wrapping_add(size - 1);
+        self.contains(address) && self.contains(last)
+    }
+
+    /// Number of L4 entries spanned.
+    pub const fn l4_count(&self) -> usize {
+        self.l4_end - self.l4_start
+    }
+}
+
+pub const KERNEL_VIRTUAL_RANGE: VirtualAddressRange = VirtualAddressRange::new(KERNEL_VIRTUAL_L4_START, KERNEL_VIRTUAL_L4_END);
+pub const USER_VIRTUAL_RANGE: VirtualAddressRange = VirtualAddressRange::new(USER_VIRTUAL_L4_START, USER_VIRTUAL_L4_END);
+
+/// Start of the kernel virtual address range (canonical).
+pub const KERNEL_VIRTUAL_BASE: u64 = KERNEL_VIRTUAL_RANGE.base;
+/// Start of the user virtual address range (canonical).
+pub const USER_VIRTUAL_BASE: u64 = USER_VIRTUAL_RANGE.base;
 
 // ---------------------------------------------------------------------------
 // Physical-to-table conversions

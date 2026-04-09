@@ -1,6 +1,7 @@
 use core::ptr::addr_of;
 
 use x86_64::structures::gdt::SegmentSelector;
+use x86_64::PrivilegeLevel::Ring0;
 use lazy_static::lazy_static;
 use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor};
 use x86_64::VirtAddr;
@@ -9,8 +10,33 @@ use x86_64::structures::tss::TaskStateSegment;
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const PAGE_FAULT_IST_INDEX: u16 = 1;
 
+// GDT layout (same for BSP and all APs):
+//   0x00  Null
+//   0x08  Kernel code  (SYSCALL CS)
+//   0x10  Kernel data  (SYSCALL SS = 0x08+8)
+//   0x18  User data    (placeholder for 32-bit SYSRET CS — unused)
+//   0x20  User data    (SYSRET SS = 0x18+8, RPL=3)
+//   0x28  User code 64 (SYSRET CS = 0x18+16, RPL=3)
+//   0x30  TSS low
+//   0x38  TSS high
+//
+// STAR MSR: kernel_base=0x08, user_base=0x18
+pub const STAR_KERNEL_BASE: u16 = 0x08;
+pub const STAR_USER_BASE: u16 = 0x18;
+
 /// IST stack size per CPU (16 KiB).
 const IST_STACK_SIZE: usize = 4096 * 4;
+
+/// Build a GDT with the standard segment layout and the given TSS.
+/// Returns (gdt, tss_selector).
+fn build_gdt(gdt: &mut GlobalDescriptorTable, tss: &'static TaskStateSegment) -> SegmentSelector {
+    gdt.append(Descriptor::kernel_code_segment());  // 0x08
+    gdt.append(Descriptor::kernel_data_segment());   // 0x10
+    gdt.append(Descriptor::user_data_segment());     // 0x18 (32-bit sysret CS slot — not used)
+    gdt.append(Descriptor::user_data_segment());     // 0x20 (sysret SS)
+    gdt.append(Descriptor::user_code_segment());     // 0x28 (sysret CS, 64-bit)
+    gdt.append(Descriptor::tss_segment(tss))         // 0x30 (+ 0x38)
+}
 
 /// Create a new TSS with freshly allocated IST stacks.
 /// Each CPU must have its own TSS (the TSS descriptor has a "busy" bit
@@ -54,19 +80,22 @@ lazy_static! {
 }
 
 lazy_static! {
-    static ref BSP_GDT: (GlobalDescriptorTable, Selectors) = {
+    static ref BSP_GDT: (GlobalDescriptorTable, SegmentSelector) = {
         let mut gdt = GlobalDescriptorTable::new();
-        let code_selector = gdt.append(Descriptor::kernel_code_segment());  // 0x08
-        let data_selector = gdt.append(Descriptor::kernel_data_segment());  // 0x10
-        let tss_selector = gdt.append(Descriptor::tss_segment(&BSP_TSS));   // 0x18 (+ 0x20)
-        (gdt, Selectors { code_selector, data_selector, tss_selector })
+        let tss_selector = build_gdt(&mut gdt, &BSP_TSS);
+        (gdt, tss_selector)
     };
 }
 
-struct Selectors {
-    code_selector: SegmentSelector,
-    data_selector: SegmentSelector,
-    tss_selector: SegmentSelector,
+/// Set TSS.privilege_stack_table[0] (RSP0) for the BSP.
+/// The CPU loads this into RSP when transitioning from Ring 3 to Ring 0
+/// via an interrupt or exception. Must be called before entering user mode.
+///
+/// Safety: mutates the BSP TSS through a shared reference. Only call from
+/// the BSP before entering user mode.
+pub unsafe fn set_bsp_rsp0(rsp0: u64) {
+    let tss_ptr = &*BSP_TSS as *const TaskStateSegment as *mut TaskStateSegment;
+    (*tss_ptr).privilege_stack_table[0] = VirtAddr::new(rsp0);
 }
 
 /// Initialize the BSP's GDT, load all segment registers, and load TSS.
@@ -77,11 +106,11 @@ pub fn init() {
 
     BSP_GDT.0.load();
     unsafe {
-        CS::set_reg(BSP_GDT.1.code_selector);
-        DS::set_reg(BSP_GDT.1.data_selector);
-        ES::set_reg(BSP_GDT.1.data_selector);
-        SS::set_reg(BSP_GDT.1.data_selector);
-        load_tss(BSP_GDT.1.tss_selector);
+        CS::set_reg(SegmentSelector::new(1, Ring0));   // 0x08
+        DS::set_reg(SegmentSelector::new(2, Ring0));   // 0x10
+        ES::set_reg(SegmentSelector::new(2, Ring0));
+        SS::set_reg(SegmentSelector::new(2, Ring0));
+        load_tss(BSP_GDT.1);                           // 0x30
     }
 }
 
@@ -97,18 +126,16 @@ pub fn init_ap() {
     let tss = alloc::boxed::Box::leak(alloc::boxed::Box::new(create_tss()));
     let gdt = alloc::boxed::Box::leak(alloc::boxed::Box::new({
         let mut gdt = GlobalDescriptorTable::new();
-        gdt.append(Descriptor::kernel_code_segment());   // 0x08
-        gdt.append(Descriptor::kernel_data_segment());    // 0x10
-        gdt.append(Descriptor::tss_segment(tss));         // 0x18 (+ 0x20)
+        let _tss_selector = build_gdt(&mut gdt, tss);
         gdt
     }));
 
     gdt.load();
     unsafe {
-        CS::set_reg(SegmentSelector::new(1, x86_64::PrivilegeLevel::Ring0));  // 0x08
-        DS::set_reg(SegmentSelector::new(2, x86_64::PrivilegeLevel::Ring0));  // 0x10
-        ES::set_reg(SegmentSelector::new(2, x86_64::PrivilegeLevel::Ring0));
-        SS::set_reg(SegmentSelector::new(2, x86_64::PrivilegeLevel::Ring0));
-        load_tss(SegmentSelector::new(3, x86_64::PrivilegeLevel::Ring0));     // 0x18
+        CS::set_reg(SegmentSelector::new(1, Ring0));   // 0x08
+        DS::set_reg(SegmentSelector::new(2, Ring0));   // 0x10
+        ES::set_reg(SegmentSelector::new(2, Ring0));
+        SS::set_reg(SegmentSelector::new(2, Ring0));
+        load_tss(SegmentSelector::new(6, Ring0));      // 0x30
     }
 }

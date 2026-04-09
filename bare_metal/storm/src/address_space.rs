@@ -8,13 +8,10 @@ use x86_64::structures::paging::page_table::PageTableFlags;
 use x86_64::PhysAddr;
 
 use crate::page_tables::{
-    allocate_page_table, ensure_l1_table, ensure_l2_table, ensure_l3_table, get_current_l4_table, is_page_unmapped, physical_to_table, virtual_to_indices, L4_COVERAGE, PAGE_SIZE, USER_PAGE_FLAGS,
-    USER_TABLE_FLAGS, USER_VIRTUAL_L4_END, USER_VIRTUAL_L4_START,
+    allocate_page_table, ensure_l1_table, ensure_l2_table, ensure_l3_table, get_current_l4_table, is_page_unmapped, physical_to_table, virtual_to_indices, PAGE_SIZE, USER_PAGE_FLAGS,
+    USER_TABLE_FLAGS, USER_VIRTUAL_RANGE, USER_VIRTUAL_BASE,
 };
 use crate::{log, log_println, physical_memory};
-
-/// Start of the user virtual address range.
-const USER_VIRTUAL_BASE: u64 = (USER_VIRTUAL_L4_START as u64) * L4_COVERAGE;
 
 /// A per-process address space backed by its own L4 page table.
 ///
@@ -64,6 +61,64 @@ impl AddressSpace {
         self.l4_physical_address
     }
 
+    /// Map `page_count` zero-filled 4 KiB pages at `virtual_address` in the
+    /// user half. Allocates physical frames and creates page table entries.
+    ///
+    /// Returns a slice of physical addresses (one per page) so the kernel can
+    /// write to the pages via identity mapping before the process runs.
+    ///
+    /// Returns Err if the address is not in user space, pages are already
+    /// mapped, or physical allocation fails.
+    pub fn map_user_pages_at(&self, virtual_address: u64, page_count: usize) -> Result<alloc::vec::Vec<u64>, &'static str> {
+        if page_count == 0 {
+            return Ok(alloc::vec::Vec::new());
+        }
+
+        let total_size = page_count as u64 * PAGE_SIZE;
+        if !USER_VIRTUAL_RANGE.contains_region(virtual_address, total_size) {
+            return Err("virtual address not in user space");
+        }
+        if virtual_address % PAGE_SIZE != 0 {
+            return Err("virtual address not page-aligned");
+        }
+
+        let l4_table = physical_to_table(self.l4_physical_address);
+        let mut physical_addresses = alloc::vec::Vec::with_capacity(page_count);
+
+        for page_offset in 0..page_count as u64 {
+            let page_virtual = virtual_address + page_offset * PAGE_SIZE;
+
+            if !is_page_unmapped(l4_table, page_virtual) {
+                return Err("page already mapped");
+            }
+
+            let physical_frame = physical_memory::allocate(1)
+                .ok_or("out of physical memory")?;
+            let physical_address = physical_frame as u64;
+
+            // zero the frame via identity mapping
+            unsafe {
+                core::ptr::write_bytes(physical_address as *mut u8, 0, PAGE_SIZE as usize);
+            }
+
+            let (l4_index, l3_index, l2_index, l1_index) = virtual_to_indices(page_virtual);
+            let l3_table = ensure_l3_table(l4_table, l4_index, USER_TABLE_FLAGS);
+            let l2_table = ensure_l2_table(l3_table, l3_index, USER_TABLE_FLAGS);
+            let l1_table = ensure_l1_table(l2_table, l2_index, USER_TABLE_FLAGS);
+            l1_table[l1_index].set_addr(PhysAddr::new(physical_address), USER_PAGE_FLAGS);
+
+            physical_addresses.push(physical_address);
+        }
+
+        log_println!(
+            log::SubSystem::KernelMemory,
+            log::LogLevel::Debug,
+            "Mapped {} user pages at {:#x} in address space {:#x}",
+            page_count, virtual_address, self.l4_physical_address
+        );
+        Ok(physical_addresses)
+    }
+
     /// Allocate `page_count` contiguous 4 KiB virtual pages in the user half
     /// (L4[256..511]). Allocates physical frames for each page and maps them
     /// with user-accessible flags.
@@ -77,10 +132,9 @@ impl AddressSpace {
         assert!(page_count > 0, "cannot allocate 0 pages");
 
         let l4_table = physical_to_table(self.l4_physical_address);
-        let end_virtual = (USER_VIRTUAL_L4_END as u64) * L4_COVERAGE;
         let mut candidate = USER_VIRTUAL_BASE;
 
-        while candidate + (page_count as u64 * PAGE_SIZE) <= end_virtual {
+        while USER_VIRTUAL_RANGE.contains_region(candidate, page_count as u64 * PAGE_SIZE) {
             let mut all_free = true;
             for page_offset in 0..page_count as u64 {
                 let virtual_address = candidate + page_offset * PAGE_SIZE;
@@ -187,5 +241,31 @@ impl AddressSpace {
             base,
             self.l4_physical_address
         );
+    }
+
+    /// Translate a virtual address in this address space to its physical address.
+    /// Walks this address space's page tables (not the active CR3).
+    /// Returns None if the page is not mapped.
+    pub fn virtual_to_physical_user(&self, virtual_address: u64) -> Option<u64> {
+        let l4_table = physical_to_table(self.l4_physical_address);
+        let (l4_index, l3_index, l2_index, l1_index) = virtual_to_indices(virtual_address);
+        let page_offset = virtual_address & 0xFFF;
+
+        let l4_entry = &l4_table[l4_index];
+        if !l4_entry.flags().contains(PageTableFlags::PRESENT) { return None; }
+        let l3_table = physical_to_table(l4_entry.addr().as_u64());
+
+        let l3_entry = &l3_table[l3_index];
+        if !l3_entry.flags().contains(PageTableFlags::PRESENT) { return None; }
+        let l2_table = physical_to_table(l3_entry.addr().as_u64());
+
+        let l2_entry = &l2_table[l2_index];
+        if !l2_entry.flags().contains(PageTableFlags::PRESENT) { return None; }
+        let l1_table = physical_to_table(l2_entry.addr().as_u64());
+
+        let l1_entry = &l1_table[l1_index];
+        if !l1_entry.flags().contains(PageTableFlags::PRESENT) { return None; }
+
+        Some(l1_entry.addr().as_u64() + page_offset)
     }
 }

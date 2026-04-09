@@ -22,7 +22,7 @@ use crate::framebuffer::FramebufferWriter;
 
 /// Minimum severity shown on serial. Change to Debug when troubleshooting.
 const SERIAL_LOG_LEVEL: LogLevel = LogLevel::Information;
-/// Minimum severity shown on the framebuffer (screen space is precious).
+/// Minimum severity shown on the framebuffer.
 const FB_LOG_LEVEL: LogLevel = LogLevel::Information;
 
 // ---------------------------------------------------------------------------
