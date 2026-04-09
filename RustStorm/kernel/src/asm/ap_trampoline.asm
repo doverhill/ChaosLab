@@ -1,8 +1,10 @@
-; AP trampoline with binary search for fault location.
-; The BSP reads the stage from [0x8008] after timeout.
-; To find the fault, uncomment ONE "hlt_loop" at a time. If the AP halts
-; (BSP reads the stage and AP doesn't crash), the fault is AFTER that stage.
-; If the AP still crashes, the fault is BEFORE that stage.
+; Application Processor trampoline.
+;
+; Assembled to flat binary by NASM (via kernel/build.rs), placed at
+; physical 0x8000. APs start here in 16-bit real mode after SIPI and
+; transition: real mode -> protected mode -> long mode -> Rust entry.
+;
+; The BSP patches the mailbox fields before each AP startup.
 
 ORG 0x8000
 SECTION .text
@@ -50,7 +52,7 @@ protected_mode:
     mov ss, ax
 
     mov eax, cr4
-    or eax, (1 << 5)
+    or eax, (1 << 5) | (1 << 7)  ; PAE + PGE (page global enable)
     mov cr4, eax
 
     mov eax, [trampoline.page_table]

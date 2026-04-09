@@ -224,8 +224,10 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 /// The compiler generates a proper stack frame prologue.
 #[no_mangle]
 extern "C" fn ap_entry() -> ! {
-    // The trampoline loaded the kernel GDT, IDT, and set all segments.
-    // TODO: load per-AP TSS (for now, skip — IST stacks shared with BSP)
+    // The trampoline loaded the BSP's kernel GDT and IDT for initial setup.
+    // Now create a per-AP GDT with its own TSS (required for IST exception
+    // stacks — the TSS "busy" bit prevents sharing between CPUs).
+    crate::gdt::init_ap();
 
     let cpu_number = AP_READY_COUNT.fetch_add(1, Ordering::Release) + 1;
 
