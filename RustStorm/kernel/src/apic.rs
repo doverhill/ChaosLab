@@ -135,6 +135,10 @@ pub fn init(rsdp_pointer: Optional<u64>) {
         "Trampoline data: CR3={:#x}, entry={:#x}, ready_counter={:#x}",
         cr3_value, entry_point, ready_counter_address);
 
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
+        "AP_READY_COUNT address: {:#x}",
+        &AP_READY_COUNT as *const AtomicU32 as u64);
+
     let icr_high = (apic_base + 0x310) as *mut u32;
     let icr_low = (apic_base + 0x300) as *mut u32;
 
@@ -186,32 +190,27 @@ pub fn init(rsdp_pointer: Optional<u64>) {
             core::ptr::write_volatile(icr_low, 0x00004600 | ap_trampoline::SIPI_VECTOR as u32);
         }
 
-        // wait for trampoline to complete
+        // wait for AP to signal via the trampoline ready field at 0x8008
+        // trampoline sets it to 0xFF, then AP's Rust code increments it further
         let mut waited = 0u64;
         loop {
-            let stage = ap_trampoline::read_u64(ap_trampoline::READY_OFFSET);
-            if stage == 0xFF { break; }
-            timer::delay_microseconds(100);
-            waited += 1;
-            if waited > 10_000 {
-                log_println!(log::SubSystem::X86_64, log::LogLevel::Error,
-                    "AP {} trampoline stuck at stage {}", apic_id, stage);
-                break;
-            }
-        }
-
-        // wait for Rust entry to signal ready
-        while AP_READY_COUNT.load(Ordering::Acquire) < expected {
+            let ready = ap_trampoline::read_u64(ap_trampoline::READY_OFFSET);
+            // AP sets ready to 0xFF (trampoline done), then Rust code does lock inc
+            // making it 0x100. Wait for > 0xFF.
+            if ready > 0xFF { break; }
             timer::delay_microseconds(100);
             waited += 1;
             if waited > 20_000 {
+                let stage = if ready == 0 { "not started" }
+                    else if ready < 0xFF { "in trampoline" }
+                    else { "trampoline done, Rust not reached" };
                 log_println!(log::SubSystem::X86_64, log::LogLevel::Error,
-                    "AP {} did not signal ready", apic_id);
+                    "AP {} timed out (ready={:#x}, {})", apic_id, ready, stage);
                 break;
             }
         }
 
-        if AP_READY_COUNT.load(Ordering::Acquire) >= expected {
+        if ap_trampoline::read_u64(ap_trampoline::READY_OFFSET) > 0xFF {
             log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
                 "AP {} started successfully", apic_id);
         }
@@ -223,25 +222,18 @@ pub fn init(rsdp_pointer: Optional<u64>) {
         AP_READY_COUNT.load(Ordering::Acquire) + 1);
 }
 
-/// AP entry point — naked function that loads kernel GDT + IDT,
-/// then jumps to the normal Rust `ap_main` function.
-///
-/// We MUST load the kernel's GDT and IDT before calling any normal Rust
-/// code, because without a valid IDT any exception is a triple fault.
-/// AP entry point — naked, sets up GDT/IDT then calls ap_main.
-/// AP entry — naked bridge that calls the real function.
+/// AP entry point — normal function (NOT naked).
+/// The trampoline jumps here with RSP 16-byte aligned.
+/// The compiler generates a proper stack frame prologue.
 #[no_mangle]
-#[unsafe(naked)]
 extern "C" fn ap_entry() -> ! {
-    core::arch::naked_asm!(
-        "jmp {ap_main}",
-        ap_main = sym ap_main,
-    );
-}
+    // CS=0x08, SS=0x10 from trampoline GDT — both valid.
+    // Skip gdt::init for now, just test fetch_add.
+    let cpu_number = AP_READY_COUNT.fetch_add(1, Ordering::Release) + 1;
 
-#[inline(never)]
-extern "C" fn ap_main() -> ! {
-    AP_READY_COUNT.fetch_add(1, Ordering::Release);
+    log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
+        "Hello from CPU {}", cpu_number);
+
     loop {
         x86_64::instructions::hlt();
     }

@@ -35,13 +35,13 @@ startup_ap:
     mov cr0, eax
     mov byte [0x8008], 3
 
-    jmp dword 0x08:protected_mode
+    jmp dword 0x18:protected_mode   ; 0x18 = 32-bit code
 
 BITS 32
 protected_mode:
     mov byte [0x8008], 4
 
-    mov ax, 0x10
+    mov ax, 0x20                     ; 0x20 = 32-bit data
     mov ds, ax
     mov es, ax
     mov ss, ax
@@ -67,19 +67,21 @@ protected_mode:
     mov cr0, eax
     mov byte [0x8008], 9
 
-    jmp 0x18:long_mode
+    jmp 0x08:long_mode               ; 0x08 = 64-bit code (matches kernel)
 
 BITS 64
 long_mode:
     mov byte [0x8008], 10
 
-    ; load null data segments — 64-bit mode doesn't use DS/ES/SS bases,
-    ; and null selectors are always valid. This avoids conflicts when
-    ; the kernel loads its own GDT (which has different segment layout).
-    xor ax, ax
+    ; load 64-bit data segment from our temporary GDT (0x10).
+    ; SS must be a valid data descriptor for push/call to work.
+    ; 0x10 matches the position that will become TSS in the kernel's GDT,
+    ; but we set SS to 0 before loading the kernel's GDT.
+    mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov ss, ax
+    xor ax, ax
     mov fs, ax
     mov gs, ax
 
@@ -100,21 +102,20 @@ long_mode:
 
     mov qword [trampoline.ready], 0xFF
 
+    ; RSP is 16-byte aligned (stack_top). Use jmp (not call) so that
+    ; ap_entry can call ap_main with correct alignment:
+    ;   jmp ap_entry → RSP still 16-aligned
+    ;   ap_entry does call ap_main → pushes 8 → RSP ≡ 8 mod 16 ✓
     mov rax, [trampoline.entry_point]
-    call rax
-
-    ; should never return, but just in case
-.halt_forever:
-    hlt
-    jmp .halt_forever
+    jmp rax
 
 ALIGN 16
 gdt32:
-    dq 0
-    dq 0x00CF9A000000FFFF
-    dq 0x00CF92000000FFFF
-    dq 0x00AF9A000000FFFF
-    dq 0x00AF92000000FFFF
+    dq 0                       ; 0x00: null
+    dq 0x00AF9A000000FFFF      ; 0x08: 64-bit code (matches kernel CS=0x08)
+    dq 0x00AF92000000FFFF      ; 0x10: 64-bit data
+    dq 0x00CF9A000000FFFF      ; 0x18: 32-bit code (mode transition only)
+    dq 0x00CF92000000FFFF      ; 0x20: 32-bit data (mode transition only)
 gdtr32:
     dw $ - gdt32 - 1
     dd gdt32
