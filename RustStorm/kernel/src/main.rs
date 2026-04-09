@@ -29,6 +29,7 @@ mod panic;
 mod physical_memory;
 mod process;
 mod qemu;
+mod scheduler;
 mod syscall;
 mod timer;
 mod virtual_memory;
@@ -159,17 +160,25 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     apic::init(rsdp_address);
 
-    // test: create a process with its own address space and allocate user pages
-    let mut test_process = process::Process::create();
-    if let Some(user_pages) = test_process.address_space.allocate_user_pages(4) {
-        log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-            "Process {} allocated 4 user pages at {:#x}", test_process.process_id, user_pages);
+    // spawn test kernel threads
+    for i in 0..6 {
+        scheduler::spawn(test_thread_function, i);
     }
-    test_process.create_thread();
-    log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-        "Process {} has {} threads", test_process.process_id, test_process.threads.len());
 
-    log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Boot complete — press any key or wait 20s");
-    qemu::wait_or_keypress(20);
-    qemu::exit(0);
+    log_println!(log::SubSystem::Boot, log::LogLevel::Information,
+        "Boot complete — BSP entering scheduler");
+
+    // BSP enters the scheduler as CPU 0
+    scheduler::run_on_cpu(0);
+}
+
+/// Test thread function — logs a message, yields, repeats.
+fn test_thread_function(thread_number: u64) -> ! {
+    loop {
+        log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
+            "Thread {} running", thread_number);
+        // busy-wait a bit to simulate work (PM timer based)
+        timer::delay_milliseconds(500);
+        scheduler::yield_thread();
+    }
 }

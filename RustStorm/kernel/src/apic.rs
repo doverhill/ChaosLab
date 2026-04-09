@@ -224,17 +224,13 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 /// The compiler generates a proper stack frame prologue.
 #[no_mangle]
 extern "C" fn ap_entry() -> ! {
-    // The trampoline loaded the BSP's kernel GDT and IDT for initial setup.
-    // Now create a per-AP GDT with its own TSS (required for IST exception
-    // stacks — the TSS "busy" bit prevents sharing between CPUs).
     crate::gdt::init_ap();
 
     let cpu_number = AP_READY_COUNT.fetch_add(1, Ordering::Release) + 1;
 
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
-        "Hello from CPU {}", cpu_number);
+        "CPU {} online, entering scheduler", cpu_number);
 
-    loop {
-        x86_64::instructions::hlt();
-    }
+    // enter the scheduler — picks up threads from the global run queue
+    crate::scheduler::run_on_cpu(cpu_number as u64);
 }
