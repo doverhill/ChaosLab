@@ -10,10 +10,17 @@ SECTION .text
 trampoline:
     jmp short startup_ap
     times 8 - ($ - trampoline) nop
-    .ready:       dq 0       ; offset 0x08 — debug stage counter
-    .page_table:  dq 0       ; offset 0x10
-    .stack_top:   dq 0       ; offset 0x18
-    .entry_point: dq 0       ; offset 0x20
+    .ready:       dq 0       ; offset 0x08 — debug stage / ready flag
+    .page_table:  dq 0       ; offset 0x10: CR3 value
+    .stack_top:   dq 0       ; offset 0x18: per-AP stack pointer
+    .entry_point: dq 0       ; offset 0x20: Rust entry function address
+    ; kernel GDT descriptor for lgdt (10 bytes: u16 limit + u64 base)
+    .kernel_gdt:  dw 0       ; offset 0x28
+                  dq 0       ; offset 0x2A
+    times (0x38 - ($ - trampoline)) db 0  ; pad to 0x38
+    ; kernel IDT descriptor for lidt (10 bytes: u16 limit + u64 base)
+    .kernel_idt:  dw 0       ; offset 0x38
+                  dq 0       ; offset 0x3A
 
 
 BITS 16
@@ -73,39 +80,78 @@ BITS 64
 long_mode:
     mov byte [0x8008], 10
 
-    ; load 64-bit data segment from our temporary GDT (0x10).
-    ; SS must be a valid data descriptor for push/call to work.
-    ; 0x10 matches the position that will become TSS in the kernel's GDT,
-    ; but we set SS to 0 before loading the kernel's GDT.
+    ; Temporarily load data segments from our trampoline GDT (0x10)
+    ; so we have a valid SS for stack operations while setting up.
     mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov ss, ax
-    xor ax, ax
-    mov fs, ax
-    mov gs, ax
 
+    ; load per-AP stack
     mov rsp, [trampoline.stack_top]
 
-    ; enable SSE: clear CR0.EM (bit 2), set CR0.MP (bit 1)
+    ; enable SSE
     mov rax, cr0
     and ax, 0xFFFB      ; clear EM
     or ax, 0x0002       ; set MP
     mov cr0, rax
-
-    ; set CR4.OSFXSR (bit 9) and CR4.OSXMMEXCPT (bit 10)
     mov rax, cr4
-    or ax, (1 << 9) | (1 << 10)
+    or ax, (1 << 9) | (1 << 10)  ; OSFXSR + OSXMMEXCPT
     mov cr4, rax
 
-    mov byte [0x8008], 11
+    ; Load the kernel's GDT and IDT (patched by BSP).
+    ; CS=0x08 is the same selector in both our trampoline GDT and the kernel
+    ; GDT, so no CS reload is needed.
+    ; Load data segments FIRST (using trampoline GDT's data at 0x10).
+    ; Both trampoline and kernel GDTs have a valid data segment at 0x10.
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov fs, ax
+    mov gs, ax
 
+    ; serial 'S' = segments loaded
+    mov dx, 0x3F8
+    mov al, 0x53
+    out dx, al
+
+    ; Load kernel GDT — CS=0x08 and data=0x10 are identical in both GDTs
+    lgdt [trampoline.kernel_gdt]
+
+    ; serial 'G' = kernel GDT loaded
+    mov al, 0x47
+    out dx, al
+
+    ; serial 'C' = CS reloaded
+    mov dx, 0x3F8
+    mov al, 0x43
+    out dx, al
+
+    ; Skip TSS load — the BSP's TSS is already "busy" and can't be shared.
+    ; TODO: per-AP TSS allocation
+
+    ; load kernel IDT
+    lidt [trampoline.kernel_idt]
+
+    ; serial 'I' = IDT loaded
+    mov al, 0x49
+    out dx, al
+
+    ; serial 'S' = segments loaded
+    mov al, 0x53
+    mov dx, 0x3F8
+    out dx, al
+
+    mov byte [0x8008], 11
     mov qword [trampoline.ready], 0xFF
 
-    ; RSP is 16-byte aligned (stack_top). Use jmp (not call) so that
-    ; ap_entry can call ap_main with correct alignment:
-    ;   jmp ap_entry → RSP still 16-aligned
-    ;   ap_entry does call ap_main → pushes 8 → RSP ≡ 8 mod 16 ✓
+    ; serial 'J' = about to jump to Rust
+    mov al, 0x4A
+    mov dx, 0x3F8
+    out dx, al
+
+    ; RSP is 16-byte aligned. jmp to Rust entry point.
     mov rax, [trampoline.entry_point]
     jmp rax
 

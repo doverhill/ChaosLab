@@ -27,6 +27,10 @@ pub const READY_OFFSET: u64 = 0x08;
 pub const PAGE_TABLE_OFFSET: u64 = 0x10;
 pub const STACK_TOP_OFFSET: u64 = 0x18;
 pub const ENTRY_POINT_OFFSET: u64 = 0x20;
+/// Kernel GDT descriptor for lgdt (10 bytes: u16 limit + u64 base) at offset 0x28.
+pub const KERNEL_GDT_OFFSET: u64 = 0x28;
+/// Kernel IDT descriptor for lidt (10 bytes: u16 limit + u64 base) at offset 0x38.
+pub const KERNEL_IDT_OFFSET: u64 = 0x38;
 
 /// The trampoline binary, assembled from NASM by build.rs.
 static TRAMPOLINE_BINARY: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ap_trampoline.bin"));
@@ -35,6 +39,15 @@ static TRAMPOLINE_BINARY: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ap_t
 pub fn patch_u64(offset: u64, value: u64) {
     let address = TRAMPOLINE_ADDRESS + offset;
     unsafe { core::ptr::write_volatile(address as *mut u64, value) };
+}
+
+/// Write a GDT/IDT descriptor (10 bytes: u16 limit + u64 base) to the trampoline page.
+pub fn patch_descriptor(offset: u64, limit: u16, base: u64) {
+    let address = TRAMPOLINE_ADDRESS + offset;
+    unsafe {
+        core::ptr::write_volatile(address as *mut u16, limit);
+        core::ptr::write_volatile((address + 2) as *mut u64, base);
+    }
 }
 
 /// Read a u64 value from a field in the trampoline page.

@@ -8,10 +8,10 @@ lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
         idt.breakpoint.set_handler_fn(breakpoint_handler);
-        unsafe {
-            idt.double_fault.set_handler_fn(double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-            idt.page_fault.set_handler_fn(page_fault_handler).set_stack_index(gdt::PAGE_FAULT_IST_INDEX);
-        }
+        // NOTE: IST disabled for now so APs without TSS can still catch exceptions.
+        // TODO: re-enable IST once per-AP TSS is implemented.
+        idt.double_fault.set_handler_fn(double_fault_handler);
+        idt.page_fault.set_handler_fn(page_fault_handler);
         idt.general_protection_fault.set_handler_fn(gpf_handler);
         idt.alignment_check.set_handler_fn(alignment_check_handler);
         idt

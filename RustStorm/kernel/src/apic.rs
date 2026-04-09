@@ -131,9 +131,22 @@ pub fn init(rsdp_pointer: Optional<u64>) {
     ap_trampoline::patch_u64(ap_trampoline::PAGE_TABLE_OFFSET, cr3_value);
     ap_trampoline::patch_u64(ap_trampoline::ENTRY_POINT_OFFSET, entry_point);
 
+    // patch kernel GDT and IDT descriptors for the trampoline to load
+    unsafe {
+        let mut gdt_buf = [0u8; 10];
+        let mut idt_buf = [0u8; 10];
+        core::arch::asm!("sgdt [{}]", in(reg) gdt_buf.as_mut_ptr(), options(nostack));
+        core::arch::asm!("sidt [{}]", in(reg) idt_buf.as_mut_ptr(), options(nostack));
+        // copy raw 10-byte descriptors directly to the trampoline mailbox
+        let gdt_destination = (ap_trampoline::TRAMPOLINE_ADDRESS + ap_trampoline::KERNEL_GDT_OFFSET) as *mut u8;
+        let idt_destination = (ap_trampoline::TRAMPOLINE_ADDRESS + ap_trampoline::KERNEL_IDT_OFFSET) as *mut u8;
+        core::ptr::copy_nonoverlapping(gdt_buf.as_ptr(), gdt_destination, 10);
+        core::ptr::copy_nonoverlapping(idt_buf.as_ptr(), idt_destination, 10);
+    }
+
     log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
-        "Trampoline data: CR3={:#x}, entry={:#x}, ready_counter={:#x}",
-        cr3_value, entry_point, ready_counter_address);
+        "Trampoline data: CR3={:#x}, entry={:#x}",
+        cr3_value, entry_point);
 
     log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
         "AP_READY_COUNT address: {:#x}",
@@ -142,6 +155,37 @@ pub fn init(rsdp_pointer: Optional<u64>) {
     let icr_high = (apic_base + 0x310) as *mut u32;
     let icr_low = (apic_base + 0x300) as *mut u32;
 
+    // DEBUG: only start AP 1, then BSP halts. No wait loops or further APs.
+    {
+        let apic_id = ap_apic_ids[0];
+        let stack_page = crate::physical_memory::allocate(1).expect("stack") as u64;
+        let stack_top = stack_page + 0x1000;
+        ap_trampoline::patch_u64(ap_trampoline::STACK_TOP_OFFSET, stack_top);
+        ap_trampoline::patch_u64(ap_trampoline::READY_OFFSET, 0);
+
+        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
+            "Sending INIT-SIPI to AP {} (stack={:#x}), then BSP halts", apic_id, stack_top);
+
+        unsafe {
+            core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
+            core::ptr::write_volatile(icr_low, 0x00004500);
+        }
+        timer::delay_milliseconds(10);
+        unsafe {
+            core::ptr::write_volatile(icr_high, 0);
+            core::ptr::write_volatile(icr_low, 0x00008500);
+        }
+        timer::delay_microseconds(200);
+        unsafe {
+            core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
+            core::ptr::write_volatile(icr_low, 0x00004600 | ap_trampoline::SIPI_VECTOR as u32);
+        }
+
+        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "BSP halting");
+        loop { x86_64::instructions::hlt(); }
+    }
+
+    /*
     for &apic_id in &ap_apic_ids {
         // Use identity-mapped physical memory for AP stack (for debugging)
         // Allocate 16 physical pages and use them directly via identity mapping
@@ -220,6 +264,7 @@ pub fn init(rsdp_pointer: Optional<u64>) {
         "SMP: {}/{} APs started, {} total CPUs active",
         AP_READY_COUNT.load(Ordering::Acquire), ap_count,
         AP_READY_COUNT.load(Ordering::Acquire) + 1);
+    */
 }
 
 /// AP entry point — normal function (NOT naked).
@@ -227,8 +272,9 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 /// The compiler generates a proper stack frame prologue.
 #[no_mangle]
 extern "C" fn ap_entry() -> ! {
-    // CS=0x08, SS=0x10 from trampoline GDT — both valid.
-    // Skip gdt::init for now, just test fetch_add.
+    // The trampoline loaded the kernel GDT, IDT, and set all segments.
+    // TODO: load per-AP TSS (for now, skip — IST stacks shared with BSP)
+
     let cpu_number = AP_READY_COUNT.fetch_add(1, Ordering::Release) + 1;
 
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
