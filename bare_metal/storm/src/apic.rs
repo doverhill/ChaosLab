@@ -225,6 +225,7 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 #[no_mangle]
 extern "C" fn ap_entry() -> ! {
     crate::gdt::init_ap();
+    crate::syscall::init();
 
     let cpu_number = AP_READY_COUNT.fetch_add(1, Ordering::Release) + 1;
 

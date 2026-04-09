@@ -92,11 +92,13 @@ extern "C" fn syscall_entry() {
 
         // call Rust handler: rdi = syscall number, rsi = arg1, rdx = arg2,
         // rcx = arg3, r8 = arg4
-        "mov rdi, [rsp + 13*8]",    // syscall number (rax, pushed 13 slots ago)
-        "mov rsi, [rsp + 12*8]",    // arg1 (rdi)
-        "mov rdx, [rsp + 11*8]",    // arg2 (rsi)
-        "mov rcx, [rsp + 10*8]",    // arg3 (rdx)
-        "mov r8,  [rsp +  9*8]",    // arg4 (r10)
+        // stack layout (16 pushes): r15(0) r14(1) r13(2) r12(3) rbp(4) rbx(5)
+        //   r9(6) r8(7) r10(8) rdx(9) rsi(10) rdi(11) rax(12) r11(13) rcx(14) user_rsp(15)
+        "mov rdi, [rsp + 12*8]",    // syscall number (rax)
+        "mov rsi, [rsp + 11*8]",    // arg1 (rdi)
+        "mov rdx, [rsp + 10*8]",    // arg2 (rsi)
+        "mov rcx, [rsp +  9*8]",    // arg3 (rdx)
+        "mov r8,  [rsp +  8*8]",    // arg4 (r10)
         "call {handler}",
 
         // rax = return value from handler
