@@ -1,0 +1,20 @@
+[package]
+name = "chaos"
+version = "0.1.0"
+edition = "2021"
+default-run = "qemu-uefi"
+
+[workspace]
+members = [
+    "storm",
+    "libraries/chaos",
+    "applications/test",
+]
+
+[dependencies]
+ovmf-prebuilt = "0.2.8"
+
+[build-dependencies]
+storm = { path = "storm", artifact = "bin", target = "x86_64-unknown-none" }
+test_app = { path = "applications/test", artifact = "bin", target = "x86_64-unknown-none" }
+bootloader = "0.11.15"

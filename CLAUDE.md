@@ -1,19 +1,25 @@
 # ChaosLab
 
-Chaos is an experimental operating system built on the Storm microkernel. The project has two parallel implementations: a bare-metal Rust kernel (`RustStorm/`) targeting x86_64, and a hosted .NET kernel (`Storm/`) that runs on Windows for rapid prototyping and testing of the IPC/service architecture.
+Chaos is an experimental operating system built on the Storm microkernel. The project has two parallel implementations: a bare-metal Rust kernel (`bare_metal/storm/`) targeting x86_64, and a hosted .NET kernel (`Storm/`) that runs on Windows for rapid prototyping and testing of the IPC/service architecture.
 
 ## Repository layout
 
 ```
-RustStorm/           Bare-metal x86_64 kernel in Rust (nightly, no_std)
-  kernel/            Kernel binary (boot, GDT, interrupts, memory, ACPI)
+bare_metal/          Bare-metal x86_64 implementation (Rust, nightly, no_std)
+  storm/             Kernel binary (boot, GDT, interrupts, memory, ACPI, scheduler)
+  libraries/
+    chaos/           System library — no_std syscall wrappers for user apps
+  applications/
+    test/            Test app — calls ProcessEmit syscall to log from userspace
+  servers/           System servers (empty — to be populated)
+  protocols/         IPC protocol definitions (empty — to be populated)
   src/bin/           QEMU launch targets (qemu-uefi.rs, qemu-bios.rs)
 Storm/               .NET hosted kernel (Windows, TCP-based IPC emulation)
-Library/             System libraries (library_chaos, library_graphics, library_storage)
+Library/             Hosted system libraries (library_chaos, library_graphics, library_storage)
 Protocol/            IPC protocol definitions and generated code (Console, Data, Filesystem, Storage, Tornado)
-Server/              System servers (Root, Tornado window manager)
+Server/              Hosted system servers (Root, Tornado window manager)
 HostServer/          Bridge servers for hosted mode (Console via SDL2, Filesystem)
-Application/         User applications (Cluido file browser)
+Application/         Hosted user applications (Cluido file browser)
 Experiments/         Prototypes and test code
 IDLCompiler/         C# tool that generates Rust protocol code from .idl files
 Documentation/       Design docs (kernel API, IPC channel layout)
@@ -32,14 +38,12 @@ startup.list         Startup sequence for hosted mode
 
 ## Building and running
 
-### Bare-metal kernel (RustStorm)
+### Bare-metal kernel
 
-Requires Rust nightly with `x86_64-unknown-none` target, `rust-src`, and `llvm-tools` (configured in `RustStorm/rust-toolchain.toml`).
-
-The bootloader crate is expected at `../../bootloader` relative to `RustStorm/` (a sibling checkout).
+Requires Rust nightly with `x86_64-unknown-none` target, `rust-src`, and `llvm-tools` (configured in `bare_metal/rust-toolchain.toml`).
 
 ```sh
-cd RustStorm
+cd bare_metal
 cargo run --bin qemu-uefi    # UEFI boot in QEMU
 cargo run --bin qemu-bios    # Legacy BIOS boot in QEMU
 ```
@@ -52,7 +56,7 @@ Windows-only. Uses PowerShell build scripts at the repo root:
 - `BuildApps.ps1` - Applications only
 - `Run.ps1` - Run with pre-built binaries
 
-## Key kernel modules (RustStorm/kernel/src/)
+## Key kernel modules (bare_metal/storm/src/)
 
 | File | Purpose |
 |------|---------|
@@ -87,10 +91,6 @@ Current protocols: Console (text/drawing), Data (structured data), Filesystem, S
 
 ## Current state
 
-The bare-metal RustStorm kernel boots, initializes GDT/IDT, sets up physical and kernel memory allocators, discovers processors via ACPI, then halts. Next steps per the code comments:
-1. Start application processors via IPI
-2. Set up per-process virtual address spaces
-3. Implement syscalls
-4. Parse ramdisk and launch ELF images
+The bare-metal Storm kernel boots on 4 CPUs, runs a cooperative scheduler with kernel threads, and has LAPIC interrupt handlers. Current work: implementing syscalls and loading a user-space ELF app from the ramdisk.
 
 The hosted .NET Storm kernel has a more complete implementation of the service/channel/event architecture and is used for developing the userspace stack (servers, protocols, applications).
