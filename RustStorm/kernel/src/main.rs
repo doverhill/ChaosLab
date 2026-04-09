@@ -156,33 +156,6 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // sanity check: kernel heap allocator still works after all the page table surgery
     let _heap_test = Box::new(42u64);
 
-    // Dump BSP register state so we can replicate on APs
-    unsafe {
-        let cs: u16; let ss: u16; let ds: u16; let es: u16; let fs: u16; let gs: u16;
-        core::arch::asm!("mov {:x}, cs", out(reg) cs, options(nomem, nostack));
-        core::arch::asm!("mov {:x}, ss", out(reg) ss, options(nomem, nostack));
-        core::arch::asm!("mov {:x}, ds", out(reg) ds, options(nomem, nostack));
-        core::arch::asm!("mov {:x}, es", out(reg) es, options(nomem, nostack));
-        core::arch::asm!("mov {:x}, fs", out(reg) fs, options(nomem, nostack));
-        core::arch::asm!("mov {:x}, gs", out(reg) gs, options(nomem, nostack));
-        log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-            "BSP segments: CS={:#x} SS={:#x} DS={:#x} ES={:#x} FS={:#x} GS={:#x}",
-            cs, ss, ds, es, fs, gs);
-
-        // dump GDT and IDT base/limit
-        let mut gdt_buf = [0u8; 10];
-        let mut idt_buf = [0u8; 10];
-        core::arch::asm!("sgdt [{}]", in(reg) gdt_buf.as_mut_ptr(), options(nostack));
-        core::arch::asm!("sidt [{}]", in(reg) idt_buf.as_mut_ptr(), options(nostack));
-        let gdt_limit = u16::from_le_bytes([gdt_buf[0], gdt_buf[1]]);
-        let gdt_base = u64::from_le_bytes([gdt_buf[2], gdt_buf[3], gdt_buf[4], gdt_buf[5], gdt_buf[6], gdt_buf[7], gdt_buf[8], gdt_buf[9]]);
-        let idt_limit = u16::from_le_bytes([idt_buf[0], idt_buf[1]]);
-        let idt_base = u64::from_le_bytes([idt_buf[2], idt_buf[3], idt_buf[4], idt_buf[5], idt_buf[6], idt_buf[7], idt_buf[8], idt_buf[9]]);
-        log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-            "BSP GDT: base={:#x} limit={:#x}", gdt_base, gdt_limit);
-        log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
-            "BSP IDT: base={:#x} limit={:#x}", idt_base, idt_limit);
-    }
 
     apic::init(rsdp_address);
 

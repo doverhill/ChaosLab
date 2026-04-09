@@ -127,7 +127,6 @@ pub fn init(rsdp_pointer: Optional<u64>) {
     let (cr3_frame, _) = x86_64::registers::control::Cr3::read();
     let cr3_value = cr3_frame.start_address().as_u64();
     let entry_point = ap_entry as *const () as u64;
-    let ready_counter_address = &AP_READY_COUNT as *const AtomicU32 as u64;
     ap_trampoline::patch_u64(ap_trampoline::PAGE_TABLE_OFFSET, cr3_value);
     ap_trampoline::patch_u64(ap_trampoline::ENTRY_POINT_OFFSET, entry_point);
 
@@ -155,59 +154,21 @@ pub fn init(rsdp_pointer: Optional<u64>) {
     let icr_high = (apic_base + 0x310) as *mut u32;
     let icr_low = (apic_base + 0x300) as *mut u32;
 
-    // DEBUG: only start AP 1, then BSP halts. No wait loops or further APs.
-    {
-        let apic_id = ap_apic_ids[0];
-        let stack_page = crate::physical_memory::allocate(1).expect("stack") as u64;
-        let stack_top = stack_page + 0x1000;
-        ap_trampoline::patch_u64(ap_trampoline::STACK_TOP_OFFSET, stack_top);
-        ap_trampoline::patch_u64(ap_trampoline::READY_OFFSET, 0);
-
-        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
-            "Sending INIT-SIPI to AP {} (stack={:#x}), then BSP halts", apic_id, stack_top);
-
-        unsafe {
-            core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
-            core::ptr::write_volatile(icr_low, 0x00004500);
-        }
-        timer::delay_milliseconds(10);
-        unsafe {
-            core::ptr::write_volatile(icr_high, 0);
-            core::ptr::write_volatile(icr_low, 0x00008500);
-        }
-        timer::delay_microseconds(200);
-        unsafe {
-            core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
-            core::ptr::write_volatile(icr_low, 0x00004600 | ap_trampoline::SIPI_VECTOR as u32);
-        }
-
-        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "BSP halting");
-        loop { x86_64::instructions::hlt(); }
-    }
-
-    /*
+    // start each AP one at a time
     for &apic_id in &ap_apic_ids {
-        // Use identity-mapped physical memory for AP stack (for debugging)
-        // Allocate 16 physical pages and use them directly via identity mapping
-        let mut stack_physical_base = 0u64;
-        for page_index in 0..AP_STACK_PAGES {
-            let page = crate::physical_memory::allocate(1).expect("Failed to allocate AP stack page") as u64;
-            if page_index == 0 {
-                stack_physical_base = page;
-            }
-        }
-        // use the first page's address as the base — consecutive allocations
-        // may not be contiguous, so just use a single page for now (4 KiB stack)
-        let stack_top = stack_physical_base + 0x1000; // top of one physical page
+        // allocate a proper kernel stack for this AP
+        let stack_base = virtual_memory::allocate_contiguous_pages(AP_STACK_PAGES)
+            .expect("Failed to allocate AP stack");
+        let stack_top = stack_base as u64 + (AP_STACK_PAGES * 0x1000) as u64;
         ap_trampoline::patch_u64(ap_trampoline::STACK_TOP_OFFSET, stack_top);
         ap_trampoline::patch_u64(ap_trampoline::READY_OFFSET, 0);
-
-        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
-            "Sending INIT-SIPI to AP {} (stack={:#x})", apic_id, stack_top);
 
         let expected = AP_READY_COUNT.load(Ordering::Acquire) + 1;
 
-        // INIT
+        log_println!(log::SubSystem::X86_64, log::LogLevel::Debug,
+            "Starting AP {} (stack={:#x})", apic_id, stack_top);
+
+        // INIT IPI
         unsafe {
             core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
             core::ptr::write_volatile(icr_low, 0x00004500);
@@ -228,43 +189,34 @@ pub fn init(rsdp_pointer: Optional<u64>) {
         }
         timer::delay_microseconds(200);
 
-        // second SIPI
+        // second SIPI for robustness
         unsafe {
             core::ptr::write_volatile(icr_high, (apic_id as u32) << 24);
             core::ptr::write_volatile(icr_low, 0x00004600 | ap_trampoline::SIPI_VECTOR as u32);
         }
 
-        // wait for AP to signal via the trampoline ready field at 0x8008
-        // trampoline sets it to 0xFF, then AP's Rust code increments it further
+        // wait for AP to finish Rust init
         let mut waited = 0u64;
-        loop {
-            let ready = ap_trampoline::read_u64(ap_trampoline::READY_OFFSET);
-            // AP sets ready to 0xFF (trampoline done), then Rust code does lock inc
-            // making it 0x100. Wait for > 0xFF.
-            if ready > 0xFF { break; }
+        while AP_READY_COUNT.load(Ordering::Acquire) < expected {
             timer::delay_microseconds(100);
             waited += 1;
             if waited > 20_000 {
-                let stage = if ready == 0 { "not started" }
-                    else if ready < 0xFF { "in trampoline" }
-                    else { "trampoline done, Rust not reached" };
                 log_println!(log::SubSystem::X86_64, log::LogLevel::Error,
-                    "AP {} timed out (ready={:#x}, {})", apic_id, ready, stage);
+                    "AP {} did not start within 2 seconds", apic_id);
                 break;
             }
         }
 
-        if ap_trampoline::read_u64(ap_trampoline::READY_OFFSET) > 0xFF {
+        if AP_READY_COUNT.load(Ordering::Acquire) >= expected {
             log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
-                "AP {} started successfully", apic_id);
+                "AP {} started", apic_id);
         }
     }
 
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information,
-        "SMP: {}/{} APs started, {} total CPUs active",
+        "SMP: {}/{} APs running, {} total CPUs active",
         AP_READY_COUNT.load(Ordering::Acquire), ap_count,
         AP_READY_COUNT.load(Ordering::Acquire) + 1);
-    */
 }
 
 /// AP entry point — normal function (NOT naked).

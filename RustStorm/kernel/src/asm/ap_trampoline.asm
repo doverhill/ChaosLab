@@ -32,53 +32,48 @@ startup_ap:
     mov ds, ax
     mov es, ax
     mov ss, ax
-    mov byte [0x8008], 1
 
     lgdt [gdtr32]
-    mov byte [0x8008], 2
 
     mov eax, cr0
     or eax, 1
     mov cr0, eax
-    mov byte [0x8008], 3
 
     jmp dword 0x18:protected_mode   ; 0x18 = 32-bit code
 
 BITS 32
 protected_mode:
-    mov byte [0x8008], 4
 
     mov ax, 0x20                     ; 0x20 = 32-bit data
     mov ds, ax
     mov es, ax
     mov ss, ax
-    mov byte [0x8008], 5
 
     mov eax, cr4
     or eax, (1 << 5)
     mov cr4, eax
-    mov byte [0x8008], 6
 
     mov eax, [trampoline.page_table]
     mov cr3, eax
-    mov byte [0x8008], 7
 
+    ; enable long mode (LME) AND no-execute (NXE) in EFER
+    ; NXE is critical: the BSP's page tables have NX bits set on data pages.
+    ; Without NXE, bit 63 in page table entries becomes a reserved bit,
+    ; causing page faults on every page walk through those entries.
     mov ecx, 0xC0000080
     rdmsr
-    or eax, (1 << 8)
+    or eax, (1 << 8) | (1 << 11)  ; LME + NXE
     wrmsr
-    mov byte [0x8008], 8
 
+    ; enable paging + write protect
     mov eax, cr0
-    or eax, (1 << 31)
+    or eax, (1 << 31) | (1 << 16)  ; PG + WP
     mov cr0, eax
-    mov byte [0x8008], 9
 
     jmp 0x08:long_mode               ; 0x08 = 64-bit code (matches kernel)
 
 BITS 64
 long_mode:
-    mov byte [0x8008], 10
 
     ; Temporarily load data segments from our trampoline GDT (0x10)
     ; so we have a valid SS for stack operations while setting up.
@@ -99,10 +94,7 @@ long_mode:
     or ax, (1 << 9) | (1 << 10)  ; OSFXSR + OSXMMEXCPT
     mov cr4, rax
 
-    ; Load the kernel's GDT and IDT (patched by BSP).
-    ; CS=0x08 is the same selector in both our trampoline GDT and the kernel
-    ; GDT, so no CS reload is needed.
-    ; Load data segments FIRST (using trampoline GDT's data at 0x10).
+    ; Load data segments from trampoline GDT (0x10 = data segment).
     ; Both trampoline and kernel GDTs have a valid data segment at 0x10.
     mov ax, 0x10
     mov ds, ax
@@ -111,47 +103,20 @@ long_mode:
     mov fs, ax
     mov gs, ax
 
-    ; serial 'S' = segments loaded
-    mov dx, 0x3F8
-    mov al, 0x53
-    out dx, al
-
-    ; Load kernel GDT — CS=0x08 and data=0x10 are identical in both GDTs
+    ; Load kernel GDT — CS=0x08 and data=0x10 match between GDTs,
+    ; so no CS far-jump reload is needed.
     lgdt [trampoline.kernel_gdt]
 
-    ; serial 'G' = kernel GDT loaded
-    mov al, 0x47
-    out dx, al
-
-    ; serial 'C' = CS reloaded
-    mov dx, 0x3F8
-    mov al, 0x43
-    out dx, al
-
-    ; Skip TSS load — the BSP's TSS is already "busy" and can't be shared.
+    ; Load kernel IDT so exceptions produce diagnostics instead of triple faults.
+    ; NOTE: no TSS loaded — IST disabled on exception handlers for now.
     ; TODO: per-AP TSS allocation
-
-    ; load kernel IDT
     lidt [trampoline.kernel_idt]
 
-    ; serial 'I' = IDT loaded
-    mov al, 0x49
-    out dx, al
-
-    ; serial 'S' = segments loaded
-    mov al, 0x53
-    mov dx, 0x3F8
-    out dx, al
-
-    mov byte [0x8008], 11
     mov qword [trampoline.ready], 0xFF
 
-    ; serial 'J' = about to jump to Rust
-    mov al, 0x4A
-    mov dx, 0x3F8
-    out dx, al
-
-    ; RSP is 16-byte aligned. jmp to Rust entry point.
+    ; System V ABI: RSP must be 16n+8 at function entry (simulates post-call).
+    ; RSP is currently 16-aligned (stack_top). Subtract 8.
+    sub rsp, 8
     mov rax, [trampoline.entry_point]
     jmp rax
 
