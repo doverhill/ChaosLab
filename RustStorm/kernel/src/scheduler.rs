@@ -20,15 +20,16 @@ const MAX_CPUS: usize = 16;
 
 static NEXT_THREAD_ID: AtomicU64 = AtomicU64::new(1);
 
-/// Per-CPU saved RSP for the idle loop. When a thread yields, it
-/// context-switches back to this RSP.
-static IDLE_RSP: Mutex<[u64; MAX_CPUS]> = Mutex::new([0; MAX_CPUS]);
+/// Per-CPU state. Each element is independently locked to avoid contention.
+struct CpuState {
+    idle_rsp: u64,
+    current_thread: Option<Box<Thread>>,
+}
 
-/// Per-CPU currently running thread.
-static CURRENT_THREAD: Mutex<[Option<Box<Thread>>; MAX_CPUS]> = Mutex::new([
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
-]);
+static CPU_STATE: [Mutex<CpuState>; MAX_CPUS] = {
+    const INIT: Mutex<CpuState> = Mutex::new(CpuState { idle_rsp: 0, current_thread: None });
+    [INIT; MAX_CPUS]
+};
 
 /// A kernel thread.
 pub struct Thread {
@@ -42,6 +43,15 @@ pub struct Thread {
 pub static RUN_QUEUE: Mutex<VecDeque<Box<Thread>>> = Mutex::new(VecDeque::new());
 
 pub type ThreadFunction = fn(u64) -> !;
+
+/// Read the current CPU's LAPIC ID from the xAPIC MMIO register.
+/// This is the most reliable way to identify which CPU we're on.
+fn read_lapic_id() -> u32 {
+    // xAPIC ID register is at APIC base + 0x20, bits 31:24
+    let apic_base: u64 = 0xFEE00000; // standard xAPIC base
+    let id_register = unsafe { core::ptr::read_volatile((apic_base + 0x20) as *const u32) };
+    id_register >> 24
+}
 
 /// Spawn a new kernel thread. It won't run until a CPU picks it up.
 pub fn spawn(function: ThreadFunction, argument: u64) -> u64 {
@@ -97,57 +107,49 @@ extern "C" fn thread_bootstrap() -> ! {
 /// Idle loop for each CPU. Call this from ap_entry (and BSP after init).
 pub fn run_on_cpu(cpu_id: u64) -> ! {
     loop {
-        // check for a runnable thread
         let thread = RUN_QUEUE.lock().pop_front();
         if let Some(mut thread) = thread {
             thread.cpu_id = cpu_id;
             let thread_rsp = thread.saved_rsp;
 
-            // store the thread as the current thread for this CPU
-            CURRENT_THREAD.lock()[cpu_id as usize] = Some(thread);
-
-            // context switch: save idle RSP, jump to thread
+            // store thread and get pointer to idle_rsp for saving
             let idle_rsp_ptr = {
-                let mut idle = IDLE_RSP.lock();
-                &mut idle[cpu_id as usize] as *mut u64
+                let mut state = CPU_STATE[cpu_id as usize].lock();
+                state.current_thread = Some(thread);
+                &mut state.idle_rsp as *mut u64
             };
-            unsafe { context_switch(idle_rsp_ptr, thread_rsp) };
+            // lock is dropped here — safe to context switch
 
-            // we return here when the thread yields
-            // the thread has already been moved back to the run queue by yield_thread
+            context_switch(idle_rsp_ptr, thread_rsp);
+
+            // we return here when the thread yields back
         } else {
-            // no threads — brief pause then check again
-            // TODO: use hlt + IPI to wake CPUs when threads are added
             core::hint::spin_loop();
         }
     }
 }
 
 /// Yield the current thread. Saves its state and switches back to the
-/// CPU's idle loop. The thread is put back in the run queue.
+/// CPU's idle loop. The thread goes back into the run queue.
 pub fn yield_thread() {
     x86_64::instructions::interrupts::disable();
 
-    // figure out which CPU we're on by scanning CURRENT_THREAD
-    let (cpu_id, idle_rsp) = {
-        let current = CURRENT_THREAD.lock();
-        let cpu_id = current.iter().position(|t| t.is_some()).unwrap_or(0);
-        let idle = IDLE_RSP.lock();
-        (cpu_id, idle[cpu_id])
-    };
+    // use LAPIC ID to determine our CPU — reliable, no scanning needed
+    let cpu_id = read_lapic_id() as usize;
 
-    // move the current thread back to the run queue
-    let thread = CURRENT_THREAD.lock()[cpu_id].take();
-    if let Some(mut thread) = thread {
-        // we'll save our RSP into the thread's saved_rsp via context_switch
-        let thread_rsp_ptr = &mut thread.saved_rsp as *mut u64;
-        RUN_QUEUE.lock().push_back(thread);
+    // take the thread and idle RSP in one lock
+    let mut state = CPU_STATE[cpu_id].lock();
+    let idle_rsp = state.idle_rsp;
+    let mut thread = state.current_thread.take().expect("yield_thread: no current thread");
+    let thread_rsp_ptr = &mut thread.saved_rsp as *mut u64;
+    drop(state); // drop before locking run queue
 
-        // context switch back to idle loop
-        unsafe { context_switch(thread_rsp_ptr, idle_rsp) };
-        // we resume here when the idle loop picks us up again
-    }
+    RUN_QUEUE.lock().push_back(thread);
 
+    // context switch back to idle loop
+    context_switch(thread_rsp_ptr, idle_rsp);
+
+    // we resume here when picked up again
     x86_64::instructions::interrupts::enable();
 }
 
