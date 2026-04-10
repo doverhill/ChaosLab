@@ -173,27 +173,40 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // initialize syscall MSRs on BSP
     syscall::init();
 
-    // ---- Load ramdisk ELF and create user process ----
-    // The ramdisk data lives in bootloader-marked physical pages that are
-    // still identity-mapped after decouple. We access it via the physical
-    // address (snapshotted above). create_from_elf copies all segment data
-    // into the new address space, so the ramdisk memory can be reclaimed
-    // immediately after.
-    let user_process = if let Some((physical_address, length)) = ramdisk_physical {
-        let elf_data = unsafe {
+    // ---- Parse ramdisk tar and create user processes ----
+    // The ramdisk is a tar archive containing ELF binaries. We iterate
+    // entries and create a process for each one. The ramdisk data lives in
+    // bootloader-marked physical pages (identity-mapped), so we access it
+    // via physical address. create_from_elf copies segment data into each
+    // new address space, so the ramdisk can be reclaimed after.
+    let mut user_processes = alloc::vec::Vec::new();
+    if let Some((physical_address, length)) = ramdisk_physical {
+        let ramdisk_data = unsafe {
             core::slice::from_raw_parts(physical_address as *const u8, length)
         };
-        match process::Process::create_from_elf(elf_data) {
-            Ok(p) => Some(p),
+        match tar_no_std::TarArchiveRef::new(ramdisk_data) {
+            Ok(archive) => {
+                for entry in archive.entries() {
+                    let filename = entry.filename();
+                    let name = filename.as_str().unwrap_or("<invalid utf8>");
+                    log_println!(log::SubSystem::Boot, log::LogLevel::Information,
+                        "Ramdisk: {} ({} bytes)", name, entry.data().len());
+                    match process::Process::create_from_elf(entry.data()) {
+                        Ok(p) => user_processes.push(p),
+                        Err(error) => {
+                            log_println!(log::SubSystem::Boot, log::LogLevel::Error,
+                                "Failed to load {}: {}", name, error);
+                        }
+                    }
+                }
+            }
             Err(error) => {
                 log_println!(log::SubSystem::Boot, log::LogLevel::Error,
-                    "Failed to load ramdisk ELF: {}", error);
-                None
+                    "Failed to parse ramdisk tar: {:?}", error);
             }
         }
     } else {
         log_println!(log::SubSystem::Boot, log::LogLevel::Warning, "No ramdisk present");
-        None
     };
 
     // ---- Reclaim bootloader memory ----
@@ -209,10 +222,11 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // watchdog: exits QEMU after 10 seconds (or keypress)
     scheduler::spawn(watchdog_thread, 10);
 
-    // launch the user process
-    if let Some(process) = user_process {
-        // Store process in a static so the launcher thread can take it.
-        unsafe { PENDING_PROCESS = Some(process) };
+    // launch user processes — each gets a kernel thread that switches to Ring 3
+    for process in user_processes {
+        unsafe {
+            PENDING_PROCESSES.lock().push(process);
+        }
         scheduler::spawn(launch_user_process, 0);
     }
 
@@ -223,14 +237,12 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     scheduler::run_on_cpu(0);
 }
 
-/// Process created in kernel_main, consumed by launch_user_process thread.
-static mut PENDING_PROCESS: Option<process::Process> = None;
+/// Queue of processes waiting to be launched. Each launcher thread pops one.
+static PENDING_PROCESSES: spin::Mutex<alloc::vec::Vec<process::Process>> = spin::Mutex::new(alloc::vec::Vec::new());
 
 /// Kernel thread that takes a pre-loaded Process and jumps to user mode.
 fn launch_user_process(_: u64) -> ! {
-    let process = unsafe {
-        PENDING_PROCESS.take().expect("no pending process")
-    };
+    let process = PENDING_PROCESSES.lock().pop().expect("no pending process");
 
     log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
         "Jumping to user mode: entry={:#x}, stack={:#x}", process.entry_point, process.user_stack_top);
