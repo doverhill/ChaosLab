@@ -294,6 +294,33 @@ extern "C" fn syscall_handler(number: u64, arg1: u64, arg2: u64, arg3: u64, _arg
             0 // success
         }
 
+        // MemoryAllocate: arg1=page_count
+        // Returns: virtual address of allocated pages, or 0 on failure
+        800 => {
+            let page_count = arg1 as usize;
+            let process = match current_process() {
+                Some(p) => p,
+                None => return 0,
+            };
+            match process.address_space.allocate_user_pages(page_count) {
+                Some(virtual_address) => virtual_address,
+                None => 0,
+            }
+        }
+
+        // MemoryFree: arg1=virtual_address, arg2=page_count
+        // Returns: 0 on success
+        801 => {
+            let virtual_address = arg1;
+            let page_count = arg2 as usize;
+            let process = match current_process() {
+                Some(p) => p,
+                None => return 7, // StormError::General
+            };
+            process.address_space.free_user_pages(virtual_address, page_count);
+            0
+        }
+
         _ => {
             log_println!(log::SubSystem::Kernel, log::LogLevel::Error,
                 "Unknown syscall {} (args: {:#x}, {:#x}, {:#x})", number, arg1, arg2, arg3);

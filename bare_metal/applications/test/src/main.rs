@@ -1,17 +1,16 @@
 #![no_std]
 #![no_main]
 
-use library_chaos::{self, EmitType};
+extern crate alloc;
+extern crate library_chaos;
 
-#[unsafe(no_mangle)]
-pub extern "C" fn _start() -> ! {
+use alloc::format;
+use library_chaos::EmitType;
+
+library_chaos::main! {
     library_chaos::process_emit(EmitType::Information, "Hello from userspace!");
-    library_chaos::process_emit(EmitType::Debug, "Chaos test app running on Storm kernel");
-    library_chaos::process_exit(0);
-}
 
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    library_chaos::process_emit(EmitType::Error, "PANIC in user process");
-    library_chaos::process_exit(1);
+    // test heap allocation via the MemoryAllocate syscall
+    let message = format!("Heap works! 2 + 2 = {}", 2 + 2);
+    library_chaos::process_emit(EmitType::Information, &message);
 }

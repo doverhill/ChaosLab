@@ -44,8 +44,15 @@ Requires Rust nightly with `x86_64-unknown-none` target, `rust-src`, and `llvm-t
 
 ```sh
 cd bare_metal
-cargo run --bin qemu-uefi    # UEFI boot in QEMU
-cargo run --bin qemu-bios    # Legacy BIOS boot in QEMU
+cargo run --bin qemu-uefi    # UEFI boot in QEMU (default 4 CPUs)
+SMP=1 cargo run --bin qemu-uefi  # single CPU mode
+```
+
+When testing, capture full output to a file and then grep/tail it:
+```sh
+cargo run --bin qemu-uefi 2>&1 | tee /tmp/run-output
+# then in another terminal or after:
+grep "userspace\|FAULT\|PANIC" /tmp/run-output
 ```
 
 ### Hosted kernel (.NET)
