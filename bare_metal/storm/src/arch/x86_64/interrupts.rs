@@ -1,4 +1,4 @@
-use crate::gdt;
+use crate::arch::gdt;
 use crate::log;
 use crate::log_println;
 use lazy_static::lazy_static;

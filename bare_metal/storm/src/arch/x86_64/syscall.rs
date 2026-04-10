@@ -13,7 +13,7 @@
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use crate::gdt;
+use crate::arch::gdt;
 use crate::{log, log_println};
 
 const MAX_CPUS: usize = 16;
@@ -189,7 +189,7 @@ extern "C" fn syscall_handler(number: u64, arg1: u64, arg2: u64, arg3: u64, _arg
                 // Instead, load the kernel CR3 and jump directly into the
                 // scheduler on this CPU.
                 unsafe {
-                    let kernel_cr3 = crate::page_tables::get_kernel_cr3();
+                    let kernel_cr3 = crate::arch::page_tables::get_kernel_cr3();
                     let cpu_id = crate::scheduler::read_lapic_id() as u64;
                     core::arch::asm!(
                         "mov cr3, {}",

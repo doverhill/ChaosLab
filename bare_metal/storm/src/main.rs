@@ -16,22 +16,14 @@
 extern crate alloc;
 
 mod address_space;
-mod ap_trampoline;
-mod apic;
+mod arch;
 mod framebuffer;
-mod gdt;
-mod interrupts;
 mod kernel_memory;
 mod log;
-mod memory_setup;
-mod page_tables;
 mod panic;
 mod physical_memory;
 mod process;
-mod qemu;
 mod scheduler;
-mod syscall;
-mod timer;
 mod virtual_memory;
 
 use alloc::boxed::Box;
@@ -92,10 +84,8 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         log_println!(log::SubSystem::Boot, log::LogLevel::Information, "Framebuffer logger active");
     }
 
-    gdt::init();
-    log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "GDT loaded with kernel code segment and TSS");
-
-    interrupts::init_exceptions();
+    arch::init_cpu();
+    arch::init_interrupts();
 
     let physical_memory_offset = boot_info.physical_memory_offset.into_option().expect("bootloader did not provide physical memory offset");
     log_println!(log::SubSystem::Boot, log::LogLevel::Debug, "Physical memory offset: {:#x} (L4[{}])", physical_memory_offset, physical_memory_offset / (512 * crate::GB as u64));
@@ -111,7 +101,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // ramdisk: walk bootloader page tables to find physical address
     let ramdisk_physical = boot_info.ramdisk_addr.into_option().map(|virtual_address| {
         let length = boot_info.ramdisk_len as usize;
-        let physical_address = page_tables::virtual_to_physical(virtual_address, physical_memory_offset)
+        let physical_address = arch::virtual_to_physical(virtual_address, physical_memory_offset)
             .expect("ramdisk virtual address not mapped");
         log_println!(log::SubSystem::Boot, log::LogLevel::Information,
             "Ramdisk: virtual={:#x}, physical={:#x}, {} bytes", virtual_address, physical_address, length);
@@ -122,7 +112,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer_physical = boot_info.framebuffer.as_ref().map(|framebuffer| {
         let virtual_address = framebuffer.buffer().as_ptr() as u64;
         let size = framebuffer.info().byte_len;
-        let physical_address = page_tables::virtual_to_physical(virtual_address, physical_memory_offset)
+        let physical_address = arch::virtual_to_physical(virtual_address, physical_memory_offset)
             .expect("framebuffer virtual address not mapped");
         log_println!(log::SubSystem::Boot, log::LogLevel::Debug,
             "Framebuffer: virtual={:#x}, physical={:#x}, size={} KiB", virtual_address, physical_address, size / 1024);
@@ -139,42 +129,13 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         }
     }
 
-    // ---- Now safe to modify page tables ----
-    memory_setup::init_identity_mapping(physical_memory_offset, &boot_info.memory_regions);
-
-    // initialize frame allocator with Usable memory only
-    physical_memory::init(&boot_info.memory_regions);
-
-    // Fix null guard FIRST — the heap allocator uses virtual_memory which
-    // walks page tables via identity mapping. The L4 table at 0x101000 must
-    // be accessible before any heap allocation can occur.
-    memory_setup::fix_null_guard(physical_memory_offset);
-
-    // Pre-allocate L3 tables for kernel virtual memory (L4[128..256]) so that
-    // all future address spaces can share the kernel half by copying L4 entries.
-    memory_setup::pre_allocate_kernel_virtual_l3_tables(physical_memory_offset);
-
-    // ---- Decouple from bootloader page tables ----
-    // After this, no page table pages are in bootloader memory.
-    // The framebuffer gets identity-mapped and its pointer updated.
-    // NOTE: boot_info DATA pages are still accessible — only page table pages
-    // are moved. We can keep reading boot_info until we reclaim.
-    let kernel_leaf_pages = if let Some((physical_address, size)) = framebuffer_physical {
-        memory_setup::decouple_from_bootloader(physical_memory_offset, physical_address, size)
-    } else {
-        memory_setup::decouple_from_bootloader(physical_memory_offset, 0, 0)
-    };
+    // ---- Set up memory: identity mapping, frame allocator, decouple from bootloader ----
+    let kernel_leaf_pages = arch::init_memory(physical_memory_offset, &boot_info.memory_regions, framebuffer_physical);
 
     // sanity check: kernel heap allocator still works after all the page table surgery
     let _heap_test = Box::new(42u64);
 
-    // save the kernel CR3 so we can restore it after running user processes
-    page_tables::save_kernel_cr3();
-
-    apic::init(rsdp_address);
-
-    // initialize syscall MSRs on BSP
-    syscall::init();
+    arch::start_application_processors(rsdp_address);
 
     // ---- Parse ramdisk tar and create user processes ----
     // The ramdisk is a tar archive containing ELF binaries. We iterate
@@ -252,38 +213,16 @@ fn launch_user_process(_: u64) -> ! {
         "Jumping to user mode: entry={:#x}, user_stack={:#x}, kernel_stack={:#x}",
         thread.entry_point, thread.user_stack_top, thread.kernel_stack_top);
 
-    // Store this thread's kernel stack in the per-CPU slot so the syscall
-    // entry can find it. Also set TSS.RSP0 for interrupt-based Ring 3→0.
-    let cpu_id = scheduler::read_lapic_id() as usize;
-    syscall::set_kernel_rsp(cpu_id, thread.kernel_stack_top);
-    unsafe { gdt::set_bsp_rsp0(thread.kernel_stack_top); }
+    // Store this thread's kernel stack so the syscall entry and interrupt
+    // handlers can find it on this CPU.
+    arch::set_thread_kernel_stack(arch::cpu_id(), thread.kernel_stack_top);
 
-    // switch to the process's address space
-    let cr3_value = process.address_space.l4_physical_address();
-    unsafe {
-        core::arch::asm!("mov cr3, {}", in(reg) cr3_value, options(nostack));
-    }
-
-    // jump to user mode via IRETQ
-    let user_cs: u64 = (5 << 3) | 3;  // GDT index 5, RPL=3 = 0x2B
-    let user_ss: u64 = (4 << 3) | 3;  // GDT index 4, RPL=3 = 0x23
-    let user_rflags: u64 = 0x202;      // IF | reserved bit 1
-    unsafe {
-        core::arch::asm!(
-            "push {ss}",
-            "push {rsp_user}",
-            "push {rflags}",
-            "push {cs}",
-            "push {rip}",
-            "iretq",
-            ss = in(reg) user_ss,
-            rsp_user = in(reg) thread.user_stack_top,
-            rflags = in(reg) user_rflags,
-            cs = in(reg) user_cs,
-            rip = in(reg) thread.entry_point,
-            options(noreturn),
-        );
-    }
+    // switch to the process's address space and jump to user mode
+    arch::enter_usermode(
+        thread.entry_point,
+        thread.user_stack_top,
+        process.address_space.l4_physical_address(),
+    );
 }
 
 /// Test thread function — logs a message, yields, repeats.
@@ -292,13 +231,13 @@ fn test_thread_function(thread_number: u64) -> ! {
         log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
             "Thread {} running", thread_number);
         // busy-wait a bit to simulate work (PM timer based)
-        timer::delay_milliseconds(500);
+        arch::delay_milliseconds(500);
         scheduler::yield_thread();
     }
 }
 
 /// Watchdog thread — waits for the given number of seconds (or keypress), then exits QEMU.
 fn watchdog_thread(seconds: u64) -> ! {
-    qemu::wait_or_keypress(seconds);
-    qemu::exit(0);
+    arch::wait_or_keypress(seconds);
+    arch::exit_emulator(0);
 }

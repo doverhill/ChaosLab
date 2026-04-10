@@ -8,7 +8,7 @@
 use core::sync::atomic::{AtomicU64, Ordering};
 
 use crate::address_space::AddressSpace;
-use crate::page_tables::{PAGE_SIZE, USER_VIRTUAL_BASE};
+use crate::arch::page_tables::{PAGE_SIZE, USER_VIRTUAL_BASE};
 use crate::{log, log_println};
 
 static NEXT_PROCESS_ID: AtomicU64 = AtomicU64::new(1);

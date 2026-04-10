@@ -22,7 +22,7 @@ use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::page_table::{PageTable, PageTableEntry, PageTableFlags};
 use x86_64::PhysAddr;
 
-use crate::page_tables::{
+use crate::arch::page_tables::{
     allocate_page_table, physical_to_table_with_offset, HUGE_FLAGS, L4_COVERAGE, MAX_IDENTITY_L4_INDEX, ONE_GIB, PAGE_FLAGS, PAGE_SIZE, TABLE_FLAGS, TWO_MIB,
 };
 use crate::{log, log_println};

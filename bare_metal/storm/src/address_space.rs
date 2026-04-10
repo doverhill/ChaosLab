@@ -7,7 +7,7 @@
 use x86_64::structures::paging::page_table::PageTableFlags;
 use x86_64::PhysAddr;
 
-use crate::page_tables::{
+use crate::arch::page_tables::{
     allocate_page_table, ensure_l1_table, ensure_l2_table, ensure_l3_table, get_current_l4_table, is_page_unmapped, physical_to_table, virtual_to_indices, PAGE_SIZE, USER_PAGE_FLAGS,
     USER_TABLE_FLAGS, USER_VIRTUAL_RANGE, USER_VIRTUAL_BASE,
 };

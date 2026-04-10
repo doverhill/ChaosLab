@@ -1,6 +1,7 @@
 //! QEMU integration: debug exit and interactive wait.
 
-use crate::{log, log_println, timer};
+use crate::arch::timer;
+use crate::{log, log_println};
 
 /// Spin-wait for `seconds` or until a PS/2 keypress, whichever comes first.
 pub fn wait_or_keypress(seconds: u64) {

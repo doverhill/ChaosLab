@@ -1,8 +1,8 @@
 use core::panic::PanicInfo;
-use crate::{log, log_println, qemu};
+use crate::{arch, log, log_println};
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     log_println!(log::SubSystem::Kernel, log::LogLevel::Error, "KERNEL PANIC: {}", info);
-    qemu::exit(1); // exit code 1 → QEMU exit 3 (failure)
+    arch::exit_emulator(1);
 }

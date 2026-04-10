@@ -5,9 +5,10 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use bootloader_api::info::Optional;
 use x2apic::lapic::{LocalApicBuilder, xapic_base};
 
-use crate::ap_trampoline;
+use crate::arch::ap_trampoline;
+use crate::arch::timer;
 use crate::virtual_memory;
-use crate::{log, log_println, timer};
+use crate::{log, log_println};
 
 /// Number of APs that have completed initialization and are ready.
 static AP_READY_COUNT: AtomicU32 = AtomicU32::new(0);
@@ -224,8 +225,8 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 /// The compiler generates a proper stack frame prologue.
 #[no_mangle]
 extern "C" fn ap_entry() -> ! {
-    crate::gdt::init_ap();
-    crate::syscall::init();
+    crate::arch::gdt::init_ap();
+    crate::arch::syscall::init();
 
     let cpu_number = AP_READY_COUNT.fetch_add(1, Ordering::Release) + 1;
 

@@ -16,7 +16,7 @@
 use x86_64::structures::paging::page_table::PageTableFlags;
 use x86_64::PhysAddr;
 
-use crate::page_tables::{
+use crate::arch::page_tables::{
     ensure_l1_table, ensure_l2_table, ensure_l3_table, get_current_l4_table, is_page_unmapped, physical_to_table, virtual_to_indices, KERNEL_VIRTUAL_BASE, KERNEL_VIRTUAL_L4_END, L4_COVERAGE,
     PAGE_FLAGS, PAGE_SIZE, TABLE_FLAGS,
 };
