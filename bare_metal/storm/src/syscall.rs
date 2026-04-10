@@ -16,13 +16,17 @@ use core::sync::atomic::{AtomicU64, Ordering};
 use crate::gdt;
 use crate::{log, log_println};
 
-/// Kernel stack pointer for the process currently in user mode.
-/// Set before SYSRETQ, read by the syscall entry to switch stacks.
-/// TODO: make per-CPU when multiple CPUs run user code.
-static KERNEL_RSP: AtomicU64 = AtomicU64::new(0);
+const MAX_CPUS: usize = 16;
 
-/// Scratch space for saving user RSP during syscall entry.
-static mut SCRATCH_RSP: u64 = 0;
+/// Per-CPU kernel stack pointer, indexed by LAPIC ID.
+/// Set before entering user mode, read by syscall entry to switch stacks.
+static KERNEL_RSP: [AtomicU64; MAX_CPUS] = {
+    const INIT: AtomicU64 = AtomicU64::new(0);
+    [INIT; MAX_CPUS]
+};
+
+/// Per-CPU scratch space for saving user RSP during syscall entry.
+static mut SCRATCH_RSP: [u64; MAX_CPUS] = [0; MAX_CPUS];
 
 /// Initialize the SYSCALL/SYSRET MSRs. Call once on BSP after GDT is loaded.
 /// APs should also call this (MSRs are per-CPU).
@@ -53,10 +57,10 @@ pub fn init() {
         "SYSCALL MSRs configured (entry={:#x})", syscall_entry as *const () as u64);
 }
 
-/// Set the kernel RSP that the syscall entry will switch to.
-/// Must be called before entering user mode.
-pub fn set_kernel_rsp(rsp: u64) {
-    KERNEL_RSP.store(rsp, Ordering::Release);
+/// Set the kernel RSP for the current CPU (identified by LAPIC ID).
+/// Must be called before entering user mode on this CPU.
+pub fn set_kernel_rsp(cpu_id: usize, rsp: u64) {
+    KERNEL_RSP[cpu_id].store(rsp, Ordering::Release);
 }
 
 /// Naked syscall entry point. The CPU arrives here with:
@@ -66,13 +70,45 @@ pub fn set_kernel_rsp(rsp: u64) {
 #[unsafe(naked)]
 extern "C" fn syscall_entry() {
     core::arch::naked_asm!(
-        // save user RSP to scratch, load kernel RSP
-        "mov [rip + {scratch}], rsp",
-        "mov rsp, [rip + {kernel_rsp}]",
+        // Per-CPU scratch/kernel_rsp indexed by LAPIC ID.
+        // Strategy: push rax, rcx, r11 onto the user stack to free up
+        // three scratch registers, then use RIP-relative addressing to
+        // access the per-CPU arrays.
 
-        // build a frame on the kernel stack with all user state
-        "push [rip + {scratch}]",   // user RSP
-        "push rcx",                  // user RIP (saved by SYSCALL)
+        // Save SYSCALL-critical registers on user stack
+        "push rax",                          // [rsp+16] syscall number
+        "push rcx",                          // [rsp+8]  user RIP
+        "push r11",                          // [rsp+0]  user RFLAGS
+
+        // Read LAPIC ID → offset in eax
+        "mov eax, dword ptr [0xFEE00020]",
+        "shr eax, 24",
+        "shl eax, 3",                       // eax = cpu_id * 8
+
+        // Save original user RSP to SCRATCH_RSP[cpu_id]
+        "lea rcx, [rip + {scratch}]",
+        "lea r11, [rsp + 24]",              // original user RSP (before 3 pushes)
+        "mov [rcx + rax], r11",
+
+        // Switch to per-CPU kernel stack
+        "lea rcx, [rip + {kernel_rsp}]",
+        "mov rsp, [rcx + rax]",
+
+        // Now on kernel stack. Recover user state from user stack (via scratch).
+        "lea rcx, [rip + {scratch}]",
+        "mov rcx, [rcx + rax]",             // rcx = original user RSP
+
+        // Read saved values from user stack and push onto kernel stack.
+        // User stack layout (push rax first, then rcx, then r11):
+        //   [user_rsp -  8] = rax (syscall number)
+        //   [user_rsp - 16] = rcx (user RIP)
+        //   [user_rsp - 24] = r11 (user RFLAGS)
+        "push rcx",                          // user RSP
+        "mov r11, [rcx - 24]",              // saved r11 = user RFLAGS
+        "mov rax, [rcx - 8]",               // saved rax = syscall number
+        "mov rcx, [rcx - 16]",              // saved rcx = user RIP (must be last — clobbers rcx)
+
+        "push rcx",                          // user RIP (saved by SYSCALL)
         "push r11",                  // user RFLAGS (saved by SYSCALL)
 
         // save callee-saved + arg registers (so Rust handler can read args)
@@ -146,9 +182,22 @@ extern "C" fn syscall_handler(number: u64, arg1: u64, arg2: u64, arg3: u64, _arg
             if emit_type == 0 {
                 log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
                     "Process exited with code {}", arg2);
-                // For now, halt — the kernel thread that launched us will
-                // never get control back. This is fine for the initial test.
-                loop { core::hint::spin_loop(); }
+                // Switch back to the kernel's page tables and enter the
+                // scheduler idle loop, freeing this CPU for other work.
+                // The launch_user_process thread's stack is gone (we switched
+                // RSP in the syscall entry), so we can't return normally.
+                // Instead, load the kernel CR3 and jump directly into the
+                // scheduler on this CPU.
+                unsafe {
+                    let kernel_cr3 = crate::page_tables::get_kernel_cr3();
+                    let cpu_id = crate::scheduler::read_lapic_id() as u64;
+                    core::arch::asm!(
+                        "mov cr3, {}",
+                        in(reg) kernel_cr3,
+                        options(nostack),
+                    );
+                    crate::scheduler::run_on_cpu(cpu_id);
+                }
             }
 
             // Safety: we trust the user pointer for now (TODO: validate it's in user space)

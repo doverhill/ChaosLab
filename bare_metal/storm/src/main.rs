@@ -168,6 +168,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // sanity check: kernel heap allocator still works after all the page table surgery
     let _heap_test = Box::new(42u64);
 
+    // save the kernel CR3 so we can restore it after running user processes
+    page_tables::save_kernel_cr3();
+
     apic::init(rsdp_address);
 
     // initialize syscall MSRs on BSP
@@ -243,41 +246,25 @@ static PENDING_PROCESSES: spin::Mutex<alloc::vec::Vec<process::Process>> = spin:
 /// Kernel thread that takes a pre-loaded Process and jumps to user mode.
 fn launch_user_process(_: u64) -> ! {
     let process = PENDING_PROCESSES.lock().pop().expect("no pending process");
+    let thread = &process.threads[0];
 
     log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
-        "Jumping to user mode: entry={:#x}, stack={:#x}", process.entry_point, process.user_stack_top);
+        "Jumping to user mode: entry={:#x}, user_stack={:#x}, kernel_stack={:#x}",
+        thread.entry_point, thread.user_stack_top, thread.kernel_stack_top);
 
-    // allocate a kernel stack for this process (used on syscall re-entry
-    // and by the CPU for ring 3→0 transitions via TSS.RSP0)
-    let kernel_stack = virtual_memory::allocate_contiguous_pages(16)
-        .expect("Failed to allocate process kernel stack");
-    let kernel_stack_top = kernel_stack as u64 + (16 * 0x1000);
-    syscall::set_kernel_rsp(kernel_stack_top);
-
-    // set TSS.RSP0 so the CPU switches to this kernel stack when handling
-    // interrupts/exceptions from Ring 3
-    unsafe { gdt::set_bsp_rsp0(kernel_stack_top); }
+    // Store this thread's kernel stack in the per-CPU slot so the syscall
+    // entry can find it. Also set TSS.RSP0 for interrupt-based Ring 3→0.
+    let cpu_id = scheduler::read_lapic_id() as usize;
+    syscall::set_kernel_rsp(cpu_id, thread.kernel_stack_top);
+    unsafe { gdt::set_bsp_rsp0(thread.kernel_stack_top); }
 
     // switch to the process's address space
     let cr3_value = process.address_space.l4_physical_address();
-    log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
-        "Switching CR3 to {:#x}", cr3_value);
     unsafe {
         core::arch::asm!("mov cr3, {}", in(reg) cr3_value, options(nostack));
     }
 
-    // verify kernel still works after CR3 switch
-    log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
-        "CR3 switched, kernel still running");
-
-    // verify user entry point is readable from kernel
-    let entry_byte = unsafe { core::ptr::read_volatile(process.entry_point as *const u8) };
-    log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
-        "User entry byte: {:#x}", entry_byte);
-
     // jump to user mode via IRETQ
-    // Build an interrupt return frame on the kernel stack and iretq to Ring 3.
-    // Stack frame (pushed in reverse): SS, RSP, RFLAGS, CS, RIP
     let user_cs: u64 = (5 << 3) | 3;  // GDT index 5, RPL=3 = 0x2B
     let user_ss: u64 = (4 << 3) | 3;  // GDT index 4, RPL=3 = 0x23
     let user_rflags: u64 = 0x202;      // IF | reserved bit 1
@@ -290,10 +277,10 @@ fn launch_user_process(_: u64) -> ! {
             "push {rip}",
             "iretq",
             ss = in(reg) user_ss,
-            rsp_user = in(reg) process.user_stack_top,
+            rsp_user = in(reg) thread.user_stack_top,
             rflags = in(reg) user_rflags,
             cs = in(reg) user_cs,
-            rip = in(reg) process.entry_point,
+            rip = in(reg) thread.entry_point,
             options(noreturn),
         );
     }

@@ -126,6 +126,21 @@ pub fn get_current_l4_table() -> &'static mut PageTable {
     physical_to_table(l4_frame.start_address().as_u64())
 }
 
+/// The kernel's CR3 value, saved during boot so we can restore it after
+/// running user processes.
+static KERNEL_CR3: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+
+/// Save the current CR3 as the kernel CR3. Call once after page table setup.
+pub fn save_kernel_cr3() {
+    let (frame, _) = Cr3::read();
+    KERNEL_CR3.store(frame.start_address().as_u64(), core::sync::atomic::Ordering::Relaxed);
+}
+
+/// Get the saved kernel CR3 value.
+pub fn get_kernel_cr3() -> u64 {
+    KERNEL_CR3.load(core::sync::atomic::Ordering::Relaxed)
+}
+
 // ---------------------------------------------------------------------------
 // Page table allocation
 // ---------------------------------------------------------------------------

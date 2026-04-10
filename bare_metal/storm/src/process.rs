@@ -17,16 +17,28 @@ static NEXT_PROCESS_ID: AtomicU64 = AtomicU64::new(1);
 /// The ELF's virtual addresses are offset by this base.
 const ELF_LOAD_BASE: u64 = USER_VIRTUAL_BASE;
 
-/// User stack: 16 pages (64 KiB), placed 16 MiB above the load base.
+/// Per-thread stack sizes (64 KiB each).
+const KERNEL_STACK_PAGES: usize = 16;
 const USER_STACK_PAGES: usize = 16;
-const USER_STACK_OFFSET: u64 = 16 * 1024 * 1024; // 16 MiB from base
 
-/// A process ready to be launched.
+/// User stack placement offset from ELF load base (16 MiB).
+const USER_STACK_OFFSET: u64 = 16 * 1024 * 1024;
+
+/// A thread of execution within a process.
+pub struct Thread {
+    pub thread_id: u64,
+    pub user_stack_top: u64,
+    pub kernel_stack_top: u64,
+    pub entry_point: u64,
+}
+
+static NEXT_THREAD_ID: AtomicU64 = AtomicU64::new(1);
+
+/// A process with its own address space and one or more threads.
 pub struct Process {
     pub process_id: u64,
     pub address_space: AddressSpace,
-    pub entry_point: u64,
-    pub user_stack_top: u64,
+    pub threads: alloc::vec::Vec<Thread>,
 }
 
 impl Process {
@@ -254,25 +266,38 @@ impl Process {
                 "ELF: applied {} R_X86_64_RELATIVE relocations", applied);
         }
 
-        // --- Allocate user stack ---
-        let stack_base = base + USER_STACK_OFFSET;
-        address_space.map_user_pages_at(stack_base, USER_STACK_PAGES)?;
-        let user_stack_top = stack_base + (USER_STACK_PAGES as u64 * PAGE_SIZE);
-
-        // entry point = base + ELF entry offset
+        // --- Create initial thread ---
         let entry_point = base + entry_point_offset;
+
+        // user stack: allocated in the process's address space
+        let user_stack_base = base + USER_STACK_OFFSET;
+        address_space.map_user_pages_at(user_stack_base, USER_STACK_PAGES)?;
+        let user_stack_top = user_stack_base + (USER_STACK_PAGES as u64 * PAGE_SIZE);
+
+        // kernel stack: allocated in kernel virtual memory (shared across all address spaces)
+        let kernel_stack = crate::virtual_memory::allocate_contiguous_pages(KERNEL_STACK_PAGES)
+            .ok_or("failed to allocate kernel stack")?;
+        let kernel_stack_top = kernel_stack as u64 + (KERNEL_STACK_PAGES as u64 * PAGE_SIZE);
+
+        let thread_id = NEXT_THREAD_ID.fetch_add(1, Ordering::Relaxed);
+        let thread = Thread {
+            thread_id,
+            user_stack_top,
+            kernel_stack_top,
+            entry_point,
+        };
 
         let process_id = NEXT_PROCESS_ID.fetch_add(1, Ordering::Relaxed);
 
         log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
-            "Process {} created from ELF: entry={:#x}, stack={:#x}, L4={:#x}",
-            process_id, entry_point, user_stack_top, address_space.l4_physical_address());
+            "Process {} thread {} created from ELF: entry={:#x}, user_stack={:#x}, kernel_stack={:#x}, L4={:#x}",
+            process_id, thread_id, entry_point, user_stack_top, kernel_stack_top,
+            address_space.l4_physical_address());
 
         Ok(Process {
             process_id,
             address_space,
-            entry_point,
-            user_stack_top,
+            threads: alloc::vec![thread],
         })
     }
 }

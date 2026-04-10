@@ -46,7 +46,7 @@ pub type ThreadFunction = fn(u64) -> !;
 
 /// Read the current CPU's LAPIC ID from the xAPIC MMIO register.
 /// This is the most reliable way to identify which CPU we're on.
-fn read_lapic_id() -> u32 {
+pub fn read_lapic_id() -> u32 {
     // xAPIC ID register is at APIC base + 0x20, bits 31:24
     let apic_base: u64 = 0xFEE00000; // standard xAPIC base
     let id_register = unsafe { core::ptr::read_volatile((apic_base + 0x20) as *const u32) };
