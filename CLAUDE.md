@@ -77,6 +77,11 @@ Windows-only. Uses PowerShell build scripts at the repo root:
 | `process.rs` | Process management (placeholder) |
 | `syscall.rs` | Syscall handler (placeholder) |
 
+## Collaboration style
+
+- **Push back on bad ideas.** Claude should not blindly accept the user's input. If a suggestion has a flaw or there's a better approach, Claude should say so and explain why. The user values honest technical feedback over agreement.
+- **Questions are genuine.** When the user ends something with a question mark, they are genuinely asking for Claude's honest opinion or analysis. Give a real assessment, not a diplomatic non-answer.
+
 ## Coding conventions
 
 - **Rust edition:** 2021

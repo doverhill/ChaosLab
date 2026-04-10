@@ -183,16 +183,16 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         unsafe {
             PENDING_PROCESSES.lock().push(process);
         }
-        scheduler::spawn(launch_user_process, 0);
+        scheduler::spawn_kernel(launch_user_process, 0, 0);
     }
 
     // spawn test kernel threads
     for i in 0..4 {
-        scheduler::spawn(test_thread_function, i);
+        scheduler::spawn_kernel(test_thread_function, i, 0);
     }
 
     // watchdog: exits QEMU after 10 seconds (or keypress)
-    scheduler::spawn(watchdog_thread, 10);
+    scheduler::spawn_kernel(watchdog_thread, 10, 0);
 
     log_println!(log::SubSystem::Boot, log::LogLevel::Information,
         "Boot complete — BSP entering scheduler");
@@ -234,7 +234,7 @@ fn test_thread_function(thread_number: u64) -> ! {
             "Thread {} running", thread_number);
         // busy-wait a bit to simulate work (PM timer based)
         arch::delay_milliseconds(500);
-        scheduler::yield_thread();
+        scheduler::yield_current();
     }
 }
 

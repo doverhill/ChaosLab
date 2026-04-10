@@ -59,6 +59,7 @@ pub fn init_memory(
 pub fn start_application_processors(rsdp_address: Optional<u64>) {
     let cpu_count = apic::init(rsdp_address);
     syscall::init_per_cpu_state(cpu_count);
+    crate::scheduler::idle::init(cpu_count);
 }
 
 /// Translate a virtual address to physical using the given page table offset.
@@ -90,7 +91,43 @@ pub fn clear_current_context(cpu_id: usize) {
 
 /// Read the current CPU's hardware ID (LAPIC ID on x86_64).
 pub fn cpu_id() -> usize {
-    crate::scheduler::read_lapic_id() as usize
+    let id_register = unsafe { core::ptr::read_volatile(0xFEE00020u64 as *const u32) };
+    (id_register >> 24) as usize
+}
+
+/// Low-level context switch. Saves callee-saved registers + RSP to
+/// `*old_rsp_ptr`, loads `new_rsp` + registers, returns to new context.
+#[unsafe(naked)]
+pub extern "C" fn context_switch(_old_rsp_ptr: *mut u64, _new_rsp: u64) {
+    core::arch::naked_asm!(
+        "push rbp",
+        "push rbx",
+        "push r12",
+        "push r13",
+        "push r14",
+        "push r15",
+        "mov [rdi], rsp",
+        "mov rsp, rsi",
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop rbx",
+        "pop rbp",
+        "ret",
+    );
+}
+
+/// Bootstrap for new kernel tasks. context_switch `ret`s here.
+/// Pops argument and function pointer from the stack, calls the function.
+#[unsafe(naked)]
+pub extern "C" fn kernel_task_bootstrap() -> ! {
+    core::arch::naked_asm!(
+        "pop rdi",          // argument (first parameter in System V ABI)
+        "pop rax",          // function pointer
+        "call rax",         // call the task function (never returns)
+        "ud2",              // unreachable
+    );
 }
 
 /// Switch to a process's address space and jump to user mode.

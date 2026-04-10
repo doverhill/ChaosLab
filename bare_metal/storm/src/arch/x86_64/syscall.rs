@@ -263,7 +263,7 @@ extern "C" fn syscall_handler(number: u64, arg1: u64, arg2: u64, arg3: u64, _arg
                 // scheduler on this CPU.
                 unsafe {
                     let kernel_cr3 = crate::arch::page_tables::get_kernel_cr3();
-                    let cpu_id = crate::scheduler::read_lapic_id() as u64;
+                    let cpu_id = crate::arch::cpu_id() as u64;
                     core::arch::asm!(
                         "mov cr3, {}",
                         in(reg) kernel_cr3,

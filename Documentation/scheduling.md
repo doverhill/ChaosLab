@@ -95,10 +95,33 @@ per-CPU state) to reference the same task.
 
 ## Scheduler State
 
+### Initial implementation
+
 A single `Mutex<SchedulerState>` contains the task table, run queue, and
-timer queue. A single lock is correct for 4-16 CPUs because critical sections
-are microsecond-scale. Fine-grained locking adds deadlock risk without
-measurable benefit at this scale.
+timer queue. Correct and simple for the initial implementation.
+
+### Target design: per-CPU local state with work stealing
+
+Each CPU has a **local state** (lock-free, only that CPU dequeues) containing
+a small run queue and a set of blocked tasks. A global queue holds tasks
+that haven't been claimed by any CPU.
+
+- **pick_next**: check local run queue first (lock-free). If empty, lock
+  the global queue and steal a batch (2-4 tasks).
+- **yield/preempt**: push to local run queue (lock-free). If the local
+  queue overflows or other CPUs are starved, push to global.
+- **block (EventWait/sleep)**: task stays in the CPU's local blocked set.
+  It is NOT returned to global. When the unblock event arrives, the task
+  goes back to the same CPU's local run queue.
+- **spawn/unblock-from-other-CPU**: push to global queue (any CPU can pick it up,
+  respecting affinity hints).
+
+This means a well-behaved service thread that does `EventWait → handle →
+signal → EventWait` stays in one CPU's local state indefinitely: zero lock
+contention, warm caches, warm TLB. The task only leaves local state if:
+- The CPU has too many local tasks (rebalance to global)
+- IPC affinity hint suggests a different CPU
+- The CPU is going idle and donates its local tasks back to global
 
 ## Per-CPU State
 
