@@ -55,6 +55,8 @@ pub fn get_current_task_id(cpu_id: usize) -> Option<TaskId> {
 /// Never returns.
 pub fn run_on_cpu(cpu_id: u64) -> ! {
     let cpu_id = cpu_id as usize;
+    super::task_mutex::set_scheduler_active();
+
     log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
         "CPU {} entering scheduler idle loop", cpu_id);
 

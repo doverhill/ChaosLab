@@ -76,9 +76,9 @@ lazy_static! {
 // Framebuffer backend (optional, initialized later)
 // ---------------------------------------------------------------------------
 
-lazy_static! {
-    static ref FRAMEBUFFER: Mutex<Option<FramebufferWriter>> = Mutex::new(None);
-}
+use crate::scheduler::task_mutex::TaskMutex;
+
+static FRAMEBUFFER: TaskMutex<Option<FramebufferWriter>> = TaskMutex::new(None);
 
 /// Enable framebuffer output. Called once from main after extracting the
 /// framebuffer from BootInfo.

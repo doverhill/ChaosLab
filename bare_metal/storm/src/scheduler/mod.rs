@@ -15,6 +15,7 @@ pub mod run_queue;
 pub mod timer_queue;
 pub mod state;
 pub mod idle;
+pub mod task_mutex;
 
 use spin::Mutex;
 use crate::{arch, log, log_println, virtual_memory};

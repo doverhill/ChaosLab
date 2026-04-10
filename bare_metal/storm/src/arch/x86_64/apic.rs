@@ -123,6 +123,13 @@ pub fn init(rsdp_pointer: Optional<u64>) -> usize {
     let ap_count = ap_apic_ids.len();
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "Starting {} application processors", ap_count);
 
+    // Initialize per-CPU state BEFORE starting APs, since they enter the
+    // scheduler idle loop immediately after booting.
+    let max_lapic_id = ap_apic_ids.iter().copied().max().unwrap_or(0);
+    let cpu_slots = (max_lapic_id as usize) + 1;
+    crate::arch::syscall::init_per_cpu_state(cpu_slots);
+    crate::scheduler::idle::init(cpu_slots);
+
     // install trampoline
     ap_trampoline::install();
 

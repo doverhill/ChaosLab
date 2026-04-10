@@ -57,10 +57,17 @@ pub fn init_memory(
 /// Discover and start application processors. Initializes per-CPU
 /// syscall state sized for the actual number of CPUs found.
 pub fn start_application_processors(rsdp_address: Optional<u64>) {
+    // apic::init discovers CPUs, initializes per-CPU state (syscall +
+    // scheduler idle), then starts APs. Order matters: per-CPU state
+    // must be ready before APs enter the idle loop.
     let cpu_count = apic::init(rsdp_address);
     timer::calibrate();
-    syscall::init_per_cpu_state(cpu_count);
-    crate::scheduler::idle::init(cpu_count);
+    // For single-CPU systems, apic::init skips the per-CPU init (no APs),
+    // so initialize here for the BSP.
+    if cpu_count <= 1 {
+        syscall::init_per_cpu_state(cpu_count);
+        crate::scheduler::idle::init(cpu_count);
+    }
 }
 
 /// Translate a virtual address to physical using the given page table offset.
