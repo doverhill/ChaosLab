@@ -9,6 +9,16 @@ use super::task::TaskId;
 pub const PRIORITY_LEVELS: usize = 32;
 pub const DEFAULT_PRIORITY: i32 = 0;
 
+/// Maximum priority a user thread can have. The top 4 priority levels
+/// (mapped from priorities 12-15 to levels 28-31) are reserved for
+/// kernel threads to ensure they can always preempt user work.
+pub const MAX_USER_PRIORITY: i32 = 11;
+
+/// Clamp a priority for a user thread (enforces the kernel-reserved ceiling).
+pub fn clamp_user_priority(priority: i32) -> i32 {
+    priority.min(MAX_USER_PRIORITY)
+}
+
 /// Map a user-facing priority (i32, higher = more important) to a
 /// run queue level index (0..31).
 fn priority_to_level(priority: i32) -> usize {
