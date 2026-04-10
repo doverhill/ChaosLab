@@ -16,17 +16,48 @@ use core::sync::atomic::{AtomicU64, Ordering};
 use crate::arch::gdt;
 use crate::{log, log_println};
 
-const MAX_CPUS: usize = 16;
+macro_rules! const_assert {
+    ($cond:expr) => { const _: () = assert!($cond); };
+}
 
-/// Per-CPU kernel stack pointer, indexed by LAPIC ID.
-/// Set before entering user mode, read by syscall entry to switch stacks.
-static KERNEL_RSP: [AtomicU64; MAX_CPUS] = {
-    const INIT: AtomicU64 = AtomicU64::new(0);
-    [INIT; MAX_CPUS]
-};
+/// Per-CPU state for syscall handling. Initialized by `init_per_cpu_state()`
+/// after the number of CPUs is known. Indexed by LAPIC ID.
+///
+/// `current_process` and `current_thread` are raw pointers stored as u64
+/// to avoid process/thread table lookups on every syscall. The pointed-to
+/// objects are heap-allocated and outlive the per-CPU references (cleared
+/// on thread exit/yield before the objects are freed).
+struct PerCpuSyscallState {
+    /// Kernel stack pointer for this CPU's current user thread.
+    kernel_rsp: AtomicU64,
+    /// Scratch space for saving user RSP during syscall entry.
+    scratch_rsp: AtomicU64,
+    /// Raw pointer to the Process running on this CPU (null if none).
+    current_process: AtomicU64,
+    /// Raw pointer to the Thread running on this CPU (null if none).
+    current_thread: AtomicU64,
+}
 
-/// Per-CPU scratch space for saving user RSP during syscall entry.
-static mut SCRATCH_RSP: [u64; MAX_CPUS] = [0; MAX_CPUS];
+/// Global per-CPU state table. Allocated on the heap after SMP discovery.
+/// The naked syscall entry accesses this via `PER_CPU_TABLE` and `PER_CPU_COUNT`.
+static mut PER_CPU_TABLE: *mut PerCpuSyscallState = core::ptr::null_mut();
+static PER_CPU_COUNT: AtomicU64 = AtomicU64::new(0);
+
+/// Allocate the per-CPU syscall state table. Call once after determining the
+/// number of CPUs (max LAPIC ID + 1).
+pub fn init_per_cpu_state(cpu_count: usize) {
+    let layout = alloc::alloc::Layout::array::<PerCpuSyscallState>(cpu_count).unwrap();
+    let pointer = unsafe { alloc::alloc::alloc_zeroed(layout) as *mut PerCpuSyscallState };
+    assert!(!pointer.is_null(), "failed to allocate per-CPU syscall state");
+    // AtomicU64 zero-initialized = 0, which is the correct default for all fields
+    unsafe { PER_CPU_TABLE = pointer; }
+    PER_CPU_COUNT.store(cpu_count as u64, Ordering::Release);
+}
+
+fn per_cpu(cpu_id: usize) -> &'static PerCpuSyscallState {
+    assert!((cpu_id as u64) < PER_CPU_COUNT.load(Ordering::Acquire), "cpu_id out of range");
+    unsafe { &*PER_CPU_TABLE.add(cpu_id) }
+}
 
 /// Initialize the SYSCALL/SYSRET MSRs. Call once on BSP after GDT is loaded.
 /// APs should also call this (MSRs are per-CPU).
@@ -60,7 +91,43 @@ pub fn init() {
 /// Set the kernel RSP for the current CPU (identified by LAPIC ID).
 /// Must be called before entering user mode on this CPU.
 pub fn set_kernel_rsp(cpu_id: usize, rsp: u64) {
-    KERNEL_RSP[cpu_id].store(rsp, Ordering::Release);
+    per_cpu(cpu_id).kernel_rsp.store(rsp, Ordering::Release);
+}
+
+/// Record which process and thread are running on this CPU.
+/// Must be called before entering user mode. The pointers must remain
+/// valid until the thread exits or yields (caller's responsibility).
+pub fn set_current_context(
+    cpu_id: usize,
+    process: &crate::process::Process,
+    thread: &crate::process::Thread,
+) {
+    let state = per_cpu(cpu_id);
+    state.current_process.store(process as *const _ as u64, Ordering::Release);
+    state.current_thread.store(thread as *const _ as u64, Ordering::Release);
+}
+
+/// Clear the current process/thread on this CPU (e.g. on thread exit).
+pub fn clear_current_context(cpu_id: usize) {
+    let state = per_cpu(cpu_id);
+    state.current_process.store(0, Ordering::Release);
+    state.current_thread.store(0, Ordering::Release);
+}
+
+/// Get the Process currently running on this CPU.
+fn current_process() -> Option<&'static crate::process::Process> {
+    let cpu_id = crate::arch::cpu_id();
+    let pointer = per_cpu(cpu_id).current_process.load(Ordering::Acquire);
+    if pointer == 0 { return None; }
+    unsafe { Some(&*(pointer as *const crate::process::Process)) }
+}
+
+/// Get the Thread currently running on this CPU.
+fn current_thread() -> Option<&'static crate::process::Thread> {
+    let cpu_id = crate::arch::cpu_id();
+    let pointer = per_cpu(cpu_id).current_thread.load(Ordering::Acquire);
+    if pointer == 0 { return None; }
+    unsafe { Some(&*(pointer as *const crate::process::Thread)) }
 }
 
 /// Naked syscall entry point. The CPU arrives here with:
@@ -69,34 +136,41 @@ pub fn set_kernel_rsp(cpu_id: usize, rsp: u64) {
 ///   IF is cleared by SFMASK
 #[unsafe(naked)]
 extern "C" fn syscall_entry() {
+    // PerCpuSyscallState layout: kernel_rsp(0), scratch_rsp(8),
+    // current_process(16), current_thread(24) — 32 bytes per entry.
+    const_assert!(core::mem::size_of::<PerCpuSyscallState>() == 32);
+
     core::arch::naked_asm!(
-        // Per-CPU scratch/kernel_rsp indexed by LAPIC ID.
+        // Per-CPU state is in a heap-allocated table pointed to by
+        // PER_CPU_TABLE. Each entry is 32 bytes, indexed by LAPIC ID.
+        //
         // Strategy: push rax, rcx, r11 onto the user stack to free up
-        // three scratch registers, then use RIP-relative addressing to
-        // access the per-CPU arrays.
+        // three scratch registers. Compute the per-CPU entry address,
+        // then save/restore via field offsets within the entry.
 
         // Save SYSCALL-critical registers on user stack
         "push rax",                          // [rsp+16] syscall number
         "push rcx",                          // [rsp+8]  user RIP
         "push r11",                          // [rsp+0]  user RFLAGS
 
-        // Read LAPIC ID → offset in eax
-        "mov eax, dword ptr [0xFEE00020]",
-        "shr eax, 24",
-        "shl eax, 3",                       // eax = cpu_id * 8
+        // Compute per-CPU entry address:
+        //   entry = PER_CPU_TABLE + (lapic_id * 32)
+        "mov eax, dword ptr [0xFEE00020]",  // LAPIC ID register
+        "shr eax, 24",                       // eax = cpu_id
+        "shl eax, 5",                       // eax = cpu_id * 32 (entry size)
+        "mov rcx, [rip + {table}]",          // rcx = PER_CPU_TABLE base pointer
+        "add rcx, rax",                      // rcx = &per_cpu_state[cpu_id]
 
-        // Save original user RSP to SCRATCH_RSP[cpu_id]
-        "lea rcx, [rip + {scratch}]",
+        // Save original user RSP to entry.scratch_rsp (offset 8)
         "lea r11, [rsp + 24]",              // original user RSP (before 3 pushes)
-        "mov [rcx + rax], r11",
+        "mov [rcx + 8], r11",               // entry.scratch_rsp = user_rsp
 
-        // Switch to per-CPU kernel stack
-        "lea rcx, [rip + {kernel_rsp}]",
-        "mov rsp, [rcx + rax]",
+        // Switch to per-CPU kernel stack from entry.kernel_rsp (offset 0)
+        "mov rsp, [rcx]",
 
-        // Now on kernel stack. Recover user state from user stack (via scratch).
-        "lea rcx, [rip + {scratch}]",
-        "mov rcx, [rcx + rax]",             // rcx = original user RSP
+        // Now on kernel stack. Recover user state from user stack via
+        // the scratch_rsp we just saved.
+        "mov rcx, [rcx + 8]",               // rcx = original user RSP
 
         // Read saved values from user stack and push onto kernel stack.
         // User stack layout (push rax first, then rcx, then r11):
@@ -161,8 +235,7 @@ extern "C" fn syscall_entry() {
 
         "sysretq",
 
-        scratch = sym SCRATCH_RSP,
-        kernel_rsp = sym KERNEL_RSP,
+        table = sym PER_CPU_TABLE,
         handler = sym syscall_handler,
     );
 }

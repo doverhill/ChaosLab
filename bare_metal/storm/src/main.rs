@@ -178,6 +178,14 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     // All data we need has been copied to kernel-owned pages.
     physical_memory::reclaim_bootloader(&bootloader_regions[..bootloader_region_count], &kernel_leaf_pages);
 
+    // launch user processes first — they should be scheduled before test threads
+    for process in user_processes {
+        unsafe {
+            PENDING_PROCESSES.lock().push(process);
+        }
+        scheduler::spawn(launch_user_process, 0);
+    }
+
     // spawn test kernel threads
     for i in 0..4 {
         scheduler::spawn(test_thread_function, i);
@@ -185,14 +193,6 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     // watchdog: exits QEMU after 10 seconds (or keypress)
     scheduler::spawn(watchdog_thread, 10);
-
-    // launch user processes — each gets a kernel thread that switches to Ring 3
-    for process in user_processes {
-        unsafe {
-            PENDING_PROCESSES.lock().push(process);
-        }
-        scheduler::spawn(launch_user_process, 0);
-    }
 
     log_println!(log::SubSystem::Boot, log::LogLevel::Information,
         "Boot complete — BSP entering scheduler");
@@ -213,9 +213,11 @@ fn launch_user_process(_: u64) -> ! {
         "Jumping to user mode: entry={:#x}, user_stack={:#x}, kernel_stack={:#x}",
         thread.entry_point, thread.user_stack_top, thread.kernel_stack_top);
 
-    // Store this thread's kernel stack so the syscall entry and interrupt
-    // handlers can find it on this CPU.
-    arch::set_thread_kernel_stack(arch::cpu_id(), thread.kernel_stack_top);
+    // Set up per-CPU state so the syscall handler knows which process/thread
+    // is running and can find the kernel stack.
+    let cpu_id = arch::cpu_id();
+    arch::set_thread_kernel_stack(cpu_id, thread.kernel_stack_top);
+    arch::set_current_context(cpu_id, &process, thread);
 
     // switch to the process's address space and jump to user mode
     arch::enter_usermode(

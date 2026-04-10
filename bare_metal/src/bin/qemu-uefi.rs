@@ -23,7 +23,7 @@ fn main() {
     qemu.arg("-drive").arg(format!("if=pflash,format=raw,file={}", ovmf_vars.display()));
     qemu.arg("-vga").arg("none");
     qemu.arg("-device").arg("VGA,vgamem_mb=8,xres=800,yres=600");
-    qemu.arg("-smp").arg("4");
+    qemu.arg("-smp").arg(std::env::var("SMP").as_deref().unwrap_or("4"));
     qemu.arg("-m").arg("64");
     qemu.arg("-serial").arg("stdio");
     qemu.arg("-display").arg("cocoa,full-screen=on,zoom-to-fit=on");

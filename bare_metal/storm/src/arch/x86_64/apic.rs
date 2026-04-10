@@ -56,7 +56,8 @@ impl acpi::Handler for AcpiHandler {
 }
 
 /// Discover processors, initialize the BSP's local APIC, and start all APs.
-pub fn init(rsdp_pointer: Optional<u64>) {
+/// Returns the number of CPU slots needed (max LAPIC ID + 1).
+pub fn init(rsdp_pointer: Optional<u64>) -> usize {
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "APIC: Looking for processors");
 
     let mut ap_apic_ids: Vec<u8> = Vec::new();
@@ -97,7 +98,7 @@ pub fn init(rsdp_pointer: Optional<u64>) {
 
     if total_cpus <= 1 {
         log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "Single CPU system, no APs to start");
-        return;
+        return 1;
     }
 
     // initialize BSP's local APIC
@@ -218,6 +219,11 @@ pub fn init(rsdp_pointer: Optional<u64>) {
         "SMP: {}/{} APs running, {} total CPUs active",
         AP_READY_COUNT.load(Ordering::Acquire), ap_count,
         AP_READY_COUNT.load(Ordering::Acquire) + 1);
+
+    // Return max LAPIC ID + 1 as the number of CPU slots needed.
+    // LAPIC IDs are typically 0..N-1 for QEMU but can be sparse on real hardware.
+    let max_lapic_id = ap_apic_ids.iter().copied().max().unwrap_or(0);
+    (max_lapic_id as usize) + 1
 }
 
 /// AP entry point — normal function (NOT naked).

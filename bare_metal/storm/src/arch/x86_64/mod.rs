@@ -54,9 +54,11 @@ pub fn init_memory(
     kernel_leaf_pages
 }
 
-/// Discover and start application processors.
+/// Discover and start application processors. Initializes per-CPU
+/// syscall state sized for the actual number of CPUs found.
 pub fn start_application_processors(rsdp_address: Optional<u64>) {
-    apic::init(rsdp_address);
+    let cpu_count = apic::init(rsdp_address);
+    syscall::init_per_cpu_state(cpu_count);
 }
 
 /// Translate a virtual address to physical using the given page table offset.
@@ -69,6 +71,21 @@ pub fn virtual_to_physical(virtual_address: u64, physical_memory_offset: u64) ->
 pub fn set_thread_kernel_stack(cpu_id: usize, kernel_stack_top: u64) {
     syscall::set_kernel_rsp(cpu_id, kernel_stack_top);
     unsafe { gdt::set_bsp_rsp0(kernel_stack_top); }
+}
+
+/// Record which process and thread are running on this CPU.
+/// Must be called before entering user mode.
+pub fn set_current_context(
+    cpu_id: usize,
+    process: &crate::process::Process,
+    thread: &crate::process::Thread,
+) {
+    syscall::set_current_context(cpu_id, process, thread);
+}
+
+/// Clear the current process/thread on this CPU (on thread exit/yield).
+pub fn clear_current_context(cpu_id: usize) {
+    syscall::clear_current_context(cpu_id);
 }
 
 /// Read the current CPU's hardware ID (LAPIC ID on x86_64).

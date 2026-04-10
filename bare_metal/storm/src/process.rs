@@ -26,19 +26,21 @@ const USER_STACK_OFFSET: u64 = 16 * 1024 * 1024;
 
 /// A thread of execution within a process.
 pub struct Thread {
-    pub thread_id: u64,
+    /// Process-local thread ID (0 for the initial thread, incremented per process).
+    pub local_thread_id: u64,
     pub user_stack_top: u64,
     pub kernel_stack_top: u64,
     pub entry_point: u64,
 }
-
-static NEXT_THREAD_ID: AtomicU64 = AtomicU64::new(1);
 
 /// A process with its own address space and one or more threads.
 pub struct Process {
     pub process_id: u64,
     pub address_space: AddressSpace,
     pub threads: alloc::vec::Vec<Thread>,
+    /// Counter for allocating process-local thread IDs. Atomic because
+    /// multiple threads in the same process can call ThreadCreate concurrently.
+    next_local_thread_id: AtomicU64,
 }
 
 impl Process {
@@ -279,9 +281,8 @@ impl Process {
             .ok_or("failed to allocate kernel stack")?;
         let kernel_stack_top = kernel_stack as u64 + (KERNEL_STACK_PAGES as u64 * PAGE_SIZE);
 
-        let thread_id = NEXT_THREAD_ID.fetch_add(1, Ordering::Relaxed);
         let thread = Thread {
-            thread_id,
+            local_thread_id: 0, // initial thread is always 0
             user_stack_top,
             kernel_stack_top,
             entry_point,
@@ -290,14 +291,15 @@ impl Process {
         let process_id = NEXT_PROCESS_ID.fetch_add(1, Ordering::Relaxed);
 
         log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
-            "Process {} thread {} created from ELF: entry={:#x}, user_stack={:#x}, kernel_stack={:#x}, L4={:#x}",
-            process_id, thread_id, entry_point, user_stack_top, kernel_stack_top,
+            "Process {} created from ELF: entry={:#x}, user_stack={:#x}, kernel_stack={:#x}, L4={:#x}",
+            process_id, entry_point, user_stack_top, kernel_stack_top,
             address_space.l4_physical_address());
 
         Ok(Process {
             process_id,
             address_space,
             threads: alloc::vec![thread],
+            next_local_thread_id: AtomicU64::new(1), // 0 was the initial thread
         })
     }
 }
