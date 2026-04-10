@@ -187,7 +187,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     }
 
     // log sink: drains the log ring buffer to the framebuffer
-    scheduler::spawn_kernel(log_sink_task, 0, 12); // high priority — kernel reserved
+    scheduler::spawn_kernel(log_sink_task, 0, 0);
 
     // spawn test kernel threads (including one that never yields — tests preemption)
     for i in 0..3 {

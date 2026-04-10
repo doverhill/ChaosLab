@@ -154,33 +154,30 @@ impl core::fmt::Write for EntryWriter<'_> {
     }
 }
 
-/// Log sink: drain the queue and write to the framebuffer.
+/// Log sink: drain all pending entries, write to framebuffer, yield.
 /// Called from a dedicated kernel task (spawned by main).
 pub fn log_sink_loop() -> ! {
     loop {
-        // Swap out the entire queue to minimize lock hold time
-        let entries = {
-            let mut queue = LOG_QUEUE.lock();
-            if queue.is_empty() {
-                drop(queue);
-                crate::scheduler::yield_current();
-                continue;
-            }
-            core::mem::take(&mut *queue)
-        };
+        // Drain all pending entries
+        let entries = core::mem::take(&mut *LOG_QUEUE.lock());
 
-        if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
-            for entry in &entries {
-                let text = unsafe { core::str::from_utf8_unchecked(&entry.buffer[..entry.length]) };
-                let (sr, sg, sb) = subsystem_rgb(&entry.sub_system);
-                framebuffer.set_color(sr, sg, sb);
-                let _ = write!(framebuffer, "[{}] ", entry.sub_system);
+        if !entries.is_empty() {
+            if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
+                for entry in &entries {
+                    let text = unsafe { core::str::from_utf8_unchecked(&entry.buffer[..entry.length]) };
+                    let (sr, sg, sb) = subsystem_rgb(&entry.sub_system);
+                    framebuffer.set_color(sr, sg, sb);
+                    let _ = write!(framebuffer, "[{}] ", entry.sub_system);
 
-                let (lr, lg, lb) = level_rgb(&entry.log_level);
-                framebuffer.set_color(lr, lg, lb);
-                let _ = framebuffer.write_str(text);
+                    let (lr, lg, lb) = level_rgb(&entry.log_level);
+                    framebuffer.set_color(lr, lg, lb);
+                    let _ = framebuffer.write_str(text);
+                }
             }
         }
+
+        // Yield after draining — let other tasks run
+        crate::scheduler::yield_current();
     }
 }
 
