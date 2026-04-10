@@ -352,3 +352,4 @@ MigrationBackup/
 .rustc_info.json
 CACHEDIR.TAG
 *.lock
+bare_metal/target/
