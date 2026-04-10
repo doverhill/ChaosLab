@@ -58,6 +58,7 @@ pub fn init_memory(
 /// syscall state sized for the actual number of CPUs found.
 pub fn start_application_processors(rsdp_address: Optional<u64>) {
     let cpu_count = apic::init(rsdp_address);
+    timer::calibrate();
     syscall::init_per_cpu_state(cpu_count);
     crate::scheduler::idle::init(cpu_count);
 }
@@ -119,10 +120,12 @@ pub extern "C" fn context_switch(_old_rsp_ptr: *mut u64, _new_rsp: u64) {
 }
 
 /// Bootstrap for new kernel tasks. context_switch `ret`s here.
-/// Pops argument and function pointer from the stack, calls the function.
+/// Enables interrupts (so the APIC timer can preempt), then pops
+/// argument and function pointer from the stack and calls the function.
 #[unsafe(naked)]
 pub extern "C" fn kernel_task_bootstrap() -> ! {
     core::arch::naked_asm!(
+        "sti",              // enable interrupts (required for preemption)
         "pop rdi",          // argument (first parameter in System V ABI)
         "pop rax",          // function pointer
         "call rax",         // call the task function (never returns)

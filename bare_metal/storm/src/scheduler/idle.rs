@@ -69,7 +69,7 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
         if let Some(task_id) = picked {
             dispatch(cpu_id, task_id, &mut idle_rsp);
 
-            // Back from task. Re-enqueue if still Running (yield case).
+            // Re-enqueue if still Running (yield/preempt case).
             // block_current/exit_current set the state before returning here.
             let returned_id = per_cpu(cpu_id).current_task_id.swap(0, Ordering::Release);
             if returned_id != 0 {
@@ -81,6 +81,7 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
                 }
             }
         } else {
+            // Nothing to run — spin for now (Phase 3 will use HLT + IPI)
             core::hint::spin_loop();
         }
     }
@@ -102,15 +103,30 @@ fn dispatch(cpu_id: usize, task_id: TaskId, idle_rsp: &mut u64) {
     log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
         "CPU {} dispatching task {} (rsp={:#x})", cpu_id, task_id, saved_rsp);
 
-    // Publish per-CPU state so yield_current can find us
-    let state = per_cpu(cpu_id);
-    state.idle_rsp_pointer.store(idle_rsp as *mut u64 as u64, Ordering::Release);
-    state.current_task_id.store(task_id, Ordering::Release);
+    // Publish per-CPU state so yield_current and the timer handler can find us
+    let per_cpu_state = per_cpu(cpu_id);
+    per_cpu_state.idle_rsp_pointer.store(idle_rsp as *mut u64 as u64, Ordering::Release);
+    per_cpu_state.current_task_id.store(task_id, Ordering::Release);
 
-    // Save idle RSP and switch to the task
+    // Arm the APIC timer for preemption if there are more tasks waiting.
+    // Dynamic ticks: only arm when there's contention for this CPU.
+    // FIXME: with per-CPU local run queues, the next task to run would
+    // already be staged here — the timer handler could switch directly
+    // to it without going through the idle loop and locking the global
+    // scheduler. That eliminates one context switch per preemption.
+    let has_pending = !SCHEDULER.lock().run_queue.is_empty();
+    if has_pending {
+        arch::timer::arm_apic_timer_milliseconds(5); // 5ms timeslice
+    }
+
+    // Save idle RSP and switch to the task.
+    // The task will run with interrupts enabled (kernel_task_bootstrap does sti,
+    // and yield_current re-enables on resume). The APIC timer can only fire
+    // after the task enables interrupts, not while we're still in the idle loop.
     unsafe {
         arch::context_switch(idle_rsp as *mut u64, saved_rsp);
     }
 
     // Returned: task yielded, was preempted, blocked, or exited.
+    arch::timer::disarm_apic_timer();
 }

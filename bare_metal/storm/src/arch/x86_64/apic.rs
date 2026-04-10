@@ -96,12 +96,8 @@ pub fn init(rsdp_pointer: Optional<u64>) -> usize {
     let total_cpus = ap_apic_ids.len();
     log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "APIC: Found {} processors", total_cpus);
 
-    if total_cpus <= 1 {
-        log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "Single CPU system, no APs to start");
-        return 1;
-    }
-
-    // initialize BSP's local APIC
+    // Always initialize the BSP's local APIC — needed for the APIC timer
+    // (preemption) even on single-CPU systems.
     let apic_base = unsafe { xapic_base() };
     log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "xAPIC base: {:#x}", apic_base);
 
@@ -116,6 +112,11 @@ pub fn init(rsdp_pointer: Optional<u64>) -> usize {
 
     let bsp_hw_id = unsafe { bsp_lapic.id() };
     log_println!(log::SubSystem::X86_64, log::LogLevel::Debug, "BSP APIC ID: {}", bsp_hw_id);
+
+    if total_cpus <= 1 {
+        log_println!(log::SubSystem::X86_64, log::LogLevel::Information, "Single CPU system, no APs to start");
+        return 1;
+    }
 
     // remove BSP from AP list
     ap_apic_ids.retain(|&id| id != bsp_hw_id as u8);

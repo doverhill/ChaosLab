@@ -186,10 +186,11 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         scheduler::spawn_kernel(launch_user_process, 0, 0);
     }
 
-    // spawn test kernel threads
-    for i in 0..4 {
+    // spawn test kernel threads (including one that never yields — tests preemption)
+    for i in 0..3 {
         scheduler::spawn_kernel(test_thread_function, i, 0);
     }
+    scheduler::spawn_kernel(spin_forever_function, 99, 0);
 
     // watchdog: exits QEMU after 10 seconds (or keypress)
     scheduler::spawn_kernel(watchdog_thread, 10, 0);
@@ -235,6 +236,16 @@ fn test_thread_function(thread_number: u64) -> ! {
         // busy-wait a bit to simulate work (PM timer based)
         arch::delay_milliseconds(500);
         scheduler::yield_current();
+    }
+}
+
+/// Test thread that never yields — only runs if preemption works.
+/// If it monopolizes a CPU, other threads on that CPU won't get scheduled.
+fn spin_forever_function(thread_number: u64) -> ! {
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
+        "Spin thread {} started (never yields)", thread_number);
+    loop {
+        core::hint::spin_loop();
     }
 }
 

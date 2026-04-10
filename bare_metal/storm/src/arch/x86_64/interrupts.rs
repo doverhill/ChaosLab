@@ -1,6 +1,5 @@
 use crate::arch::gdt;
-use crate::log;
-use crate::log_println;
+use crate::{arch, log, log_println, scheduler};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
@@ -15,6 +14,8 @@ const APIC_ERROR_VECTOR: usize = 0xFD;
 const APIC_TIMER_VECTOR: usize = 0xFE;
 /// APIC spurious vector (0xFF).
 const APIC_SPURIOUS_VECTOR: usize = 0xFF;
+/// Scheduler IPI vector — used to wake idle CPUs from HLT.
+const SCHEDULER_IPI_VECTOR: usize = 0xFC;
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -29,12 +30,17 @@ lazy_static! {
         idt.general_protection_fault.set_handler_fn(gpf_handler);
         idt.alignment_check.set_handler_fn(alignment_check_handler);
 
-        // LAPIC interrupt handlers — required because the BSP's LAPIC is
-        // enabled for IPI delivery. Without these, any LAPIC interrupt
-        // hits a not-present IDT entry → #GP → double fault.
+        // LAPIC interrupt handlers
         idt[APIC_ERROR_VECTOR as u8].set_handler_fn(apic_error_handler);
-        idt[APIC_TIMER_VECTOR as u8].set_handler_fn(apic_timer_handler);
+        // Timer handler uses a naked wrapper that saves ALL GPRs for reliable
+        // context switching. We set the raw handler address in the IDT entry.
+        unsafe {
+            idt[APIC_TIMER_VECTOR as u8].set_handler_addr(
+                x86_64::VirtAddr::new(apic_timer_handler_naked as *const () as u64),
+            );
+        }
         idt[APIC_SPURIOUS_VECTOR as u8].set_handler_fn(apic_spurious_handler);
+        idt[SCHEDULER_IPI_VECTOR as u8].set_handler_fn(scheduler_ipi_handler);
 
         idt
     };
@@ -76,10 +82,112 @@ extern "x86-interrupt" fn apic_error_handler(_stack_frame: InterruptStackFrame) 
     apic_eoi();
 }
 
-extern "x86-interrupt" fn apic_timer_handler(_stack_frame: InterruptStackFrame) {
+/// Naked APIC timer handler wrapper. Saves ALL GPRs explicitly (the
+/// x86-interrupt ABI doesn't guarantee this when we call context_switch
+/// from inside the handler). The CPU already pushed the interrupt frame
+/// (SS, RSP, RFLAGS, CS, RIP) before we get here.
+///
+/// Stack after our pushes:
+///   [interrupt frame]  ← pushed by CPU
+///   [rax..r15]         ← pushed by us (15 GPRs)
+///   [context_switch callee-saved + return addr]  ← pushed by context_switch if preemption happens
+///
+/// On resume after preemption: context_switch ret's here, we pop all
+/// GPRs, iretq resumes the interrupted code.
+#[unsafe(naked)]
+extern "C" fn apic_timer_handler_naked() {
+    core::arch::naked_asm!(
+        // Save all general-purpose registers
+        "push rax",
+        "push rbx",
+        "push rcx",
+        "push rdx",
+        "push rsi",
+        "push rdi",
+        "push rbp",
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
+        "push r12",
+        "push r13",
+        "push r14",
+        "push r15",
+
+        // Call the Rust handler. It may context_switch away (preemption)
+        // and return much later when this task is dispatched again.
+        "call {handler}",
+
+        // Restore all GPRs (either immediately or after being re-dispatched)
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+        "pop rbp",
+        "pop rdi",
+        "pop rsi",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        "pop rax",
+        "iretq",
+
+        handler = sym apic_timer_handler_rust,
+    );
+}
+
+/// Rust portion of the timer handler. Called from the naked wrapper
+/// with all GPRs saved on the stack.
+extern "C" fn apic_timer_handler_rust() {
     apic_eoi();
+
+    let cpu_id = arch::cpu_id();
+
+    // Is a task running on this CPU?
+    let task_id = match scheduler::idle::get_current_task_id(cpu_id) {
+        Some(id) => id,
+        None => return,
+    };
+
+    // Are there other tasks waiting to run?
+    let should_preempt = {
+        let state = scheduler::SCHEDULER.lock();
+        !state.run_queue.is_empty()
+    };
+
+    if !should_preempt {
+        return;
+    }
+
+    // Preempt: context_switch to the idle loop. The naked wrapper already
+    // saved all GPRs. context_switch adds its own callee-saved frame on top.
+    // When this task is later dispatched, context_switch ret's back here,
+    // we return to the naked wrapper which pops all GPRs and does iretq.
+    let idle_rsp = unsafe { *(scheduler::idle::get_idle_rsp(cpu_id) as *const u64) };
+    let task_rsp_ptr = {
+        let mut state = scheduler::SCHEDULER.lock();
+        match state.get_mut(task_id) {
+            Some(task) => &mut task.saved_rsp as *mut u64,
+            None => return,
+        }
+    };
+
+    unsafe {
+        arch::context_switch(task_rsp_ptr, idle_rsp);
+    }
+    // Resumed here when dispatched again — return to naked wrapper
 }
 
 /// Spurious interrupts must NOT send EOI (Intel SDM Vol 3, 10.9).
 extern "x86-interrupt" fn apic_spurious_handler(_stack_frame: InterruptStackFrame) {
+}
+
+/// Scheduler IPI handler — wakes a CPU from HLT. Just EOI, the idle loop
+/// handles the rest.
+extern "x86-interrupt" fn scheduler_ipi_handler(_stack_frame: InterruptStackFrame) {
+    apic_eoi();
 }
