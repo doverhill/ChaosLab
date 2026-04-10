@@ -12,13 +12,20 @@ fn main() {
     // ---- Build ramdisk tar from all application ELFs ----
     let test_app_path = env::var("CARGO_BIN_FILE_TEST_APP").unwrap();
 
+    // create a staging directory with nice names for the tar entries
+    let staging_dir = out_dir.join("ramdisk_staging");
+    let _ = std::fs::create_dir_all(&staging_dir);
+    std::fs::copy(&test_app_path, staging_dir.join("test_app_1.elf")).unwrap();
+    std::fs::copy(&test_app_path, staging_dir.join("test_app_2.elf")).unwrap();
+
     let ramdisk_path = out_dir.join("ramdisk.tar");
     let status = Command::new("tar")
         .arg("--format").arg("ustar")  // plain ustar — no PAX extensions
         .arg("-cf")
         .arg(&ramdisk_path)
-        .arg("-C").arg(PathBuf::from(&test_app_path).parent().unwrap())
-        .arg(PathBuf::from(&test_app_path).file_name().unwrap())
+        .arg("-C").arg(&staging_dir)
+        .arg("test_app_1.elf")
+        .arg("test_app_2.elf")
         .env("COPYFILE_DISABLE", "1")  // suppress macOS resource fork files
         .status()
         .expect("Failed to run tar. Is tar installed?");
