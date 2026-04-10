@@ -238,8 +238,16 @@ fn test_thread_function(thread_number: u64) -> ! {
     }
 }
 
-/// Watchdog thread — waits for the given number of seconds (or keypress), then exits QEMU.
+/// Watchdog thread — checks time in a yield loop so it doesn't starve
+/// other tasks on single-CPU systems.
 fn watchdog_thread(seconds: u64) -> ! {
-    arch::wait_or_keypress(seconds);
-    arch::exit_emulator(0);
+    let start = unsafe { core::arch::x86_64::_rdtsc() };
+    let timeout_ticks = seconds * 1_000_000_000; // ~1 GHz TSC assumed (QEMU default)
+    loop {
+        let elapsed = unsafe { core::arch::x86_64::_rdtsc() } - start;
+        if elapsed >= timeout_ticks {
+            arch::exit_emulator(0);
+        }
+        scheduler::yield_current();
+    }
 }
