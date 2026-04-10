@@ -186,6 +186,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         scheduler::spawn_kernel(launch_user_process, 0, 0);
     }
 
+    // log sink: drains the log ring buffer to the framebuffer
+    scheduler::spawn_kernel(log_sink_task, 0, 12); // high priority — kernel reserved
+
     // spawn test kernel threads (including one that never yields — tests preemption)
     for i in 0..3 {
         scheduler::spawn_kernel(test_thread_function, i, 0);
@@ -247,6 +250,11 @@ fn spin_forever_function(thread_number: u64) -> ! {
     loop {
         core::hint::spin_loop();
     }
+}
+
+/// Log sink task — drains the log queue and writes to the framebuffer.
+fn log_sink_task(_: u64) -> ! {
+    log::log_sink_loop();
 }
 
 /// Watchdog thread — checks time in a yield loop so it doesn't starve

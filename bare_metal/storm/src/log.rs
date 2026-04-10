@@ -1,13 +1,15 @@
 //! Dual-output kernel logger (serial + framebuffer).
 //!
-//! Format: `[SubSystem    ] 0.123s LEVEL - message`
+//! Format: `[SubSystem] 0.123s LEVEL - message`
 //!
-//! Serial gets ANSI colors; framebuffer gets per-section RGB colors.
-//! The framebuffer backend is optional — before `init_framebuffer()` is called
-//! (or if no framebuffer is available) output goes to serial only.
+//! Serial output is synchronous (behind a spinlock — fast, useful for
+//! immediate debug output). Framebuffer output is asynchronous: log calls
+//! push formatted entries into a lock-free ring buffer, and a dedicated
+//! `log_sink` kernel task drains the buffer and renders to the framebuffer.
+//! This eliminates deadlock from preemption while holding the framebuffer lock.
 
 use core::fmt::Write;
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -29,11 +31,11 @@ const FB_LOG_LEVEL: LogLevel = LogLevel::Information;
 // Timestamp
 // ---------------------------------------------------------------------------
 
-static BOOT_TSC: AtomicU64 = AtomicU64::new(0);
+static BOOT_TSC: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 
 /// Call once at the very start of kernel_main to anchor the boot timestamp.
 pub fn init_boot_tsc() {
-    BOOT_TSC.store(rdtsc(), Ordering::Relaxed);
+    BOOT_TSC.store(rdtsc(), core::sync::atomic::Ordering::Relaxed);
 }
 
 #[inline(always)]
@@ -41,18 +43,15 @@ fn rdtsc() -> u64 {
     unsafe { core::arch::x86_64::_rdtsc() }
 }
 
-/// Approximate seconds + milliseconds since boot.
-/// Assumes ~1 GHz TSC (QEMU TCG default). Inaccurate on real hardware
-/// without proper calibration, but good enough for relative ordering.
 fn elapsed() -> (u64, u64) {
-    let ticks = rdtsc().saturating_sub(BOOT_TSC.load(Ordering::Relaxed));
+    let ticks = rdtsc().saturating_sub(BOOT_TSC.load(core::sync::atomic::Ordering::Relaxed));
     let secs = ticks / 1_000_000_000;
     let millis = (ticks % 1_000_000_000) / 1_000_000;
     (secs, millis)
 }
 
 // ---------------------------------------------------------------------------
-// Serial backend
+// Serial backend (synchronous, always available)
 // ---------------------------------------------------------------------------
 
 struct Serial(Uart16550<PioBackend>);
@@ -73,24 +72,115 @@ lazy_static! {
 }
 
 // ---------------------------------------------------------------------------
-// Framebuffer backend (optional, initialized later)
+// Framebuffer backend (async via ring buffer + sink task)
 // ---------------------------------------------------------------------------
 
-use crate::scheduler::task_mutex::TaskMutex;
+lazy_static! {
+    static ref FRAMEBUFFER: Mutex<Option<FramebufferWriter>> = Mutex::new(None);
+}
 
-static FRAMEBUFFER: TaskMutex<Option<FramebufferWriter>> = TaskMutex::new(None);
-
-/// Enable framebuffer output. Called once from main after extracting the
-/// framebuffer from BootInfo.
 pub fn init_framebuffer(writer: FramebufferWriter) {
     *FRAMEBUFFER.lock() = Some(writer);
 }
 
-/// Remap the framebuffer to use identity mapping instead of the bootloader's
-/// offset mapping. The physical address must already be identity-mapped.
 pub fn remap_framebuffer(framebuffer_physical_address: u64) {
     if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
         framebuffer.remap_buffer(framebuffer_physical_address as *mut u8);
+    }
+}
+
+/// A pre-formatted log entry with a fixed-size buffer (no heap allocation
+/// in the log path, which could deadlock if the allocator lock is held
+/// when preempted).
+struct LogEntry {
+    sub_system: SubSystem,
+    log_level: LogLevel,
+    length: usize,
+    buffer: [u8; 256],
+}
+
+/// Queue of pending log entries waiting to be written to the framebuffer.
+/// Protected by a spinlock (brief hold time — just push one entry).
+/// The Vec itself grows on the heap but only when capacity is exceeded.
+static LOG_QUEUE: Mutex<alloc::vec::Vec<LogEntry>> = Mutex::new(alloc::vec::Vec::new());
+
+/// Write directly to framebuffer (used during early boot before scheduler).
+fn write_framebuffer_sync(sub_system: SubSystem, log_level: LogLevel, secs: u64, millis: u64, args: core::fmt::Arguments) {
+    if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
+        let (sr, sg, sb) = subsystem_rgb(&sub_system);
+        framebuffer.set_color(sr, sg, sb);
+        let _ = write!(framebuffer, "[{}] ", sub_system);
+
+        framebuffer.set_color(150, 150, 150);
+        let _ = write!(framebuffer, "{}.{:03}s ", secs, millis);
+
+        let (lr, lg, lb) = level_rgb(&log_level);
+        framebuffer.set_color(lr, lg, lb);
+        let _ = write!(framebuffer, "{} - ", level_label(&log_level));
+        let _ = framebuffer.write_fmt(args);
+    }
+}
+
+/// Push a log entry into the queue. Formats into a fixed-size stack buffer
+/// (no heap allocation) then pushes to the Vec (brief spinlock hold).
+fn push_log_entry(sub_system: SubSystem, log_level: LogLevel, secs: u64, millis: u64, args: core::fmt::Arguments) {
+    let mut entry = LogEntry {
+        sub_system,
+        log_level,
+        length: 0,
+        buffer: [0; 256],
+    };
+    {
+        let mut writer = EntryWriter { entry: &mut entry };
+        let _ = write!(writer, "{}.{:03}s {} - ", secs, millis, level_label(&log_level));
+        let _ = writer.write_fmt(args);
+    }
+    LOG_QUEUE.lock().push(entry);
+}
+
+struct EntryWriter<'a> {
+    entry: &'a mut LogEntry,
+}
+
+impl core::fmt::Write for EntryWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        let bytes = s.as_bytes();
+        let remaining = self.entry.buffer.len() - self.entry.length;
+        let to_copy = bytes.len().min(remaining);
+        self.entry.buffer[self.entry.length..self.entry.length + to_copy]
+            .copy_from_slice(&bytes[..to_copy]);
+        self.entry.length += to_copy;
+        Ok(())
+    }
+}
+
+/// Log sink: drain the queue and write to the framebuffer.
+/// Called from a dedicated kernel task (spawned by main).
+pub fn log_sink_loop() -> ! {
+    loop {
+        // Swap out the entire queue to minimize lock hold time
+        let entries = {
+            let mut queue = LOG_QUEUE.lock();
+            if queue.is_empty() {
+                drop(queue);
+                crate::scheduler::yield_current();
+                continue;
+            }
+            core::mem::take(&mut *queue)
+        };
+
+        if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
+            for entry in &entries {
+                let text = unsafe { core::str::from_utf8_unchecked(&entry.buffer[..entry.length]) };
+                let (sr, sg, sb) = subsystem_rgb(&entry.sub_system);
+                framebuffer.set_color(sr, sg, sb);
+                let _ = write!(framebuffer, "[{}] ", entry.sub_system);
+
+                let (lr, lg, lb) = level_rgb(&entry.log_level);
+                framebuffer.set_color(lr, lg, lb);
+                let _ = framebuffer.write_str(text);
+            }
+        }
     }
 }
 
@@ -120,25 +210,23 @@ impl core::fmt::Display for SubSystem {
     }
 }
 
-// Pastel ANSI colors (256-color mode: 38;5;N)
 fn subsystem_ansi(ss: &SubSystem) -> &'static str {
     match ss {
-        SubSystem::Kernel => "38;5;210",      // pastel rose
-        SubSystem::Boot => "38;5;150",         // pastel green
-        SubSystem::X86_64 => "38;5;222",       // pastel gold
-        SubSystem::Physical => "38;5;111",     // pastel blue
-        SubSystem::KernelMemory => "38;5;183", // pastel lavender
+        SubSystem::Kernel => "38;5;210",
+        SubSystem::Boot => "38;5;150",
+        SubSystem::X86_64 => "38;5;222",
+        SubSystem::Physical => "38;5;111",
+        SubSystem::KernelMemory => "38;5;183",
     }
 }
 
-// Pastel RGB colors for framebuffer
 fn subsystem_rgb(ss: &SubSystem) -> (u8, u8, u8) {
     match ss {
-        SubSystem::Kernel => (240, 160, 160),      // pastel rose
-        SubSystem::Boot => (160, 220, 160),         // pastel green
-        SubSystem::X86_64 => (230, 210, 140),       // pastel gold
-        SubSystem::Physical => (140, 180, 240),     // pastel blue
-        SubSystem::KernelMemory => (200, 170, 240), // pastel lavender
+        SubSystem::Kernel => (240, 160, 160),
+        SubSystem::Boot => (160, 220, 160),
+        SubSystem::X86_64 => (230, 210, 140),
+        SubSystem::Physical => (140, 180, 240),
+        SubSystem::KernelMemory => (200, 170, 240),
     }
 }
 
@@ -161,31 +249,39 @@ fn level_label(ll: &LogLevel) -> &'static str {
 
 fn level_ansi(ll: &LogLevel) -> &'static str {
     match ll {
-        LogLevel::Debug => "38;5;243",       // soft gray
-        LogLevel::Information => "38;5;252",  // light gray
-        LogLevel::Warning => "38;5;222",      // pastel yellow
-        LogLevel::Error => "38;5;210",        // pastel red
+        LogLevel::Debug => "38;5;243",
+        LogLevel::Information => "38;5;252",
+        LogLevel::Warning => "38;5;222",
+        LogLevel::Error => "38;5;210",
     }
 }
 
 fn level_rgb(ll: &LogLevel) -> (u8, u8, u8) {
     match ll {
-        LogLevel::Debug => (140, 140, 140),       // soft gray
-        LogLevel::Information => (210, 210, 210),  // light gray
-        LogLevel::Warning => (240, 210, 130),      // pastel yellow
-        LogLevel::Error => (240, 150, 150),        // pastel red
+        LogLevel::Debug => (140, 140, 140),
+        LogLevel::Information => (210, 210, 210),
+        LogLevel::Warning => (240, 210, 130),
+        LogLevel::Error => (240, 150, 150),
     }
 }
 
 // ---------------------------------------------------------------------------
-// Core print function — dispatches to both backends
+// Core print function
 // ---------------------------------------------------------------------------
 
 #[doc(hidden)]
 pub fn _print(sub_system: SubSystem, log_level: LogLevel, args: ::core::fmt::Arguments) {
     let (secs, millis) = elapsed();
 
-    // --- serial (always available) ---
+    // Disable interrupts for the entire log call to prevent preemption
+    // while holding the SERIAL or LOG_QUEUE spinlocks. On single-CPU
+    // systems, preemption during a spinlock hold = deadlock. The total
+    // time here is ~100µs (UART write) which is acceptable vs the 5ms
+    // preemption timeslice.
+    let interrupts_were_enabled = x86_64::instructions::interrupts::are_enabled();
+    x86_64::instructions::interrupts::disable();
+
+    // --- serial (synchronous, always available) ---
     if log_level >= SERIAL_LOG_LEVEL {
         let mut s = SERIAL.lock();
         let _ = write!(
@@ -202,23 +298,19 @@ pub fn _print(sub_system: SubSystem, log_level: LogLevel, args: ::core::fmt::Arg
         let _ = write!(s, "\x1b[0m");
     }
 
-    // --- framebuffer (if initialized) ---
+    // --- framebuffer ---
     if log_level >= FB_LOG_LEVEL {
-        if let Some(ref mut framebuffer) = *FRAMEBUFFER.lock() {
-            let (sr, sg, sb) = subsystem_rgb(&sub_system);
-            framebuffer.set_color(sr, sg, sb);
-            let _ = write!(framebuffer, "[{}] ", sub_system);
-
-            framebuffer.set_color(150, 150, 150);
-            let _ = write!(framebuffer, "{}.{:03}s ", secs, millis);
-
-            let (lr, lg, lb) = level_rgb(&log_level);
-            framebuffer.set_color(lr, lg, lb);
-            let _ = write!(framebuffer, "{} - ", level_label(&log_level));
-
-            framebuffer.set_color(lr, lg, lb);
-            let _ = framebuffer.write_fmt(args);
+        if crate::scheduler::task_mutex::is_scheduler_active() {
+            // After scheduler is running: push to async queue (no lock contention)
+            push_log_entry(sub_system, log_level, secs, millis, args);
+        } else {
+            // During boot: write directly (no scheduler, no preemption risk)
+            write_framebuffer_sync(sub_system, log_level, secs, millis, args);
         }
+    }
+
+    if interrupts_were_enabled {
+        x86_64::instructions::interrupts::enable();
     }
 }
 
@@ -226,13 +318,11 @@ pub fn _print(sub_system: SubSystem, log_level: LogLevel, args: ::core::fmt::Arg
 // Macros
 // ---------------------------------------------------------------------------
 
-/// Low-level print (no newline). Prefer `log_println!`.
 #[macro_export]
 macro_rules! serial_print {
     ($ss:path, $ll:path, $($arg:tt)*) => ($crate::log::_print($ss, $ll, format_args!($($arg)*)));
 }
 
-/// Log a line to all backends. Appends a trailing newline.
 #[macro_export]
 macro_rules! log_println {
     ($ss:path, $ll:path) => ($crate::log::_print($ss, $ll, format_args!("\n")));

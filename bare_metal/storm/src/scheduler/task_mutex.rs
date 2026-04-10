@@ -28,8 +28,18 @@ pub fn set_scheduler_active() {
     SCHEDULER_ACTIVE.store(true, Ordering::Release);
 }
 
-fn can_yield() -> bool {
+pub fn is_scheduler_active() -> bool {
     SCHEDULER_ACTIVE.load(Ordering::Acquire)
+}
+
+fn can_yield() -> bool {
+    if !SCHEDULER_ACTIVE.load(Ordering::Acquire) {
+        return false;
+    }
+    // Only yield if we're in a task context (a task is running on this CPU).
+    // The idle loop, interrupt handlers, and boot code should not yield.
+    let cpu_id = crate::arch::cpu_id();
+    super::idle::get_current_task_id(cpu_id).is_some()
 }
 
 pub struct TaskMutex<T> {

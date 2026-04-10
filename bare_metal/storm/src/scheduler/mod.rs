@@ -104,7 +104,13 @@ pub fn yield_current() {
     // Get the idle RSP to switch back to (dereference the pointer to the
     // idle loop's stack variable), and a pointer into the task's saved_rsp
     // field so context_switch can save our RSP there.
-    let idle_rsp = unsafe { *(idle::get_idle_rsp(cpu_id) as *const u64) };
+    let idle_rsp_pointer = idle::get_idle_rsp(cpu_id);
+    if idle_rsp_pointer == 0 {
+        // No idle loop set up for this CPU yet — can't yield
+        x86_64::instructions::interrupts::enable();
+        return;
+    }
+    let idle_rsp = unsafe { *(idle_rsp_pointer as *const u64) };
     let task_rsp_ptr = {
         let mut state = SCHEDULER.lock();
         match state.get_mut(task_id) {
