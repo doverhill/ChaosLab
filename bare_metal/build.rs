@@ -2,6 +2,33 @@ use bootloader::DiskImageBuilder;
 use std::process::Command;
 use std::{env, path::PathBuf};
 
+/// Find llvm-objcopy from the Rust toolchain's sysroot.
+fn find_llvm_objcopy() -> Option<PathBuf> {
+    let output = Command::new("rustc").arg("--print").arg("sysroot").output().ok()?;
+    let sysroot = PathBuf::from(String::from_utf8(output.stdout).ok()?.trim().to_string());
+    // Search all host triples for the binary
+    for entry in std::fs::read_dir(sysroot.join("lib/rustlib")).ok()? {
+        let path = entry.ok()?.path().join("bin/llvm-objcopy");
+        if path.exists() { return Some(path); }
+    }
+    None
+}
+
+/// Strip debug info from an ELF and copy to the staging directory.
+fn strip_and_stage(source: &str, destination: &PathBuf) {
+    if let Some(objcopy) = find_llvm_objcopy() {
+        let status = Command::new(&objcopy)
+            .arg("--strip-debug")
+            .arg(source)
+            .arg(destination)
+            .status()
+            .expect("Failed to run llvm-objcopy");
+        if status.success() { return; }
+    }
+    eprintln!("cargo:warning=llvm-objcopy not found, using unstripped ELFs");
+    std::fs::copy(source, destination).unwrap();
+}
+
 fn main() {
     // set by cargo for the storm kernel artifact dependency
     let kernel_path = env::var("CARGO_BIN_FILE_STORM").unwrap();
@@ -12,11 +39,13 @@ fn main() {
     // ---- Build ramdisk tar from all application ELFs ----
     let test_app_path = env::var("CARGO_BIN_FILE_TEST_APP").unwrap();
 
-    // create a staging directory with nice names for the tar entries
+    // Strip debug info and stage with clean names for the tar entries.
+    // Debug sections are ~95% of the ELF size — stripping reduces a
+    // 1 MiB "hello world" app to ~64 KiB.
     let staging_dir = out_dir.join("ramdisk_staging");
     let _ = std::fs::create_dir_all(&staging_dir);
-    std::fs::copy(&test_app_path, staging_dir.join("test_app_1.elf")).unwrap();
-    std::fs::copy(&test_app_path, staging_dir.join("test_app_2.elf")).unwrap();
+    strip_and_stage(&test_app_path, &staging_dir.join("test_app_1.elf"));
+    strip_and_stage(&test_app_path, &staging_dir.join("test_app_2.elf"));
 
     let ramdisk_path = out_dir.join("ramdisk.tar");
     let status = Command::new("tar")
