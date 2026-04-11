@@ -69,9 +69,9 @@ pub struct Task {
 
     // Scheduling metadata
     /// Preferred CPU (LAPIC ID). None = any CPU.
-    pub cpu_affinity: Option<u32>,
+    pub cpu_affinity: Option<usize>,
     /// Last CPU this task ran on (for locality).
-    pub last_cpu: Option<u32>,
+    pub last_cpu_id: Option<usize>,
     /// IPC partner task (for scheduling on different CPUs).
     pub ipc_partner: Option<TaskId>,
     /// TSC ticks remaining in current timeslice.

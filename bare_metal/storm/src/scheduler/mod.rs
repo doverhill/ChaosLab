@@ -75,7 +75,7 @@ pub fn spawn_kernel(function: KernelTaskFunction, argument: u64, priority: i32) 
         cr3: 0,
         block_reason: None,
         cpu_affinity: None,
-        last_cpu: None,
+        last_cpu_id: None,
         ipc_partner: None,
         timeslice_remaining_ticks: 0,
     };

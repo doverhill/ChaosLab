@@ -23,6 +23,10 @@ struct PerCpuIdleState {
     current_task_id: AtomicU64,
     /// Whether this CPU is halted waiting for work.
     is_idle: AtomicBool,
+    /// Last CR3 (page table) this CPU ran. When idle, the CPU stays in this
+    /// address space so the TLB remains warm. Prefer waking a CPU that
+    /// already has the right CR3 loaded to avoid TLB flushes.
+    last_cr3: AtomicU64,
     /// TSC when this CPU entered idle (0 = not idle).
     idle_since_tsc: AtomicU64,
     /// Accumulated idle TSC ticks for utilization measurement.
@@ -48,6 +52,7 @@ pub fn init(cpu_count: usize) {
                 idle_rsp_pointer: AtomicU64::new(0),
                 current_task_id: AtomicU64::new(0),
                 is_idle: AtomicBool::new(false),
+                last_cr3: AtomicU64::new(0),
                 idle_since_tsc: AtomicU64::new(0),
                 total_idle_tsc: AtomicU64::new(0),
             });
@@ -75,8 +80,49 @@ pub fn get_current_task_id(cpu_id: usize) -> Option<TaskId> {
     if id == 0 { None } else { Some(id) }
 }
 
-/// Wake an idle CPU by sending a scheduler IPI. If no CPU is idle, does nothing.
-/// Called after making a task runnable (spawn, unblock, etc.).
+/// Wake an idle CPU by sending a scheduler IPI. Prefers a CPU whose
+/// last_cr3 matches `preferred_cr3` (avoids TLB flush). If no match,
+/// wakes any idle CPU. If no CPU is idle, does nothing.
+pub fn wake_idle_cpu_with_cr3(preferred_cr3: u64) {
+    let per_cpu_vec = match PER_CPU_IDLE.get() {
+        Some(v) => v,
+        None => return,
+    };
+
+    // Fast path: check the cached hint
+    let hint = FIRST_IDLE_CPU.load(Ordering::Acquire);
+    if hint != NO_IDLE_CPU {
+        let hint_cpu = hint as usize;
+        if hint_cpu < per_cpu_vec.len() && per_cpu_vec[hint_cpu].is_idle.load(Ordering::Acquire) {
+            // If we have a CR3 preference and the hint doesn't match,
+            // scan for a better match before falling back to the hint.
+            if preferred_cr3 == 0 || per_cpu_vec[hint_cpu].last_cr3.load(Ordering::Relaxed) == preferred_cr3 {
+                arch::send_scheduler_ipi(hint_cpu);
+                return;
+            }
+        }
+    }
+
+    // Scan: prefer CR3 match, fall back to any idle CPU
+    let mut fallback: Option<usize> = None;
+    for (id, state) in per_cpu_vec.iter().enumerate() {
+        if !state.is_idle.load(Ordering::Acquire) { continue; }
+        if preferred_cr3 != 0 && state.last_cr3.load(Ordering::Relaxed) == preferred_cr3 {
+            arch::send_scheduler_ipi(id);
+            return;
+        }
+        if fallback.is_none() {
+            fallback = Some(id);
+        }
+    }
+
+    // No CR3 match — wake any idle CPU
+    if let Some(id) = fallback {
+        arch::send_scheduler_ipi(id);
+    }
+}
+
+/// Wake any idle CPU (no CR3 preference).
 pub fn wake_idle_cpu() {
     // Fast path: check the cached hint
     let hint = FIRST_IDLE_CPU.load(Ordering::Acquire);
@@ -84,7 +130,7 @@ pub fn wake_idle_cpu() {
         arch::send_scheduler_ipi(hint as usize);
         return;
     }
-    // Slow path: scan per-CPU state (hint was stale)
+    // Slow path: scan
     if let Some(per_cpu_vec) = PER_CPU_IDLE.get() {
         for (id, state) in per_cpu_vec.iter().enumerate() {
             if state.is_idle.load(Ordering::Acquire) {
@@ -93,7 +139,6 @@ pub fn wake_idle_cpu() {
             }
         }
     }
-    // No idle CPUs — the task will be picked up when a CPU finishes its current work
 }
 
 // ---------------------------------------------------------------------------
@@ -132,10 +177,21 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
                 }
             }
         } else {
-            // Nothing to run — halt until woken by IPI or timer interrupt.
+            // Nothing to run — check for timed wakeups and halt.
+            // Process any expired timers first (might unblock tasks).
+            process_expired_timers();
+
+            // Arm the APIC timer for the nearest timer queue deadline so
+            // we wake up to unblock sleeping tasks even without an IPI.
+            arm_for_timed_wakeup();
+
             begin_idle(cpu_id);
             arch::halt_until_interrupt();
             end_idle(cpu_id);
+
+            // After waking (IPI or timer), process any expired timers.
+            arch::timer::disarm_apic_timer();
+            process_expired_timers();
         }
     }
 }
@@ -168,20 +224,56 @@ fn end_idle(cpu_id: usize) {
 }
 
 // ---------------------------------------------------------------------------
+// Timed wakeups
+// ---------------------------------------------------------------------------
+
+/// Process expired timer entries: unblock tasks whose deadline has passed.
+fn process_expired_timers() {
+    let now = arch::read_tsc();
+    let expired = {
+        let mut state = SCHEDULER.lock();
+        state.timer_queue.pop_expired(now)
+    };
+    for task_id in expired {
+        // Lazy deletion: only unblock if the task is still Blocked.
+        // It may have been unblocked by its actual event already.
+        super::unblock(task_id);
+    }
+}
+
+/// Arm the APIC timer for the nearest timer queue deadline.
+/// Called before HLT so the CPU wakes up to process timed wakeups.
+fn arm_for_timed_wakeup() {
+    let deadline = SCHEDULER.lock().timer_queue.peek_deadline();
+    if let Some(deadline_ticks) = deadline {
+        let now = arch::read_tsc();
+        if deadline_ticks > now {
+            let delta = deadline_ticks - now;
+            // Convert TSC ticks to APIC timer ticks (approximate — both
+            // run at ~1 GHz on QEMU so the ratio is close to 1:1).
+            let apic_ticks = (delta as u32).max(1);
+            arch::timer::arm_apic_timer_ticks(apic_ticks);
+        }
+        // If deadline already passed, don't arm — process_expired_timers
+        // will handle it on the next loop iteration.
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
 
 /// Dispatch a task on this CPU: context-switch to it and return when it
 /// yields, gets preempted, blocks, or exits.
 fn dispatch(cpu_id: usize, task_id: TaskId, idle_rsp: &mut u64) {
-    let saved_rsp = {
+    let (saved_rsp, task_cr3) = {
         let mut state = SCHEDULER.lock();
         let task = match state.get_mut(task_id) {
             Some(t) => t,
             None => return,
         };
-        task.last_cpu = Some(cpu_id as u32);
-        task.saved_rsp
+        task.last_cpu_id = Some(cpu_id);
+        (task.saved_rsp, task.cr3)
     };
 
     log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
@@ -191,6 +283,9 @@ fn dispatch(cpu_id: usize, task_id: TaskId, idle_rsp: &mut u64) {
     let per_cpu_state = per_cpu(cpu_id);
     per_cpu_state.idle_rsp_pointer.store(idle_rsp as *mut u64 as u64, Ordering::Release);
     per_cpu_state.current_task_id.store(task_id, Ordering::Release);
+    if task_cr3 != 0 {
+        per_cpu_state.last_cr3.store(task_cr3, Ordering::Relaxed);
+    }
 
     // Arm the APIC timer for preemption if there are more tasks waiting.
     // Dynamic ticks: only arm when there's contention for this CPU.
