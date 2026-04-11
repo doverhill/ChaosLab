@@ -153,11 +153,11 @@ extern "C" fn apic_timer_handler_rust() {
         None => return,
     };
 
-    // Are there other tasks waiting to run?
-    let should_preempt = {
-        let state = scheduler::SCHEDULER.lock();
-        !state.run_queue.is_empty()
-    };
+    // Are there other tasks waiting to run? Check both the global run queue
+    // and this CPU's local queue.
+    let local_waiting = scheduler::idle::local_queue_len(cpu_id);
+    let global_waiting = scheduler::SCHEDULER.lock().run_queue.count();
+    let should_preempt = local_waiting > 0 || global_waiting > 0;
 
     if !should_preempt {
         return;

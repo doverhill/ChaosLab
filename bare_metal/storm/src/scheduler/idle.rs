@@ -93,6 +93,11 @@ pub fn get_current_task_id(cpu_id: usize) -> Option<TaskId> {
     if id == 0 { None } else { Some(id) }
 }
 
+/// Get the number of tasks in a CPU's local run queue.
+pub fn local_queue_len(cpu_id: usize) -> usize {
+    per_cpu(cpu_id).local_queue.lock().len()
+}
+
 /// Push a task onto a specific CPU's local run queue.
 /// Used when unblocking a task that last ran on that CPU (keeps it local).
 pub fn push_to_local_queue(cpu_id: usize, task_id: TaskId) {
@@ -123,9 +128,7 @@ fn steal_from_global_if_needed(cpu_id: usize) {
     });
 
     let cycle = counters[cpu_id].fetch_add(1, Ordering::Relaxed);
-    if cycle % STEAL_INTERVAL != 0 {
-        return;
-    }
+    if cycle % STEAL_INTERVAL != 0 { return; }
 
     // Steal up to 4 tasks from global into local
     let mut state = SCHEDULER.lock();
@@ -372,15 +375,21 @@ fn dispatch(cpu_id: usize, task_id: TaskId, idle_rsp: &mut u64) {
         per_cpu_state.last_cr3.store(task_cr3, Ordering::Relaxed);
     }
 
-    // Arm the APIC timer for preemption if there are more tasks waiting.
-    // Dynamic ticks: only arm when there's contention for this CPU.
-    // FIXME: with per-CPU local run queues, the next task to run would
+    // Arm the APIC timer for preemption if there are more tasks waiting
+    // (on either the local or global queue). Dynamic ticks: only arm when
+    // there's contention for this CPU.
+    // FIXME: with a lock-free local queue, the next task to run would
     // already be staged here — the timer handler could switch directly
-    // to it without going through the idle loop and locking the global
-    // scheduler. That eliminates one context switch per preemption.
-    let has_pending = !SCHEDULER.lock().run_queue.is_empty();
-    if has_pending {
-        arch::timer::arm_apic_timer_milliseconds(5); // 5ms timeslice
+    // to it without going through the idle loop. That eliminates one
+    // context switch per preemption.
+    // Arm preemption timer if there are other runnable tasks on this CPU's
+    // local queue (already popped the one we're dispatching, so len > 0
+    // means others are waiting). Also check global in case tasks were
+    // just spawned/unblocked there.
+    let local_waiting = per_cpu_state.local_queue.lock().len();
+    let global_waiting = SCHEDULER.lock().run_queue.count();
+    if local_waiting > 0 || global_waiting > 0 {
+        arch::timer::arm_apic_timer_milliseconds(5);
     }
 
     // Save idle RSP and switch to the task.
