@@ -84,7 +84,7 @@ pub fn spawn_kernel(function: KernelTaskFunction, argument: u64, priority: i32) 
         "Spawned kernel task {}", task_id);
 
     SCHEDULER.lock().add_and_enqueue(task);
-    // TODO: notify idle CPUs (Phase 3)
+    idle::wake_idle_cpu();
     task_id
 }
 
@@ -142,7 +142,7 @@ pub fn block_current(_reason: task::BlockReason) {
 pub fn unblock(task_id: TaskId) {
     let unblocked = SCHEDULER.lock().unblock(task_id);
     if unblocked {
-        // TODO: notify idle CPUs (Phase 3)
+        idle::wake_idle_cpu();
     }
 }
 

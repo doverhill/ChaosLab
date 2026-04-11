@@ -182,3 +182,34 @@ pub fn wait_or_keypress(seconds: u64) {
 pub fn exit_emulator(code: u8) -> ! {
     qemu::exit(code);
 }
+
+/// Scheduler IPI vector — used to wake idle CPUs from HLT.
+const SCHEDULER_IPI_VECTOR: u8 = 0xFC;
+
+/// Send an IPI to wake a specific CPU from HLT.
+pub fn send_scheduler_ipi(target_cpu_id: usize) {
+    let apic_base: u64 = 0xFEE00000;
+    let icr_high = (apic_base + 0x310) as *mut u32;
+    let icr_low = (apic_base + 0x300) as *mut u32;
+    unsafe {
+        // Set destination APIC ID
+        core::ptr::write_volatile(icr_high, (target_cpu_id as u32) << 24);
+        // Send fixed interrupt with scheduler IPI vector
+        core::ptr::write_volatile(icr_low, SCHEDULER_IPI_VECTOR as u32);
+    }
+}
+
+/// Halt the CPU until the next interrupt. Used by the idle loop when
+/// no tasks are available.
+pub fn halt_until_interrupt() {
+    unsafe {
+        // Enable interrupts and halt atomically — if an interrupt is
+        // already pending, it fires immediately after sti.
+        core::arch::asm!("sti; hlt; cli", options(nomem, nostack));
+    }
+}
+
+/// Read the TSC (Time Stamp Counter).
+pub fn read_tsc() -> u64 {
+    timer::read_tsc()
+}
