@@ -35,17 +35,32 @@ fn main() {
     // spawn so we can take a screenshot while QEMU runs
     let mut child = qemu.spawn().unwrap();
 
-    // background thread: wait for kernel to boot, then take a screenshot via QEMU monitor
+    // background thread: capture screenshots periodically via QEMU monitor
     let sock_path = monitor_sock.to_string();
-    let img_path = screenshot_path.display().to_string();
+    let img_dir = screenshot_path.parent().unwrap().to_path_buf();
     std::thread::spawn(move || {
-        // give the kernel time to boot and render to framebuffer
-        std::thread::sleep(std::time::Duration::from_secs(8));
+        // wait for kernel to boot
+        std::thread::sleep(std::time::Duration::from_secs(2));
         if let Ok(mut stream) = std::os::unix::net::UnixStream::connect(&sock_path) {
-            let cmd = format!("screendump {}\n", img_path);
-            let _ = stream.write_all(cmd.as_bytes());
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            eprintln!("Screenshot saved to {}", img_path);
+            let interval_ms: u64 = std::env::var("SCREENSHOT_INTERVAL_MS")
+                .ok().and_then(|s| s.parse().ok()).unwrap_or(0);
+            if interval_ms > 0 {
+                // periodic screenshots
+                for i in 0.. {
+                    let path = img_dir.join(format!("screenshot_{:04}.ppm", i));
+                    let cmd = format!("screendump {}\n", path.display());
+                    let _ = stream.write_all(cmd.as_bytes());
+                    std::thread::sleep(std::time::Duration::from_millis(interval_ms));
+                }
+            } else {
+                // single screenshot near the end
+                std::thread::sleep(std::time::Duration::from_secs(6));
+                let path = img_dir.join("screenshot.ppm");
+                let cmd = format!("screendump {}\n", path.display());
+                let _ = stream.write_all(cmd.as_bytes());
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                eprintln!("Screenshot saved to {}", path.display());
+            }
         }
     });
 

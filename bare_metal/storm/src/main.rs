@@ -195,8 +195,8 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     }
     scheduler::spawn_kernel(spin_forever_function, 99, 0);
 
-    // watchdog: exits QEMU after 10 seconds (or keypress)
-    scheduler::spawn_kernel(watchdog_thread, 10, 0);
+    // watchdog: exits QEMU after 5 seconds
+    scheduler::spawn_kernel(watchdog_thread, 5, 0);
 
     log_println!(log::SubSystem::Boot, log::LogLevel::Information,
         "Boot complete — BSP entering scheduler");
