@@ -5,8 +5,9 @@
 //! CPU via TSC for utilization metrics.
 
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use alloc::collections::VecDeque;
 use alloc::vec::Vec;
-use spin::Once;
+use spin::{Mutex, Once};
 
 use super::task::{TaskId, TaskState};
 use super::SCHEDULER;
@@ -31,6 +32,17 @@ struct PerCpuIdleState {
     idle_since_tsc: AtomicU64,
     /// Accumulated idle TSC ticks for utilization measurement.
     total_idle_tsc: AtomicU64,
+    /// Per-CPU local run queue. The owning CPU dequeues without contention.
+    /// Remote CPUs may push (unblock a task that last ran here). Tasks that
+    /// yield or get preempted go back to their CPU's local queue, avoiding
+    /// the global lock on the hot path.
+    ///
+    /// FIXME: this uses a Mutex<VecDeque> which is simple but means the owning
+    /// CPU still takes a lock to dequeue. A lock-free SPMC queue (single
+    /// producer = owning CPU, multiple consumers = none, multiple pushers =
+    /// remote CPUs) would eliminate all locking on the dequeue path. Chase-Lev
+    /// work-stealing deque would be ideal here.
+    local_queue: Mutex<VecDeque<TaskId>>,
 }
 
 /// Heap-allocated per-CPU idle state. Initialized by `init()`.
@@ -55,6 +67,7 @@ pub fn init(cpu_count: usize) {
                 last_cr3: AtomicU64::new(0),
                 idle_since_tsc: AtomicU64::new(0),
                 total_idle_tsc: AtomicU64::new(0),
+                local_queue: Mutex::new(VecDeque::new()),
             });
         }
         v
@@ -78,6 +91,52 @@ pub fn get_idle_rsp(cpu_id: usize) -> u64 {
 pub fn get_current_task_id(cpu_id: usize) -> Option<TaskId> {
     let id = per_cpu(cpu_id).current_task_id.load(Ordering::Acquire);
     if id == 0 { None } else { Some(id) }
+}
+
+/// Push a task onto a specific CPU's local run queue.
+/// Used when unblocking a task that last ran on that CPU (keeps it local).
+pub fn push_to_local_queue(cpu_id: usize, task_id: TaskId) {
+    per_cpu(cpu_id).local_queue.lock().push_back(task_id);
+}
+
+/// Pop from this CPU's local run queue. Returns None if empty.
+fn pop_local_queue(cpu_id: usize) -> Option<TaskId> {
+    per_cpu(cpu_id).local_queue.lock().pop_front()
+}
+
+/// How many scheduling cycles between global steals.
+/// Every Nth cycle we pull tasks from global into local, ensuring global
+/// tasks don't starve when local is busy.
+const STEAL_INTERVAL: u64 = 4;
+
+/// Steal up to N tasks from the global run queue into the local queue.
+/// Called periodically from the idle loop to prevent global starvation.
+/// FIXME: a smarter approach would be to check global queue length and
+/// steal proportionally, or use a work-stealing deque where idle CPUs
+/// pull from busy CPUs' local queues.
+fn steal_from_global_if_needed(cpu_id: usize) {
+    // Use a simple counter per CPU to avoid stealing on every iteration
+    static STEAL_COUNTERS: spin::Once<Vec<AtomicU64>> = spin::Once::new();
+    let counters = STEAL_COUNTERS.call_once(|| {
+        let count = PER_CPU_IDLE.get().map_or(1, |v| v.len());
+        (0..count).map(|_| AtomicU64::new(0)).collect()
+    });
+
+    let cycle = counters[cpu_id].fetch_add(1, Ordering::Relaxed);
+    if cycle % STEAL_INTERVAL != 0 {
+        return;
+    }
+
+    // Steal up to 4 tasks from global into local
+    let mut state = SCHEDULER.lock();
+    let mut local = per_cpu(cpu_id).local_queue.lock();
+    for _ in 0..4 {
+        if let Some(task_id) = state.run_queue.dequeue() {
+            local.push_back(task_id);
+        } else {
+            break;
+        }
+    }
 }
 
 /// Wake an idle CPU by sending a scheduler IPI. Prefers a CPU whose
@@ -157,22 +216,47 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
     let mut idle_rsp: u64 = 0;
 
     loop {
-        let picked = {
+        // Pick next task: check local queue first (no global lock),
+        // then steal from global if local is empty. Also steal a batch
+        // from global into local periodically to prevent starvation of
+        // global tasks when local is always busy.
+        steal_from_global_if_needed(cpu_id);
+        let picked = pop_local_queue(cpu_id).or_else(|| {
             let mut state = SCHEDULER.lock();
             state.pick_next()
-        };
+        });
 
         if let Some(task_id) = picked {
             end_idle(cpu_id);
             dispatch(cpu_id, task_id, &mut idle_rsp);
 
             // Re-enqueue if still Running (yield/preempt case).
+            // Push to local queue for cache/TLB locality, UNLESS other
+            // CPUs are idle and our local queue is already busy — in that
+            // case, push to global so idle CPUs can pick up the work.
+            //
+            // FIXME: this rebalancing is incomplete. If one CPU has 1000
+            // tasks in its local queue and every other CPU has one busy-
+            // looping task (none idle), no rebalance ever happens. A proper
+            // work-stealing scheme would let underloaded CPUs steal from
+            // overloaded CPUs' local queues, not just from the global queue.
             let returned_id = per_cpu(cpu_id).current_task_id.swap(0, Ordering::Release);
             if returned_id != 0 {
                 let mut state = SCHEDULER.lock();
                 if let Some(task) = state.get(returned_id) {
                     if task.state == TaskState::Running {
-                        state.requeue(returned_id);
+                        let local_count = per_cpu(cpu_id).local_queue.lock().len();
+                        let has_idle_cpus = FIRST_IDLE_CPU.load(Ordering::Relaxed) != NO_IDLE_CPU;
+
+                        if local_count > 0 && has_idle_cpus {
+                            // Shed work to idle CPUs via global queue
+                            state.requeue(returned_id);
+                            drop(state);
+                            wake_idle_cpu();
+                        } else {
+                            drop(state);
+                            per_cpu(cpu_id).local_queue.lock().push_back(returned_id);
+                        }
                     }
                 }
             }
@@ -272,6 +356,7 @@ fn dispatch(cpu_id: usize, task_id: TaskId, idle_rsp: &mut u64) {
             Some(t) => t,
             None => return,
         };
+        task.state = TaskState::Running;
         task.last_cpu_id = Some(cpu_id);
         (task.saved_rsp, task.cr3)
     };
