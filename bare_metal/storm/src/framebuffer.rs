@@ -3,6 +3,13 @@
 //! Renders monospace glyphs from `noto-sans-mono-bitmap` into the UEFI pixel
 //! framebuffer. Supports cursor tracking, line wrap, scrolling, and per-section
 //! RGB color.
+//!
+//! Known issue: QEMU's VGA device uses dirty page tracking to determine which
+//! rows to refresh on screen. Small writes (single character renders) may not
+//! always trigger an immediate display update, causing rows to appear blank
+//! until a larger operation (like scroll_up's memmove) dirties enough pages
+//! to force a refresh. This is a QEMU rendering artifact, not a data
+//! corruption bug — the framebuffer memory is always correct.
 
 use bootloader_api::info::{FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
