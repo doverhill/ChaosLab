@@ -48,11 +48,14 @@ cargo run --bin qemu-uefi    # UEFI boot in QEMU (default 4 CPUs)
 SMP=1 cargo run --bin qemu-uefi  # single CPU mode
 ```
 
-When testing, capture full output to a file and then grep/tail it:
+When testing, always capture full output to a file and then grep/tail it.
+Always test both SMP=1 and SMP=4 — single-CPU exposes scheduling bugs that hide behind multi-CPU parallelism.
 ```sh
 cargo run --bin qemu-uefi 2>&1 | tee /tmp/run-output
-# then in another terminal or after:
-grep "userspace\|FAULT\|PANIC" /tmp/run-output
+SMP=1 cargo run --bin qemu-uefi 2>&1 | tee /tmp/run-output-1cpu
+grep "userspace\|FAULT\|PANIC\|Thread" /tmp/run-output
+# periodic framebuffer screenshots:
+SCREENSHOT_INTERVAL_MS=500 cargo run --bin qemu-uefi
 ```
 
 ### Hosted kernel (.NET)
