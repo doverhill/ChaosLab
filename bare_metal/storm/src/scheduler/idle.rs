@@ -437,6 +437,7 @@ fn dispatch(cpu_id: usize, task_id: TaskId, idle_rsp: &mut u64) {
         };
         task.state = TaskState::Running;
         task.last_cpu_id = Some(cpu_id);
+        task.dispatch_tsc = arch::read_tsc();
         (task.saved_rsp, task.cr3)
     };
 
@@ -475,4 +476,15 @@ fn dispatch(cpu_id: usize, task_id: TaskId, idle_rsp: &mut u64) {
 
     // Returned: task yielded, was preempted, blocked, or exited.
     arch::timer::disarm_apic_timer();
+
+    // Record how long the task ran for metrics
+    let now = arch::read_tsc();
+    let tsc_freq = arch::timer::tsc_frequency();
+    let mut state = SCHEDULER.lock();
+    if let Some(task) = state.get_mut(task_id) {
+        let ran_ticks = now.saturating_sub(task.dispatch_tsc);
+        task.total_running_ticks += ran_ticks;
+        task.cpu_usage_buckets.record_ticks(ran_ticks, now, tsc_freq);
+        task.dispatch_tsc = 0;
+    }
 }

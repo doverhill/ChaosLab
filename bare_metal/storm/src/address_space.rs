@@ -23,6 +23,8 @@ use crate::{log, log_println, physical_memory};
 /// `allocate_user_pages` / `free_user_pages`.
 pub struct AddressSpace {
     l4_physical_address: u64,
+    /// Total number of user pages currently mapped in this address space.
+    user_page_count: core::sync::atomic::AtomicUsize,
 }
 
 impl AddressSpace {
@@ -52,13 +54,21 @@ impl AddressSpace {
             new_l4_physical
         );
 
-        AddressSpace { l4_physical_address: new_l4_physical }
+        AddressSpace {
+            l4_physical_address: new_l4_physical,
+            user_page_count: core::sync::atomic::AtomicUsize::new(0),
+        }
     }
 
     /// Return the physical address of this address space's L4 page table.
     /// Used when switching CR3 to activate this address space.
     pub fn l4_physical_address(&self) -> u64 {
         self.l4_physical_address
+    }
+
+    /// Total user pages currently mapped in this address space.
+    pub fn user_page_count(&self) -> usize {
+        self.user_page_count.load(core::sync::atomic::Ordering::Relaxed)
     }
 
     /// Map `page_count` zero-filled 4 KiB pages at `virtual_address` in the
@@ -110,11 +120,12 @@ impl AddressSpace {
             physical_addresses.push(physical_address);
         }
 
+        self.user_page_count.fetch_add(page_count, core::sync::atomic::Ordering::Relaxed);
         log_println!(
             log::SubSystem::KernelMemory,
             log::LogLevel::Debug,
-            "Mapped {} user pages at {:#x} in address space {:#x}",
-            page_count, virtual_address, self.l4_physical_address
+            "Mapped {} user pages at {:#x} in address space {:#x} (total: {})",
+            page_count, virtual_address, self.l4_physical_address, self.user_page_count()
         );
         Ok(physical_addresses)
     }
@@ -172,13 +183,15 @@ impl AddressSpace {
                 l1_table[l1_index].set_addr(PhysAddr::new(physical_address), USER_PAGE_FLAGS);
             }
 
+            self.user_page_count.fetch_add(page_count, core::sync::atomic::Ordering::Relaxed);
             log_println!(
                 log::SubSystem::KernelMemory,
                 log::LogLevel::Debug,
-                "Mapped {} user pages at {:#x} in address space {:#x}",
+                "Mapped {} user pages at {:#x} in address space {:#x} (total: {})",
                 page_count,
                 candidate,
-                self.l4_physical_address
+                self.l4_physical_address,
+                self.user_page_count()
             );
             return Some(candidate);
         }
@@ -233,13 +246,15 @@ impl AddressSpace {
             x86_64::instructions::tlb::flush(x86_64::VirtAddr::new(virtual_address));
         }
 
+        self.user_page_count.fetch_sub(page_count, core::sync::atomic::Ordering::Relaxed);
         log_println!(
             log::SubSystem::KernelMemory,
             log::LogLevel::Debug,
-            "Freed {} user pages at {:#x} in address space {:#x}",
+            "Freed {} user pages at {:#x} in address space {:#x} (total: {})",
             page_count,
             base,
-            self.l4_physical_address
+            self.l4_physical_address,
+            self.user_page_count()
         );
     }
 

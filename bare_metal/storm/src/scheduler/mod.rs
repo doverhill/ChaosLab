@@ -78,6 +78,9 @@ pub fn spawn_kernel(function: KernelTaskFunction, argument: u64, priority: i32) 
         last_cpu_id: None,
         ipc_partner: None,
         timeslice_remaining_ticks: 0,
+        total_running_ticks: 0,
+        dispatch_tsc: 0,
+        cpu_usage_buckets: task::CpuUsageBuckets::new(),
     };
 
     log_println!(log::SubSystem::Kernel, log::LogLevel::Debug,
