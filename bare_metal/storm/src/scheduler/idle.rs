@@ -54,9 +54,23 @@ static PER_CPU_IDLE: Once<Vec<PerCpuIdleState>> = Once::new();
 const NO_IDLE_CPU: u64 = u64::MAX;
 static FIRST_IDLE_CPU: AtomicU64 = AtomicU64::new(NO_IDLE_CPU);
 
+/// Global count of runnable tasks (across all local queues + global queue).
+/// Used for load balancing: each CPU compares its local count against
+/// total / cpu_count to detect imbalance.
+static TOTAL_RUNNABLE: AtomicU64 = AtomicU64::new(0);
+/// Number of CPUs (set once during init).
+static CPU_COUNT: AtomicU64 = AtomicU64::new(1);
+
+/// Rebalance threshold: only shed tasks if local queue exceeds
+/// fair_share + REBALANCE_THRESHOLD.
+const REBALANCE_THRESHOLD: usize = 2;
+/// How often to check load balance (every Nth scheduling cycle per CPU).
+const REBALANCE_INTERVAL: u64 = 8;
+
 /// Initialize per-CPU idle state for the given number of CPU slots.
 /// Must be called once after SMP discovery, before any CPU enters the idle loop.
 pub fn init(cpu_count: usize) {
+    CPU_COUNT.store(cpu_count as u64, Ordering::Relaxed);
     PER_CPU_IDLE.call_once(|| {
         let mut v = Vec::with_capacity(cpu_count);
         for _ in 0..cpu_count {
@@ -93,6 +107,18 @@ pub fn get_current_task_id(cpu_id: usize) -> Option<TaskId> {
     if id == 0 { None } else { Some(id) }
 }
 
+/// Increment the global runnable task count.
+/// Call when a task becomes runnable (spawn, unblock, yield re-enqueue).
+pub fn increment_runnable() {
+    TOTAL_RUNNABLE.fetch_add(1, Ordering::Relaxed);
+}
+
+/// Decrement the global runnable task count.
+/// Call when a task stops being runnable (dispatched, blocked, exited).
+pub fn decrement_runnable() {
+    TOTAL_RUNNABLE.fetch_sub(1, Ordering::Relaxed);
+}
+
 /// Get the number of tasks in a CPU's local run queue.
 pub fn local_queue_len(cpu_id: usize) -> usize {
     per_cpu(cpu_id).local_queue.lock().len()
@@ -102,11 +128,16 @@ pub fn local_queue_len(cpu_id: usize) -> usize {
 /// Used when unblocking a task that last ran on that CPU (keeps it local).
 pub fn push_to_local_queue(cpu_id: usize, task_id: TaskId) {
     per_cpu(cpu_id).local_queue.lock().push_back(task_id);
+    increment_runnable();
 }
 
 /// Pop from this CPU's local run queue. Returns None if empty.
 fn pop_local_queue(cpu_id: usize) -> Option<TaskId> {
-    per_cpu(cpu_id).local_queue.lock().pop_front()
+    let result = per_cpu(cpu_id).local_queue.lock().pop_front();
+    if result.is_some() {
+        decrement_runnable();
+    }
+    result
 }
 
 /// How many scheduling cycles between global steals.
@@ -219,10 +250,9 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
     let mut idle_rsp: u64 = 0;
 
     loop {
-        // Pick next task: check local queue first (no global lock),
-        // then steal from global if local is empty. Also steal a batch
-        // from global into local periodically to prevent starvation of
-        // global tasks when local is always busy.
+        // Periodic load balancing: shed excess tasks if overloaded,
+        // steal from global if local is empty.
+        rebalance_if_needed(cpu_id);
         steal_from_global_if_needed(cpu_id);
         let picked = pop_local_queue(cpu_id).or_else(|| {
             let mut state = SCHEDULER.lock();
@@ -238,15 +268,8 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
             // CPUs are idle and our local queue is already busy — in that
             // case, push to global so idle CPUs can pick up the work.
             //
-            // FIXME: rebalancing is incomplete in two ways:
-            // 1. Shedding only happens when idle CPUs exist. If one CPU has
-            //    1000 tasks and every other CPU has one busy-looping task
-            //    (none idle), the overloaded CPU never sheds work.
-            // 2. Idle CPUs only steal from global, never from other CPUs'
-            //    local queues. If all tasks are on one CPU's local queue
-            //    and global is empty, idle CPUs sit doing nothing.
-            // A proper fix: periodically compare local queue lengths across
-            // CPUs and migrate tasks from the longest to the shortest.
+            // Push to local for locality. The periodic rebalance_if_needed()
+            // will shed excess tasks to global if this CPU is overloaded.
             let returned_id = per_cpu(cpu_id).current_task_id.swap(0, Ordering::Release);
             if returned_id != 0 {
                 let mut state = SCHEDULER.lock();
@@ -258,11 +281,13 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
                         if local_count > 0 && has_idle_cpus {
                             // Shed work to idle CPUs via global queue
                             state.requeue(returned_id);
+                            increment_runnable();
                             drop(state);
                             wake_idle_cpu();
                         } else {
                             drop(state);
                             per_cpu(cpu_id).local_queue.lock().push_back(returned_id);
+                            increment_runnable();
                         }
                     }
                 }
@@ -311,6 +336,53 @@ fn end_idle(cpu_id: usize) {
     if started != 0 {
         let elapsed = arch::read_tsc().saturating_sub(started);
         state.total_idle_tsc.fetch_add(elapsed, Ordering::Relaxed);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Load balancing
+// ---------------------------------------------------------------------------
+
+/// Check if this CPU is overloaded and shed excess tasks to global.
+/// Called periodically from the idle loop (every REBALANCE_INTERVAL cycles).
+fn rebalance_if_needed(cpu_id: usize) {
+    static REBALANCE_COUNTERS: spin::Once<Vec<AtomicU64>> = spin::Once::new();
+    let counters = REBALANCE_COUNTERS.call_once(|| {
+        let count = PER_CPU_IDLE.get().map_or(1, |v| v.len());
+        (0..count).map(|_| AtomicU64::new(0)).collect()
+    });
+
+    let cycle = counters[cpu_id].fetch_add(1, Ordering::Relaxed);
+    if cycle % REBALANCE_INTERVAL != 0 {
+        return;
+    }
+
+    let total = TOTAL_RUNNABLE.load(Ordering::Relaxed) as usize;
+    let cpus = CPU_COUNT.load(Ordering::Relaxed) as usize;
+    if cpus == 0 { return; }
+
+    let fair_share = total / cpus;
+    let my_local_len = per_cpu(cpu_id).local_queue.lock().len();
+
+    if my_local_len > fair_share + REBALANCE_THRESHOLD {
+        // Shed excess tasks to global queue
+        let excess = my_local_len - fair_share;
+        let mut local = per_cpu(cpu_id).local_queue.lock();
+        let mut state = SCHEDULER.lock();
+        for _ in 0..excess {
+            if let Some(task_id) = local.pop_back() {
+                // Push to global run queue. The task's state should be
+                // Runnable (it's on the local queue, not currently running).
+                // FIXME: use actual task priority from the task table instead
+                // of default 0. Requires locking task_table to read priority,
+                // or storing priority alongside TaskId in the local queue.
+                state.run_queue.enqueue(task_id, 0);
+            }
+        }
+        drop(state);
+        drop(local);
+        // Wake an idle CPU if any — it can now steal from global
+        wake_idle_cpu();
     }
 }
 

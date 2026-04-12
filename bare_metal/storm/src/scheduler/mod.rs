@@ -84,6 +84,7 @@ pub fn spawn_kernel(function: KernelTaskFunction, argument: u64, priority: i32) 
         "Spawned kernel task {}", task_id);
 
     SCHEDULER.lock().add_and_enqueue(task);
+    idle::increment_runnable();
     idle::wake_idle_cpu();
     task_id
 }
