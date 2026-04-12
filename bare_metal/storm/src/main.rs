@@ -231,6 +231,53 @@ fn launch_user_process(_: u64) -> ! {
     );
 }
 
+/// Dump a summary of all tasks (like `ps`) before shutdown.
+fn dump_task_summary() {
+    let tsc_freq = arch::timer::tsc_frequency();
+
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Information, "");
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
+        "=== Task Summary ===");
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
+        "{:<6} {:<10} {:<10} {:<12} {:<8} {:<6}",
+        "ID", "Kind", "State", "CPU Total", "CPU%", "Prio");
+
+    let state = scheduler::SCHEDULER.lock();
+    for (task_id, task) in state.task_table.iter() {
+        let kind = match task.kind {
+            scheduler::task::TaskKind::Kernel => "kernel",
+            scheduler::task::TaskKind::UserThread { .. } => "user",
+        };
+        let task_state = match task.state {
+            scheduler::task::TaskState::Running => "running",
+            scheduler::task::TaskState::Runnable => "runnable",
+            scheduler::task::TaskState::Blocked => "blocked",
+            scheduler::task::TaskState::Exited => "exited",
+        };
+
+        // Total CPU time in milliseconds
+        let total_ms = if tsc_freq > 0 {
+            task.total_running_ticks * 1000 / tsc_freq
+        } else {
+            0
+        };
+
+        // Recent CPU% from the 5-second sliding window
+        let cpu_percent = if tsc_freq > 0 {
+            let avg_ticks_per_sec = task.cpu_usage_buckets.average_ticks_per_second();
+            (avg_ticks_per_sec * 100 / tsc_freq) as u32
+        } else {
+            0
+        };
+
+        log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
+            "{:<6} {:<10} {:<10} {:<8}ms   {:<5}%  {}",
+            task_id, kind, task_state, total_ms, cpu_percent, task.priority);
+    }
+    log_println!(log::SubSystem::Kernel, log::LogLevel::Information,
+        "====================");
+}
+
 /// Test thread function — logs a message, yields, repeats.
 fn test_thread_function(thread_number: u64) -> ! {
     loop {
@@ -265,6 +312,7 @@ fn watchdog_thread(seconds: u64) -> ! {
     loop {
         let elapsed = unsafe { core::arch::x86_64::_rdtsc() } - start;
         if elapsed >= timeout_ticks {
+            dump_task_summary();
             arch::exit_emulator(0);
         }
         scheduler::yield_current();
