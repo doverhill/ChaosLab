@@ -238,11 +238,15 @@ pub fn run_on_cpu(cpu_id: u64) -> ! {
             // CPUs are idle and our local queue is already busy — in that
             // case, push to global so idle CPUs can pick up the work.
             //
-            // FIXME: this rebalancing is incomplete. If one CPU has 1000
-            // tasks in its local queue and every other CPU has one busy-
-            // looping task (none idle), no rebalance ever happens. A proper
-            // work-stealing scheme would let underloaded CPUs steal from
-            // overloaded CPUs' local queues, not just from the global queue.
+            // FIXME: rebalancing is incomplete in two ways:
+            // 1. Shedding only happens when idle CPUs exist. If one CPU has
+            //    1000 tasks and every other CPU has one busy-looping task
+            //    (none idle), the overloaded CPU never sheds work.
+            // 2. Idle CPUs only steal from global, never from other CPUs'
+            //    local queues. If all tasks are on one CPU's local queue
+            //    and global is empty, idle CPUs sit doing nothing.
+            // A proper fix: periodically compare local queue lengths across
+            // CPUs and migrate tasks from the longest to the shortest.
             let returned_id = per_cpu(cpu_id).current_task_id.swap(0, Ordering::Release);
             if returned_id != 0 {
                 let mut state = SCHEDULER.lock();
