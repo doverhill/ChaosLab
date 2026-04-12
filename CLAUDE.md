@@ -107,6 +107,9 @@ Windows-only. Uses PowerShell build scripts at the repo root:
 - **Always test SMP=1 and SMP=4.** Single-CPU exposes scheduling bugs (priority starvation, missing yields, local queue issues) that are invisible on multi-CPU.
 - **No fixed MAX constants.** Use Vec/heap allocation sized from runtime values, not MAX_CPUS arrays.
 - **Leave FIXME/TODO comments** on code that could be improved later.
+- **Prefer fine-grained locking** (per-object, per-CPU) unless it leads to deadlocks. Use lock-free structures where possible. Consider per-CPU local state with work stealing over global locks.
+- **Keep debug logging in code**, controlled via `SERIAL_LOG_LEVEL` in log.rs. Don't remove debug log_println! calls — set the level to Information for normal runs, Debug when troubleshooting.
+- **Save progress to CLAUDE.md/TODO.md** during long sessions so context isn't lost between conversations. Update these files before ending a session.
 
 ## Coding conventions
 
